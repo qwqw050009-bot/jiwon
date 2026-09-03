@@ -29,6 +29,7 @@ import config
 import enrich
 import sources
 import bizinfo
+import kstartup
 import ics
 import pages as static_pages
 
@@ -111,6 +112,10 @@ def tally(items):
 # "마감됨 + 유사 공고 추천"으로 상세페이지를 계속 살려둔다.
 ARCHIVE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "archive.json")
 ARCHIVE_DAYS = 180
+# 소스 전환(mock↔실데이터)이나 ID 생성 로직 변경 등으로 오늘 목록과 아카이브가
+# 통째로 안 겹치는 사고가 나면 상세페이지가 수백~수천 개로 폭증할 수 있다.
+# 그런 경우를 대비한 상한선. 정상 운영에서는 이 값에 걸릴 일이 없다.
+MAX_ARCHIVED = 300
 
 ARCHIVE_FIELDS = (
     "id", "title", "category", "region", "org", "target", "amount",
@@ -164,6 +169,12 @@ def archived_notices(rows, today):
         out.append(row)
 
     _save_archive(kept)
+    if len(out) > MAX_ARCHIVED:
+        # 마감일이 가장 최근인 것부터 우선 유지 (오래된 것부터 잘라낸다)
+        out.sort(key=lambda r: r.get("apply_end") or "")
+        print(f"경고: 아카이브 대상이 {len(out)}건으로 비정상적으로 많음 "
+              f"(소스 전환/ID 생성 로직 변경 의심). 최근 {MAX_ARCHIVED}건만 생성합니다.")
+        out = out[-MAX_ARCHIVED:]
     return out
 
 
@@ -231,6 +242,15 @@ def main():
     else:
         print("목업 모드 (BIZINFO_KEY 없음)")
         rows = sources.load()
+
+    # K-Startup은 창업 분야 데이터 깊이 보강용 선택적 소스.
+    # KSTARTUP_KEY가 없으면 이 블록은 그냥 건너뛰고 기존과 완전히 동일하게 빌드된다.
+    ks_key = os.environ.get("KSTARTUP_KEY", "").strip()
+    if ks_key:
+        ks_raw = kstartup.KstartupSource(ks_key).fetch()
+        before = len(ks_raw)
+        rows, dup_cnt = sources.merge_extra(rows, ks_raw)
+        print(f"K-Startup 보강: {before - dup_cnt}건 추가 (제목 중복 {dup_cnt}건 제외, 총 {before}건 수신)")
 
     use_llm = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     rows = enrich.enrich_all(rows, use_llm=use_llm)

@@ -64,9 +64,8 @@ class BizinfoSource:
     pass
 
 
-def load(source=None):
-    src = source or MockSource()
-    rows = src.fetch()
+def _process(rows):
+    """D-day 계산 + 마감 일주일 지난 것 제외. 정렬은 안 한다(호출부에서 합친 뒤 한 번에)."""
     today = date.today()
     out = []
     for r in rows:
@@ -83,6 +82,30 @@ def load(source=None):
             continue
         r["is_open"] = r["dday"] >= 0
         out.append(r)
-    out.sort(key=lambda x: (x.get("period_type") == "always",
-                            not x["is_open"], x["dday"]))
     return out
+
+
+def _sort_key(x):
+    return (x.get("period_type") == "always", not x["is_open"], x["dday"])
+
+
+def load(source=None):
+    src = source or MockSource()
+    rows = _process(src.fetch())
+    rows.sort(key=_sort_key)
+    return rows
+
+
+def merge_extra(rows, extra_raw):
+    """
+    이미 load()를 거친 rows에 보강 데이터소스(K-Startup 등)를 합친다.
+    제목이 정확히 겹치는 공고는 같은 사업의 중복 게시로 보고 건너뛴다
+    (기업마당 쪽을 우선 유지 — 이미 커버리지가 넓고 먼저 들어온 소스라서).
+    나머지는 동일한 D-day 계산을 거쳐 합친 뒤 다시 정렬한다.
+    반환값: (합쳐진 rows, 중복이라 제외된 건수)
+    """
+    existing_titles = {(r.get("title") or "").strip() for r in rows}
+    fresh = [r for r in extra_raw if (r.get("title") or "").strip() not in existing_titles]
+    merged = rows + _process(fresh)
+    merged.sort(key=_sort_key)
+    return merged, len(extra_raw) - len(fresh)

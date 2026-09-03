@@ -10,8 +10,11 @@
 
 ## 파일 역할
 - `src/config.py` — 사이트 설정, 분야 8종, 지역 17종
-- `src/bizinfo.py` — API 어댑터. 응답을 내부 스키마로 정규화
-- `src/sources.py` — 데이터 로더. D-day 계산, 정렬
+- `src/bizinfo.py` — 기업마당 API 어댑터. 응답을 내부 스키마로 정규화
+- `src/kstartup.py` — K-Startup(창업진흥원) API 어댑터. 창업 분야 데이터
+  깊이 보강용 선택적 소스. `KSTARTUP_KEY` 없으면 완전히 건너뛰고
+  기업마당만으로 기존과 동일하게 빌드된다
+- `src/sources.py` — 데이터 로더. D-day 계산, 정렬, 보강 소스 병합(`merge_extra`)
 - `src/enrich.py` — 공고별 해설 생성. 캐시 필수
 - `src/build.py` — 전체 페이지 생성, sitemap, robots
 - `src/ics.py` — 캘린더 구독 파일
@@ -52,7 +55,14 @@ JS가 꺼져도 서버 렌더 목록이 보여야 한다.
 무료 주소로 색인되면 도메인 이전 시 중복 콘텐츠가 된다.
 
 **7. 인증키를 코드에 쓰지 마라**
-`BIZINFO_KEY`, `ANTHROPIC_API_KEY`는 환경변수로만 읽는다.
+`BIZINFO_KEY`, `KSTARTUP_KEY`, `ANTHROPIC_API_KEY`는 환경변수로만 읽는다.
+
+**8. 보강 데이터소스는 항상 선택적으로(optional) 연결하라**
+K-Startup처럼 나중에 추가하는 소스는 해당 API 키 환경변수가 없으면
+빌드 전체가 그 소스 없이 기존과 완전히 동일하게 동작해야 한다.
+필수 소스처럼 연결해서 키 없으면 빌드가 죽거나 결과가 달라지게 하지 마라.
+같은 이유로 보강 소스가 실패해도(네트워크 오류 등) 빈 리스트로 대체하고
+전체 빌드를 죽이지 않는다.
 
 ## 작업 방식
 - 수정 후 반드시 `python src/build.py` 로 빌드가 통과하는지 확인
