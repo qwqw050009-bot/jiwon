@@ -105,6 +105,94 @@ def tally(items):
     }
 
 
+# 마감 후 7일이 지나면 목록에서는 빠지지만(sources.load), 상세페이지 URL은
+# 검색엔진이 이미 색인해뒀을 수 있다. 여기서 죽이면 쌓아둔 색인/백링크가
+# 날아가므로, 마감된 공고도 별도 아카이브에 최대 ARCHIVE_DAYS일 보관하며
+# "마감됨 + 유사 공고 추천"으로 상세페이지를 계속 살려둔다.
+ARCHIVE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "archive.json")
+ARCHIVE_DAYS = 180
+
+ARCHIVE_FIELDS = (
+    "id", "title", "category", "region", "org", "target", "amount",
+    "method", "contact", "detail_url", "apply_start", "apply_end",
+    "period_type", "period_raw", "points", "overview", "ai",
+)
+
+
+def _load_archive():
+    try:
+        with open(ARCHIVE_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_archive(arc):
+    with open(ARCHIVE_PATH, "w", encoding="utf-8") as f:
+        json.dump(arc, f, ensure_ascii=False)
+
+
+def archived_notices(rows, today):
+    """
+    오늘 빌드에 없는(=마감 7일 초과로 빠진) 과거 공고 중,
+    마감일로부터 ARCHIVE_DAYS일이 안 지난 것만 살려서 반환한다.
+    상시(period_type=always) 공고는 마감일이 없어 아카이브 대상에서 뺀다.
+    """
+    arc = _load_archive()
+    live_ids = {a["id"] for a in rows}
+    for a in rows:
+        if a.get("period_type") != "always":
+            arc[a["id"]] = {k: a.get(k) for k in ARCHIVE_FIELDS}
+
+    kept, out = {}, []
+    for aid, a in arc.items():
+        try:
+            end = date.fromisoformat(a.get("apply_end") or "")
+        except Exception:
+            continue
+        if (today - end).days > ARCHIVE_DAYS:
+            continue          # 너무 오래돼서 버림
+        kept[aid] = a
+        if aid in live_ids:
+            continue          # 오늘 목록에 이미 있으면 아카이브 페이지 별도 생성 불필요
+        row = fill_defaults(dict(a))
+        row["dday"] = (today - end).days * -1
+        row["is_open"] = False
+        row["is_new"] = False
+        row = decorate(row)
+        row["is_closed"] = True
+        out.append(row)
+
+    _save_archive(kept)
+    return out
+
+
+def faq_jsonld(a):
+    """
+    공고 상세 페이지에 이미 보이는 문구(ai.fit/caution/checklist, 접수기간, 지원규모)를
+    그대로 질문-답변으로 재구성한다. 화면에 없는 내용을 만들어 넣지 않는다
+    (구글 FAQ 구조화데이터 가이드라인 — 페이지에 보이지 않는 답변은 안 됨).
+    """
+    period = (a.get("period_raw") or "상시 접수") if a.get("period_type") == "always" \
+        else f"{a.get('apply_start')} ~ {a.get('apply_end')}"
+    qa = []
+    if a.get("ai", {}).get("fit"):
+        qa.append(("어떤 기업이 신청할 수 있나요?", " ".join(a["ai"]["fit"])))
+    qa.append(("접수기간과 지원규모는 어떻게 되나요?",
+               f"접수기간은 {period}이며, 지원규모는 {a.get('amount') or '공고문 참조'}입니다."))
+    if a.get("ai", {}).get("caution"):
+        qa.append(("신청 전 확인해야 할 점은 무엇인가요?", " ".join(a["ai"]["caution"])))
+    if a.get("ai", {}).get("checklist"):
+        qa.append(("신청 시 준비해야 할 서류는 무엇인가요?", " ".join(a["ai"]["checklist"])))
+    return json.dumps({
+        "@context": "https://schema.org", "@type": "FAQPage",
+        "mainEntity": [{
+            "@type": "Question", "name": q,
+            "acceptedAnswer": {"@type": "Answer", "text": ans},
+        } for q, ans in qa],
+    }, ensure_ascii=False)
+
+
 SLUGMAP = json.dumps({
     "region": {r["name"]: r["slug"] for r in config.REGIONS},
     "category": {c["name"]: c["slug"] for c in config.CATEGORIES},
@@ -284,9 +372,9 @@ def main():
                 sel_region=rname, sel_category=cn, limit=20,
             )
 
-    # 공고 상세
-    for a in rows:
-        rel = [x for x in rows
+    # 공고 상세 (접수 중 + 마감 후 최근 것)
+    def render_notice(a, pool):
+        rel = [x for x in pool
                if x["id"] != a["id"] and x["region"] == a["region"]
                and x["category"] == a["category"]][:5]
         ld = json.dumps({
@@ -295,12 +383,25 @@ def main():
             "areaServed": a["region"], "audience": {"@type": "Audience", "audienceType": a["target"]},
             "description": a["ai"]["summary"],
         }, ensure_ascii=False)
+        title_suffix = "— 마감된 공고 정리" if a.get("is_closed") else "— 신청자격·마감일 정리"
         html = env.get_template("detail.html").render(
             site=SITE, path=f"/notice/{a['id']}/",
-            title=f"{a['title']} — 신청자격·마감일 정리 | {SITE['name']}",
-            desc=a["ai"]["summary"][:150], a=a, related=rel, jsonld=ld,
+            title=f"{a['title']} {title_suffix} | {SITE['name']}",
+            desc=a["ai"]["summary"][:150], a=a, related=rel,
+            jsonld=ld, faq_jsonld=faq_jsonld(a),
         )
         write(f"/notice/{a['id']}/", html)
+
+    for a in rows:
+        render_notice(a, rows)
+
+    # 마감 후 7일이 지나 목록에서는 빠졌지만, 검색엔진이 이미 색인했을 상세페이지는
+    # ARCHIVE_DAYS일까지 "마감됨 + 유사 공고 추천"으로 살려둔다 (색인/백링크 유지).
+    archived = archived_notices(rows, date.today())
+    for a in archived:
+        render_notice(a, rows)   # 추천은 항상 지금 접수 중인 공고 풀에서 뽑는다
+    if archived:
+        print(f"아카이브 상세페이지 {len(archived)}건 유지")
 
     # 캘린더 구독 안내 페이지
     cal_links = "".join(

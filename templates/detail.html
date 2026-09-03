@@ -2,9 +2,13 @@
 {% from "_row.html" import row %}
 {% block jsonld %}
 <script type="application/ld+json">{{ jsonld|safe }}</script>
+<script type="application/ld+json">{{ faq_jsonld|safe }}</script>
 {% endblock %}
 {% block body %}
 <article class="detail">
+  {% if a.is_closed %}
+  <p class="alert">이 공고는 접수가 마감되었습니다. 아래에서 현재 접수 중인 유사 공고를 확인하세요.</p>
+  {% endif %}
   <div class="dday {{ a.cls }}" style="text-align:left;font-size:15px">{{ a.dlabel }} · {{ a.dsub }}</div>
   <h1>{{ a.title }}</h1>
   <p>{{ a.ai.summary }}</p>
@@ -49,7 +53,7 @@
 </article>
 
 <section class="nav-block">
-  <h2>{{ a.region }} {{ a.category }} 분야 다른 공고</h2>
+  <h2>{{ a.region }} {{ a.category }} 분야 {% if a.is_closed %}현재 접수 중인{% else %}다른{% endif %} 공고</h2>
   <div class="board">{% for x in related %}{{ row(x) }}{% endfor %}</div>
 </section>
 {% endblock %}
