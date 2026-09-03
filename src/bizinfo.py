@@ -1,7 +1,8 @@
+
 # -*- coding: utf-8 -*-
 """
 기업마당 실데이터 어댑터.
-
+ 
 실응답 확인 결과 (2026-09-03, totalCount 1560):
   pblancNm                    공고명. 앞에 [경기] 형태로 지역이 붙음
   jrsdInsttNm                 소관기관 = 광역시도명 ("경기도")  ← 지역 축의 1차 소스
@@ -16,7 +17,7 @@
   reqstMthPapersCn            신청방법
   refrncNm                    문의처
   pblancUrl                   원문 링크
-
+ 
 중요: 지역을 추측 파싱할 필요가 없다.
       jrsdInsttNm / 제목 접두 / hashtags 세 곳에서 교차 확인 가능.
 """
@@ -25,7 +26,7 @@ import json
 import os
 import re
 from datetime import date
-
+ 
 # 2026년 기준 실데이터에서 확인된 광역 구분.
 # 주의: 전남광주통합특별시는 광주+전남이 통합된 단위로 실제 응답에 등장한다.
 SIDO = {
@@ -35,7 +36,7 @@ SIDO = {
     "전북": "jeonbuk", "전남광주": "jeonnam-gwangju",
     "경북": "gyeongbuk", "경남": "gyeongnam", "제주": "jeju",
 }
-
+ 
 # 소관기관 정식명 → 광역 키. 실응답에 나온 표기를 그대로 매핑한다.
 ORG_ALIAS = {
     "서울특별시": "서울", "부산광역시": "부산", "대구광역시": "대구",
@@ -45,11 +46,11 @@ ORG_ALIAS = {
     "전남광주통합특별시": "전남광주", "경상북도": "경북",
     "경상남도": "경남", "제주특별자치도": "제주",
 }
-
+ 
 TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"[ \t\xa0]+")
-
-
+ 
+ 
 def _region(item):
     """지역 판정. 3중 교차 확인. 못 찾으면 '전국' (추측 금지)."""
     # 1) 제목 접두 [경기] / [전남광주]  ← 긴 키부터 매칭
@@ -70,13 +71,13 @@ def _region(item):
     if len(hit) == 1:
         return hit[0]
     return "전국"
-
-
+ 
+ 
 def _clean_title(t):
     """제목에서 [경기] 접두 제거 (지역은 별도 필드로 관리)."""
     return re.sub(r"^\s*\[[^\]]+\]\s*", "", t or "").strip()
-
-
+ 
+ 
 def _text(h):
     """HTML 본문 → 평문."""
     if not h:
@@ -86,8 +87,8 @@ def _text(h):
     s = s.replace("ㆍ", "·")
     s = WS_RE.sub(" ", s)
     return "\n".join(x.strip() for x in s.split("\n") if x.strip())
-
-
+ 
+ 
 def _split_summary(h):
     """
     본문은 '☞ 대상' / '☞ 지원내용' 패턴을 따른다.
@@ -98,13 +99,13 @@ def _split_summary(h):
     if not parts:
         return body, []
     return parts[0], [re.sub(r"^[-\s]*", "", p) for p in parts[1:]]
-
-
+ 
+ 
 # 실데이터 100건 기준 18%가 날짜가 아닌 표현으로 온다.
 # 이 공고들은 버리지 않고 '상시' 유형으로 분류해 목록 하단에 배치한다.
 ALWAYS_OPEN = ("상시", "수시", "예산", "소진", "차수별", "회차별", "모집 완료")
-
-
+ 
+ 
 def _period(s):
     """
     '2026-09-01 ~ 2026-10-02' → ('2026-09-01', '2026-10-02', 'dated')
@@ -121,8 +122,8 @@ def _period(s):
     if any(k in s for k in ALWAYS_OPEN):
         return None, None, "always"
     return None, None, "unknown"
-
-
+ 
+ 
 def normalize(item):
     raw_period = item.get("reqstBeginEndDe") or ""
     start, end, ptype = _period(raw_period)
@@ -150,44 +151,89 @@ def normalize(item):
         "points": points,
         "tags": [t.strip() for t in (item.get("hashtags") or "").split(",") if t.strip()],
     }
-
-
+ 
+ 
 class BizinfoSource:
-    """운영용. BIZINFO_KEY 환경변수 필요."""
-    URL = "https://apis.data.go.kr/1421000/bizinfo/pblancBsnsService"
-
+    """
+    운영용. BIZINFO_KEY 환경변수 필요.
+ 
+    주의: data.go.kr 은 해외 IP에서 응답이 매우 느리거나 막히는 경우가 있다.
+    GitHub Actions(미국 리전)에서 타임아웃이 나므로
+    재시도 + http 대체 + 긴 타임아웃으로 대응한다.
+    그래도 실패하면 캐시된 마지막 응답으로 빌드한다.
+    """
+    URLS = [
+        "https://apis.data.go.kr/1421000/bizinfo/pblancBsnsService",
+        "http://apis.data.go.kr/1421000/bizinfo/pblancBsnsService",
+    ]
+    CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "api_cache.json")
+ 
     def __init__(self, key=None, pages=None):
         self.key = key or os.environ.get("BIZINFO_KEY", "")
         self.pages = pages
-
+ 
+    def _get(self, page):
+        """URL/재시도 조합으로 한 페이지를 가져온다."""
+        import time, urllib.parse, urllib.request
+        q = urllib.parse.urlencode({
+            "serviceKey": self.key, "dataType": "json",
+            "pageNo": page, "numOfRows": 100,
+        }, safe="%")
+        last = None
+        for attempt in range(3):
+            for base in self.URLS:
+                try:
+                    req = urllib.request.Request(
+                        f"{base}?{q}",
+                        headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                    )
+                    with urllib.request.urlopen(req, timeout=120) as r:
+                        return json.loads(r.read().decode("utf-8"))
+                except Exception as e:
+                    last = e
+            time.sleep(5 * (attempt + 1))
+        raise last
+ 
     def fetch(self):
-        import urllib.parse, urllib.request
+        try:
+            return self._fetch_live()
+        except Exception as e:
+            print(f"API 호출 실패({e}). 캐시로 대체합니다.")
+            if os.path.exists(self.CACHE):
+                with open(self.CACHE, encoding="utf-8") as f:
+                    return json.load(f)
+            raise
+ 
+    def _fetch_live(self):
         out, page = [], 1
         while True:
-            q = urllib.parse.urlencode({
-                "serviceKey": self.key, "dataType": "json",
-                "pageNo": page, "numOfRows": 100,
-            }, safe="%")
-            with urllib.request.urlopen(f"{self.URL}?{q}", timeout=30) as r:
-                data = json.loads(r.read().decode("utf-8"))
+            data = self._get(page)
             body = data.get("response", {}).get("body", {})
             items = body.get("items", {}).get("item", []) or []
             out += [normalize(i) for i in items]
             total = body.get("totalCount", 0)
+            print(f"  {page}페이지 수신 ({len(out)}/{total})")
             if self.pages and page >= self.pages:
                 break
             if page * 100 >= total or not items:
                 break
             page += 1
         # 상시 접수 공고도 유지한다. 판단 불가(unknown)만 제외.
-        return [r for r in out if r["period_type"] != "unknown"]
-
-
+        rows = [r for r in out if r["period_type"] != "unknown"]
+        # 다음 실행이 실패해도 사이트가 죽지 않도록 캐시에 남긴다.
+        try:
+            with open(self.CACHE, "w", encoding="utf-8") as f:
+                json.dump(rows, f, ensure_ascii=False)
+        except Exception:
+            pass
+        return rows
+ 
+ 
 class SampleSource:
     """저장된 실응답으로 매핑 검증."""
     def __init__(self, path):
         self.path = path
-
+ 
     def fetch(self):
         with open(self.path, encoding="utf-8") as f:
             data = json.load(f)
