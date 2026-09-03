@@ -54,6 +54,25 @@ def write(path, html):
     URLS.append(path)
 
 
+def fill_defaults(a):
+    """실데이터에 없는 필드를 채운다. 목업/실데이터 스키마 차이를 흡수."""
+    a.setdefault("amount", "")
+    if not a["amount"]:
+        a["amount"] = enrich.amount_of(a) or "공고문 참조"
+    a.setdefault("target", "")
+    a.setdefault("org", "")
+    a.setdefault("overview", "")
+    a.setdefault("points", [])
+    a.setdefault("method", "")
+    a.setdefault("contact", "")
+    a.setdefault("period_type", "dated")
+    a.setdefault("period_raw", "")
+    a.setdefault("apply_start", "")
+    a.setdefault("apply_end", "")
+    a.setdefault("detail_url", "https://www.bizinfo.go.kr/")
+    return a
+
+
 def decorate(a):
     """D-day 표시용 값 계산. 상시 접수는 별도 표기."""
     if a.get("period_type") == "always":
@@ -66,11 +85,14 @@ def decorate(a):
     elif d == 0:
         a["cls"], a["dlabel"], a["dsub"] = "d-u", "오늘", "오늘 마감"
     elif d <= 7:
-        a["cls"], a["dlabel"], a["dsub"] = "d-u", f"D-{d}", f"{a['apply_end'][5:]} 마감"
+        a["cls"], a["dlabel"] = "d-u", f"D-{d}"
+        a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else "마감 임박"
     elif d <= 14:
-        a["cls"], a["dlabel"], a["dsub"] = "d-s", f"D-{d}", f"{a['apply_end'][5:]} 마감"
+        a["cls"], a["dlabel"] = "d-s", f"D-{d}"
+        a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else ""
     else:
-        a["cls"], a["dlabel"], a["dsub"] = "d-o", f"D-{d}", f"{a['apply_end'][5:]} 마감"
+        a["cls"], a["dlabel"] = "d-o", f"D-{d}"
+        a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else ""
     return a
 
 
@@ -123,7 +145,7 @@ def main():
 
     use_llm = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     rows = enrich.enrich_all(rows, use_llm=use_llm)
-    rows = [decorate(a) for a in rows]
+    rows = [decorate(fill_defaults(a)) for a in rows]
 
     # 어제 대비 신규 공고 감지 (data/seen.json 과 비교)
     seen_path = os.path.join(ROOT, "data", "seen.json")
@@ -341,7 +363,8 @@ def main():
 
     # 필터용 데이터 (압축 키)
     feed = [{"i": a["id"], "t": a["title"], "c": a["category"], "r": a["region"],
-             "o": a["org"], "m": a["amount"], "e": a["apply_end"], "d": a["dday"],
+             "o": a.get("org", ""), "m": a.get("amount", ""),
+             "e": a.get("apply_end") or "", "d": a["dday"],
              "n": 1 if a["is_new"] else 0,
              "p": a.get("period_raw", "")}
             for a in rows]
