@@ -114,11 +114,12 @@ SLUGMAP = json.dumps({
 def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 intro=None, sel_region=None, sel_category=None, today=0,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
-                sections=None):
+                sections=None, tally_items=None):
     html = env.get_template("list.html").render(
         site=SITE, path=path, title=title or f"{h1} | {SITE['name']}",
         desc=desc or lede, h1=h1, lede=lede, items=items,
-        tally=tally(items), blocks=blocks or [], intro=intro,
+        tally=tally(tally_items if tally_items is not None else items),
+        blocks=blocks or [], intro=intro,
         all_regions=config.REGIONS, all_categories=config.CATEGORIES,
         sel_region=sel_region, sel_category=sel_category, slugmap=SLUGMAP,
         today=today, new_cnt=new_cnt, ics_url=ics_url,
@@ -195,6 +196,7 @@ def main():
         desc="중소기업·소상공인 정부지원사업을 마감일 순서로 정리합니다. 지역·분야별로 접수 중인 공고를 확인하세요.",
         blocks=hub, today=sum(1 for a in rows if a["dday"] == 0), new_cnt=new_cnt,
         ics_url="/calendar/all.ics", sections=sections, more_href="/all/",
+        tally_items=rows,
     )
 
     # 전체 목록
@@ -212,7 +214,7 @@ def main():
 
     # 스크랩 페이지 (색인 제외)
     write("/scrap/", env.get_template("scrap.html").render(
-        site=SITE, path="/scrap/", page="scrap", title=f"스크랩한 공고 | {SITE["name"]}",
+        site=SITE, path="/scrap/", page="scrap", title=f"스크랩한 공고 | {SITE['name']}",
         desc="스크랩한 지원사업 공고를 마감일 순으로 모아봅니다."))
     URLS.pop()   # sitemap에서 제외 (개인화 페이지)
 
@@ -223,9 +225,11 @@ def main():
 
     # 허브
     render_list("/category/", "분야별로 찾기",
-                "지원 분야 8종으로 나눠 정리했습니다.", [], blocks=[hub[0]])
+                "지원 분야 8종으로 나눠 정리했습니다.", [], blocks=[hub[0]],
+                tally_items=rows)
     render_list("/region/", "지역별로 찾기",
-                "사업장 소재지 기준으로 신청 가능한 공고를 모았습니다.", [], blocks=[hub[1]])
+                "사업장 소재지 기준으로 신청 가능한 공고를 모았습니다.", [], blocks=[hub[1]],
+                tally_items=rows)
 
     # 분야별
     for name, c in cats.items():
