@@ -1,0 +1,41 @@
+# -*- coding: utf-8 -*-
+"""사이트 전역 설정. 도메인/애드센스 ID만 바꾸면 됨."""
+
+SITE = {
+    "name": "지원사업 마감판",
+    "tagline": "오늘 마감되는 정부지원사업부터 봅니다",
+    "domain": "https://example.com",      # ← 도메인 사면 여기만 교체
+    "adsense_client": "",                  # ← ca-pub-XXXXXXXX (승인 후 입력)
+    "allow_index": False,                  # ← 도메인 연결 후 True 로 바꿀 것
+    "ga_id": "",                           # ← G-XXXXXXX (선택)
+    "email": "contact@example.com",
+    "publisher": "지원사업 마감판",
+}
+
+# 기업마당 분야 8종 (API 필드와 1:1 매칭)
+CATEGORIES = [
+    {"slug": "financial", "name": "금융", "desc": "융자·보증·이차보전 등 자금 지원"},
+    {"slug": "tech", "name": "기술", "desc": "R&D·기술개발·특허 지원"},
+    {"slug": "manpower", "name": "인력", "desc": "채용·인건비·교육훈련 지원"},
+    {"slug": "export", "name": "수출", "desc": "해외진출·바우처·전시회 지원"},
+    {"slug": "domestic", "name": "내수", "desc": "판로개척·마케팅·유통 지원"},
+    {"slug": "startup", "name": "창업", "desc": "예비·초기창업 사업화 자금"},
+    {"slug": "management", "name": "경영", "desc": "컨설팅·경영개선·시설 지원"},
+    {"slug": "etc", "name": "기타", "desc": "그 외 지원사업"},
+]
+
+# 실데이터(2026-09) 기준. 광주·전남은 전남광주통합특별시로 합쳐져 있다.
+REGIONS = [
+    {"slug": "seoul", "name": "서울"}, {"slug": "busan", "name": "부산"},
+    {"slug": "daegu", "name": "대구"}, {"slug": "incheon", "name": "인천"},
+    {"slug": "daejeon", "name": "대전"}, {"slug": "ulsan", "name": "울산"},
+    {"slug": "sejong", "name": "세종"}, {"slug": "gyeonggi", "name": "경기"},
+    {"slug": "gangwon", "name": "강원"}, {"slug": "chungbuk", "name": "충북"},
+    {"slug": "chungnam", "name": "충남"}, {"slug": "jeonbuk", "name": "전북"},
+    {"slug": "jeonnam-gwangju", "name": "전남광주"},
+    {"slug": "gyeongbuk", "name": "경북"}, {"slug": "gyeongnam", "name": "경남"},
+    {"slug": "jeju", "name": "제주"}, {"slug": "nationwide", "name": "전국"},
+]
+
+# 롱테일 페이지: 지역(18) x 분야(8) = 144개 조합 페이지 자동 생성
+# + 공고 상세페이지 N개 + 허브 26개

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_row.html" import row %}
+{% block body %}
+<div class="head">
+  <h1>{{ h1 }}</h1>
+  <p>{{ lede }}</p>
+  {% if tally %}
+  <div class="tally">
+    <span class="u"><b>{{ tally.urgent }}</b>건 이번주 마감</span>
+    <span class="s"><b>{{ tally.soon }}</b>건 2주 내 마감</span>
+    <span><b>{{ tally.open }}</b>건 접수중</span>
+  </div>
+  {% endif %}
+</div>
+
+{% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}
+{% if today %}<a class="today-bar" href="/urgent/">오늘 마감되는 공고가 <b>{{ today }}건</b> 있습니다. 바로 확인하기</a>{% endif %}
+
+{% if ics_url %}
+<a class="sub-cal" href="{{ ics_url }}" download>
+  <b>이 목록을 내 캘린더에 구독</b>
+  <span>마감일이 자동으로 들어오고, 하루 전에 알림이 뜹니다</span>
+</a>
+{% endif %}
+
+{% include "_filter.html" %}
+
+{% if intro %}<div class="prose">{{ intro|safe }}</div>{% endif %}
+
+<div class="ad"></div>
+
+<div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}">
+  {% if sections %}
+    {% for s in sections %}
+    <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
+    {% for a in s["items"] %}{{ row(a) }}{% endfor %}
+    {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
+    {% endfor %}
+  {% else %}
+    {% for a in items[:limit or 20] %}{{ row(a) }}{% else %}
+    <p class="note">지금 접수 중인 공고가 없습니다. 새 공고는 매일 아침 갱신됩니다.</p>
+    {% endfor %}
+    {% if items|length > (limit or 20) %}
+    <button type="button" class="more" id="f-more-static">{{ items|length - (limit or 20) }}건 더 보기</button>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% for b in blocks %}
+<section class="nav-block">
+  <h2>{{ b.title }}</h2>
+  <div class="chips">
+    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<script>window.__SLUG__={{ slugmap|safe }};</script>
+<script src="/static/filter.js" defer></script>
+{% endblock %}

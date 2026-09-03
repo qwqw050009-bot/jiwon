@@ -1,0 +1,34 @@
+<section class="filter" data-region="{{ sel_region or '' }}" data-category="{{ sel_category or '' }}">
+  <button type="button" class="f-toggle" id="f-toggle" aria-expanded="false" aria-controls="f-body">
+    <span class="f-summary" id="f-summary">지역·분야 선택</span>
+    <span class="f-caret" aria-hidden="true"></span>
+  </button>
+
+  <div class="f-body" id="f-body" hidden>
+    <div class="f-line">
+      <span class="f-label">지역</span>
+      <div class="f-set" id="f-region">
+        {% for r in all_regions %}<button type="button" data-v="{{ r.name }}">{{ r.name }}</button>{% endfor %}
+      </div>
+    </div>
+    <div class="f-line">
+      <span class="f-label">분야</span>
+      <div class="f-set" id="f-category">
+        {% for c in all_categories %}<button type="button" data-v="{{ c.name }}">{{ c.name }}</button>{% endfor %}
+      </div>
+    </div>
+    <div class="f-line f-foot">
+      <label class="f-open"><input type="checkbox" id="f-openonly" checked> 접수 중만</label>
+      <button type="button" id="f-reset">전체 해제</button>
+    </div>
+  </div>
+
+  <div class="f-bar">
+    <input type="search" id="f-q" placeholder="공고명·기관 검색" autocomplete="off">
+    <select id="f-sort" aria-label="정렬">
+      <option value="dday">마감 임박순</option>
+      <option value="new">최근 등록순</option>
+    </select>
+  </div>
+</section>
+<p class="f-count" id="f-count" aria-live="polite"></p>

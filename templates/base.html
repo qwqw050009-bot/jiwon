@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ title }}</title>
+<meta name="description" content="{{ desc }}">
+<link rel="canonical" href="{{ site.domain }}{{ path }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ desc }}">
+<meta property="og:url" content="{{ site.domain }}{{ path }}">
+<meta property="og:site_name" content="{{ site.name }}">
+<link rel="stylesheet" href="/static/style.css">
+{% if site.adsense_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>{% endif %}
+{% block jsonld %}{% endblock %}
+</head>
+<body data-page="{{ page|default('') }}">
+<header class="top"><div class="wrap">
+  <a class="brand" href="/">지원사업 <span>마감판</span></a>
+  <nav>
+    <a href="/urgent/">마감임박</a>
+    <a href="/category/">분야</a>
+    <a href="/region/">지역</a>
+    <a href="/calendar/">캘린더</a>
+    <a href="/scrap/" class="nav-scrap">스크랩<b id="scrap-count" hidden></b></a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+{% block body %}{% endblock %}
+</main>
+
+<footer><div class="wrap">
+  <nav>
+    <a href="/about/">사이트 소개</a>
+    <a href="/privacy/">개인정보처리방침</a>
+    <a href="/terms/">이용약관</a>
+    <a href="/contact/">문의</a>
+  </nav>
+  <p>공고 정보는 각 기관이 발표한 자료를 정리한 것입니다. 신청 전 반드시 원문 공고를 확인하세요.<br>
+  © {{ site.name }}</p>
+</div></footer>
+<script src="/static/scrap.js" defer></script>
+</body>
+</html>

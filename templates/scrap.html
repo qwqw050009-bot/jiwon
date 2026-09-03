@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="head">
+  <h1>스크랩한 공고</h1>
+  <p>별을 눌러 담아둔 공고입니다. 마감이 가까운 순서로 정렬됩니다.</p>
+</div>
+<p class="alert" id="scrap-alert" hidden></p>
+<div class="board" id="scrap-board">
+  <p class="note">불러오는 중입니다.</p>
+</div>
+<p class="note">스크랩은 지금 쓰는 브라우저에만 저장됩니다. 계정을 만들 필요가 없는 대신,
+다른 기기에서는 보이지 않고 브라우저 기록을 지우면 함께 사라집니다.</p>
+{% endblock %}

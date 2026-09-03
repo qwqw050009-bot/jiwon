@@ -1,0 +1,10 @@
+{% macro row(a) %}
+<a class="row" href="/notice/{{ a.id }}/">
+  <div class="dday {{ a.cls }}">{{ a.dlabel }}<small>{{ a.dsub }}</small></div>
+  <div>
+    <h3>{{ a.title }}{% if a.is_new %}<span class="tag-new">신규</span>{% endif %}</h3>
+    <div class="meta"><i>{{ a.org }}</i><i>{{ a.category }}</i><i class="amt">{{ a.amount }}</i></div>
+  </div>
+  <button type="button" class="star" data-id="{{ a.id }}" aria-pressed="false" aria-label="스크랩"></button>
+</a>
+{% endmacro %}
