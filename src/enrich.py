@@ -6,10 +6,15 @@
 
 캐시가 핵심: 한 번 생성한 공고는 다시 호출하지 않는다.
 공고 하나당 평생 1회 호출 → 하루 신규 20건이면 하루 20콜.
+
+주의: 실데이터에는 지원금액(amount) 필드가 없다.
+      본문(points) 안에 '☞ 기업당 최대 3백만원' 형태로 들어있다.
+      그래서 모든 필드 접근은 .get() 으로 방어한다.
 """
+import hashlib
 import json
 import os
-import hashlib
+import re
 
 CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "enrich_cache.json")
 
@@ -20,8 +25,10 @@ PROMPT = """다음 정부지원사업 공고를 신청자 입장에서 해설해
 분야: {category} / 지역: {region}
 소관기관: {org}
 지원대상: {target}
-지원규모: {amount}
+접수기간: {period}
 신청방법: {method}
+공고 요약: {overview}
+주요 내용: {points}
 
 아래 JSON 형식으로만 답해. 다른 말 붙이지 마.
 {{
@@ -31,50 +38,106 @@ PROMPT = """다음 정부지원사업 공고를 신청자 입장에서 해설해
  "checklist": ["준비서류/조건 체크 4개"]
 }}"""
 
+# 본문에서 지원금액처럼 보이는 표현을 뽑는다.
+UNIT = r"(?:억|천만|백만|십만|만|천)?"
+MONEY = re.compile(
+    r"(?:최대\s*)?[\d,]+\s*" + UNIT + r"\s*원(?:\s*(?:이내|한도|이하|까지))?"
+    r"|총\s*사업비의?\s*\d+\s*%[^\s,]*"
+    r"|사업비의?\s*\d+~?\d*\s*%"
+)
+
+
+def _pick_amount(text):
+    """지원금액 표현 중 가장 그럴듯한 것 하나. 없으면 None."""
+    if not text:
+        return None
+    cands = MONEY.findall(text) or [m.group(0) for m in MONEY.finditer(text)]
+    cands = [c.strip() for c in cands if c and c.strip()]
+    if not cands:
+        return None
+    # '최대'/'한도'/'이내'가 붙은 표현을 우선한다
+    for c in cands:
+        if any(k in c for k in ("최대", "한도", "이내", "이하")):
+            return c
+    return cands[0]
+
 
 def _key(row):
-    return hashlib.md5(row["title"].encode()).hexdigest()[:12]
+    return hashlib.md5((row.get("title") or "").encode()).hexdigest()[:12]
 
 
 def _load():
     if os.path.exists(CACHE):
-        with open(CACHE, encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(CACHE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
     return {}
 
 
 def _save(c):
     with open(CACHE, "w", encoding="utf-8") as f:
-        json.dump(c, f, ensure_ascii=False, indent=1)
+        json.dump(c, f, ensure_ascii=False)
+
+
+def amount_of(row):
+    """
+    지원규모 추출. 실데이터에는 금액 필드가 없고 본문에만 들어있다.
+    지원내용은 보통 마지막 ☞ 항목이므로 뒤에서부터 훑는다.
+    """
+    if row.get("amount"):
+        return row["amount"]
+    for p in reversed(row.get("points") or []):
+        got = _pick_amount(p)
+        if got:
+            return got
+    return _pick_amount(row.get("overview")) or ""
+
+
+def _period_text(row):
+    if row.get("period_type") == "always":
+        return row.get("period_raw") or "상시 접수"
+    s, e = row.get("apply_start"), row.get("apply_end")
+    return f"{s} ~ {e}" if s and e else (e or "기간 미정")
 
 
 def _fallback(row):
-    """API 키 없을 때 쓰는 규칙 기반 해설. 구조 확인용."""
-    return {
-        "summary": f"{row['org']}이(가) {row['region']} 지역 {row['target']}을(를) 대상으로 "
-                   f"진행하는 {row['category']} 분야 지원사업입니다. "
-                   f"지원규모는 {row['amount']} 수준입니다.",
-        "fit": [
-            f"{row['region']}에 사업장을 둔 {row['target']}",
-            f"{row['category']} 분야 자금이 필요한 곳",
-            "신청 시점에 세금 체납이 없는 사업자",
-        ],
-        "caution": [
-            "동일 연도에 유사 사업을 받았다면 중복 지원이 제한될 수 있습니다.",
-            "접수는 예산 소진 시 조기 마감되는 경우가 많습니다.",
-            f"신청은 {row['method']}으로만 받습니다.",
-        ],
-        "checklist": [
-            "사업자등록증명원",
-            "국세·지방세 완납증명서",
-            "최근 연도 재무제표 또는 부가세과세표준증명",
-            "4대보험 가입자명부(인력 분야인 경우)",
-        ],
-    }
+    """LLM 없이 쓰는 규칙 기반 해설. 모든 필드는 방어적으로 접근한다."""
+    org = row.get("org") or "소관기관"
+    region = row.get("region") or "전국"
+    target = row.get("target") or "중소기업"
+    category = row.get("category") or "기타"
+    method = row.get("method") or "공고문 참조"
+    amount = amount_of(row)
+
+    head = f"{org}이(가) {region} 지역 {target}을(를) 대상으로 진행하는 {category} 분야 지원사업입니다."
+    if amount:
+        head += f" 지원규모는 {amount} 수준입니다."
+    if row.get("overview"):
+        head += " " + row["overview"][:120]
+
+    fit = [f"{region}에 사업장을 둔 {target}",
+           f"{category} 분야 지원이 필요한 곳",
+           "신청 시점에 국세·지방세 체납이 없는 사업자"]
+
+    caution = []
+    if row.get("period_type") == "always":
+        caution.append(f"접수기간이 '{row.get('period_raw')}'로 명시되어 있어 조기 마감될 수 있습니다.")
+    else:
+        caution.append(f"접수기간은 {_period_text(row)}입니다. 마감 전 여유를 두고 신청하세요.")
+    caution.append("같은 연도에 유사 사업을 받았다면 중복 지원이 제한될 수 있습니다.")
+    caution.append(f"신청은 {method.splitlines()[0] if method else '공고문 참조'} 방식으로 받습니다.")
+
+    checklist = ["사업자등록증명원", "국세·지방세 완납증명서",
+                 "최근 연도 재무제표 또는 부가세과세표준증명"]
+    checklist.append("4대보험 가입자명부" if category == "인력" else "사업계획서 또는 신청서 양식")
+
+    return {"summary": head, "fit": fit, "caution": caution, "checklist": checklist}
 
 
 def enrich_all(rows, use_llm=False):
-    """use_llm=False면 호출 0회. 나중에 True로 바꾸면 캐시에 없는 것만 호출."""
+    """use_llm=False면 호출 0회. True면 캐시에 없는 것만 호출."""
     cache = _load()
     changed = False
     for r in rows:
@@ -82,9 +145,10 @@ def enrich_all(rows, use_llm=False):
         if k in cache:
             r["ai"] = cache[k]
             continue
-        if use_llm:
-            r["ai"] = _call_llm(r)
-        else:
+        try:
+            r["ai"] = _call_llm(r) if use_llm else _fallback(r)
+        except Exception as e:
+            print(f"  해설 생성 실패({e}) → 규칙 기반으로 대체")
             r["ai"] = _fallback(r)
         cache[k] = r["ai"]
         changed = True
@@ -94,20 +158,20 @@ def enrich_all(rows, use_llm=False):
 
 
 def _call_llm(row):
-    """
-    실제 호출부. anthropic SDK 설치 후 사용.
-    캐시 덕분에 공고당 1회만 돈다.
-    """
+    """실제 호출부. 캐시 덕분에 공고당 1회만 돈다."""
     import anthropic
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     msg = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1000,
-        messages=[{"role": "user", "content": PROMPT.format(**row)}],
+        messages=[{"role": "user", "content": PROMPT.format(
+            title=row.get("title", ""), category=row.get("category", ""),
+            region=row.get("region", ""), org=row.get("org", ""),
+            target=row.get("target", ""), period=_period_text(row),
+            method=row.get("method", ""), overview=row.get("overview", ""),
+            points=" / ".join(row.get("points") or []),
+        )}],
     )
     text = "".join(b.text for b in msg.content if b.type == "text")
     text = text.replace("```json", "").replace("```", "").strip()
-    try:
-        return json.loads(text)
-    except Exception:
-        return _fallback(row)
+    return json.loads(text)
