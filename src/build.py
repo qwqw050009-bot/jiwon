@@ -32,6 +32,7 @@ import bizinfo
 import kstartup
 import ics
 import pages as static_pages
+import guides
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -451,8 +452,28 @@ def main():
         desc="관심 지역·분야 지원사업 마감일을 내 캘린더에 자동으로 받아보세요.",
         h1="마감일을 내 캘린더로", content=cal_html))
 
+    # 가이드 (검색 유입용 상시 콘텐츠 — 공고와 달리 매일 안 바뀐다)
+    guide_list = guides.build()
+    guide_links = "".join(
+        f'<a class="guide-card" href="/guide/{slug}/"><b>{h1}</b><span>{desc}</span></a>'
+        for slug, h1, desc, _ in guide_list
+    )
+    write("/guide/", env.get_template("page.html").render(
+        site=SITE, path="/guide/", title=f"정부지원사업 가이드 | {SITE['name']}",
+        desc="정부지원사업 신청 자격, 서류, 바우처·선정사업 차이 등 기본기를 정리했습니다.",
+        h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'))
+    for slug, h1, desc, content in guide_list:
+        write(f"/guide/{slug}/", env.get_template("page.html").render(
+            site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",
+            desc=desc, h1=h1, content=content))
+
     # 고정 페이지 (애드센스 심사 필수)
-    for slug, h1, content in static_pages.build(SITE):
+    site_stats = {
+        "open": sum(1 for a in rows if a["is_open"]),
+        "orgs": len({a["org"] for a in rows if a.get("org")}),
+        "regions": len({a["region"] for a in rows if a["region"] != "전국"}),
+    }
+    for slug, h1, content in static_pages.build(SITE, site_stats):
         html = env.get_template("page.html").render(
             site=SITE, path=f"/{slug}/", title=f"{h1} | {SITE['name']}",
             desc=h1, h1=h1, content=content,

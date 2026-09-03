@@ -2,12 +2,22 @@
 """애드센스 심사에서 없으면 거의 반려되는 필수 페이지들."""
 
 
-def build(site):
+def build(site, stats=None):
     n, e = site["name"], site["email"]
+    stats = stats or {}
+    stats_html = ""
+    if stats:
+        stats_html = f"""
+<div class="stats-row">
+  <div><b>{stats.get('open', 0):,}건</b>지금 접수 중인 공고</div>
+  <div><b>{stats.get('orgs', 0):,}곳</b>소관기관</div>
+  <div><b>{stats.get('regions', 0)}개</b>지역 커버리지</div>
+</div>"""
     return [
         ("about", "사이트 소개", f"""
 <p>{n}은 정부 부처와 지방자치단체, 공공기관이 공고하는 사업자 대상 지원사업을
 한곳에 모아 마감일 순서로 정리하는 사이트입니다.</p>
+{stats_html}
 <h2>왜 마감일 순인가</h2>
 <p>지원사업 정보는 이미 여러 곳에 흩어져 있습니다. 문제는 양이 아니라 시점입니다.
 좋은 사업을 찾아도 접수가 끝난 뒤에 발견하면 소용이 없습니다.

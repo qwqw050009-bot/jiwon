@@ -11,7 +11,7 @@
   {% endif %}
   <div class="dday {{ a.cls }}" style="text-align:left;font-size:15px">{{ a.dlabel }} · {{ a.dsub }}</div>
   <h1>{{ a.title }}</h1>
-  <p>{{ a.ai.summary }}</p>
+  <p><span class="badge-ai">AI 요약</span>{{ a.ai.summary }}</p>
 
   <dl class="facts">
     <div><dt>소관기관</dt><dd>{{ a.org }}</dd></div>
@@ -46,6 +46,7 @@
   <div class="sec">
     <h2>서류 체크리스트</h2>
     <ul>{% for x in a.ai.checklist %}<li>{{ x }}</li>{% endfor %}</ul>
+    <p class="note"><a href="/guide/docs-checklist/">정부지원사업 공통 준비서류와 발급처 총정리 →</a></p>
   </div>
 
   <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문 공고 보기</a>
