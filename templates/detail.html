@@ -15,9 +15,17 @@
     <div><dt>대상지역</dt><dd>{{ a.region }}</dd></div>
     <div><dt>지원대상</dt><dd>{{ a.target }}</dd></div>
     <div><dt>지원규모</dt><dd>{{ a.amount }}</dd></div>
-    <div><dt>접수기간</dt><dd>{{ a.apply_start }} ~ {{ a.apply_end }}</dd></div>
+    <div><dt>접수기간</dt><dd>{% if a.period_type == 'always' %}{{ a.period_raw }}{% else %}{{ a.apply_start }} ~ {{ a.apply_end }}{% endif %}</dd></div>
     <div><dt>신청방법</dt><dd>{{ a.method }}</dd></div>
+    {% if a.contact %}<div><dt>문의처</dt><dd>{{ a.contact }}</dd></div>{% endif %}
   </dl>
+
+  {% if a.points %}
+  <div class="sec">
+    <h2>공고 주요 내용</h2>
+    <ul>{% for p in a.points %}<li>{{ p }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
 
   <div class="sec">
     <h2>이런 곳에 맞습니다</h2>
