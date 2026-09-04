@@ -15,11 +15,13 @@ python3 src/build.py  → dist/ 에 전체 사이트 생성.
   /about /privacy /terms /contact   (애드센스 필수 페이지)
   sitemap.xml, robots.txt
 """
+import html as html_module
 import json
 import os
 import shutil
 import sys
 from datetime import date, datetime, timezone
+from email.utils import format_datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -507,6 +509,31 @@ def main():
     with open(os.path.join(DIST, "promo.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(promo))
 
+    # RSS 피드. 피드리더 구독뿐 아니라 Zapier/IFTTT 같은 무료 자동화 도구가
+    # "새 글 뜨면 알림" 트리거로 쓸 수 있는 표준 포맷이라 만들어둔다.
+    # 전부 다 넣으면 무의미해지니 신규 공고 우선, 그다음 마감 임박순으로 최대 50건.
+    rss_items = sorted(rows, key=lambda a: (not a["is_new"], a["dday"]))[:50]
+    now_rfc822 = format_datetime(datetime.now(timezone.utc))
+    rss = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<rss version="2.0"><channel>',
+           f"<title>{SITE['name']}</title>",
+           f"<link>{SITE['domain']}/</link>",
+           f"<description>{SITE['tagline']}</description>",
+           "<language>ko</language>",
+           f"<lastBuildDate>{now_rfc822}</lastBuildDate>"]
+    for a in rss_items:
+        title = html_module.escape(f"[{a['region']}] {a['title']}")
+        desc = html_module.escape(a.get("ai", {}).get("summary", ""))
+        rss.append(
+            f"<item><title>{title}</title>"
+            f"<link>{SITE['domain']}/notice/{a['id']}/</link>"
+            f"<guid isPermaLink=\"true\">{SITE['domain']}/notice/{a['id']}/</guid>"
+            f"<pubDate>{now_rfc822}</pubDate>"
+            f"<description>{desc}</description></item>"
+        )
+    rss.append("</channel></rss>")
+    open(os.path.join(DIST, "rss.xml"), "w", encoding="utf-8").write("\n".join(rss))
+
     # 필터용 데이터 (압축 키)
     feed = [{"i": a["id"], "t": a["title"], "c": a["category"], "r": a["region"],
              "o": a.get("org", ""), "m": a.get("amount", ""),
@@ -534,6 +561,27 @@ def main():
     else:
         robots = "User-agent: *\nDisallow: /\n"
     open(os.path.join(DIST, "robots.txt"), "w", encoding="utf-8").write(robots)
+
+    # IndexNow(빙·네이버 지원): 소유확인 키 파일은 로그인/가입 없이 쓰는
+    # 공개 토큰이라 늘 배포해두고, 실제 검색엔진 핑은 색인을 허용할 때만 보낸다.
+    open(os.path.join(DIST, f"{config.INDEXNOW_KEY}.txt"), "w", encoding="utf-8").write(config.INDEXNOW_KEY)
+    if SITE.get("allow_index"):
+        try:
+            import urllib.request
+            payload = json.dumps({
+                "host": SITE["domain"].split("//")[-1],
+                "key": config.INDEXNOW_KEY,
+                "keyLocation": f"{SITE['domain']}/{config.INDEXNOW_KEY}.txt",
+                "urlList": [f"{SITE['domain']}{u}" for u in URLS],
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.indexnow.org/indexnow", data=payload,
+                headers={"Content-Type": "application/json; charset=utf-8"},
+            )
+            with urllib.request.urlopen(req, timeout=20) as r:
+                print(f"IndexNow 제출: status={r.status}, {len(URLS)}개 URL")
+        except Exception as e:
+            print(f"IndexNow 제출 실패(무시하고 진행): {e}")
 
     print(f"공고 {len(rows)}건(신규 {new_cnt}건) → 페이지 {len(URLS)}개, "
           f"캘린더 {len(os.listdir(os.path.join(DIST,'calendar')))}개 생성 완료 (dist/)")

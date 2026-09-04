@@ -12,6 +12,12 @@ SITE = {
     "publisher": "지원사업 마감판",
 }
 
+# IndexNow(빙·네이버 지원) 소유 확인용 랜덤 토큰. 로그인/가입이 필요한
+# API 키가 아니라 사이트 소유권 확인용 공개 문자열이라 값 자체는 비밀이
+# 아니다 — 다만 도메인이 example.com인 동안은 검색엔진에 제출해봐야
+# 의미가 없으니 allow_index가 True일 때만 build.py에서 실제로 핑을 보낸다.
+INDEXNOW_KEY = "6f753d4933a33d1f858c76dc38a574f0"
+
 # 기업마당 분야 8종 (API 필드와 1:1 매칭)
 CATEGORIES = [
     {"slug": "financial", "name": "금융", "desc": "융자·보증·이차보전 등 자금 지원"},
