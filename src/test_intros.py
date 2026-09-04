@@ -145,6 +145,17 @@ def test_blurb_skips_generic_fallback():
     generic_amt = _item(ai={"summary":
         "고용노동부가 서울 지역 소상공인을 대상으로 진행하는 창업 분야 지원사업입니다. 지원규모는 최대 1억원 수준입니다."})
     assert intros.blurb_of(generic_amt) == ""
+    # 실제 운영 데이터처럼 boilerplate 뒤에 진짜 개요 문장이 붙는 경우.
+    # 예전엔 _GENERIC_BLURB가 뒷부분만 지워서 "중소기업을 ." 같은 잘린
+    # 조각이 그대로 남는 버그가 있었다(2026-09-04 라이브에서 실제 발견).
+    generic_with_overview = _item(ai={"summary":
+        "산업통상부가 전국 지역 중소기업을 대상으로 진행하는 기술 분야 지원사업입니다. "
+        "지원규모는 1천만원 수준입니다. "
+        "한국세라믹기술원 보유기술을 이전받은 기업의 조기사업화지원을 위하여 아래와 같이 공고하오니 많은 신청 바랍니다."})
+    b2 = intros.blurb_of(generic_with_overview)
+    assert "중소기업을" not in b2
+    assert "산업통상부" not in b2
+    assert "한국세라믹기술원" in b2
 
 
 def test_hub_and_page_intros():
