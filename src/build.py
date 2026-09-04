@@ -15,6 +15,7 @@ python3 src/build.py  → dist/ 에 전체 사이트 생성.
   /about /privacy /terms /contact   (애드센스 필수 페이지)
   sitemap.xml, robots.txt
 """
+import hashlib
 import html as html_module
 import json
 import os
@@ -44,6 +45,25 @@ env = Environment(
     loader=FileSystemLoader(os.path.join(ROOT, "templates")),
     autoescape=select_autoescape(["html"]),
 )
+
+
+def _static_version():
+    """
+    style.css/filter.js/scrap.js 내용 해시. CSS/JS를 고치고 배포해도
+    파일명(URL)이 그대로라 CDN·브라우저 캐시가 예전 버전을 계속 보여주는
+    문제가 있었다(실제로 한 번 겪음). ?v=해시를 붙여서 내용이 바뀔 때만
+    URL도 바뀌게 해 캐시를 자연스럽게 무효화한다.
+    """
+    h = hashlib.md5()
+    for name in ("style.css", "filter.js", "scrap.js"):
+        p = os.path.join(ROOT, "static", name)
+        if os.path.exists(p):
+            with open(p, "rb") as f:
+                h.update(f.read())
+    return h.hexdigest()[:10]
+
+
+env.globals["asset_v"] = _static_version()
 
 URLS = []
 

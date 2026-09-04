@@ -13,7 +13,7 @@
 <meta property="og:description" content="{{ desc }}">
 <meta property="og:url" content="{{ site.domain }}{{ path }}">
 <meta property="og:site_name" content="{{ site.name }}">
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
 {% if site.adsense_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>{% endif %}
 {% block jsonld %}{% endblock %}
@@ -45,6 +45,6 @@
   <p>공고 정보는 각 기관이 발표한 자료를 정리한 것입니다. 신청 전 반드시 원문 공고를 확인하세요.<br>
   © {{ site.name }}</p>
 </div></footer>
-<script src="/static/scrap.js" defer></script>
+<script src="/static/scrap.js?v={{ asset_v }}" defer></script>
 </body>
 </html>
