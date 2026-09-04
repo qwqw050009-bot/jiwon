@@ -59,6 +59,7 @@ a{color:inherit}
 /* ── 탐색 ── */
 .nav-block{margin:40px 0;padding:22px 0;border-top:1px solid var(--line)}
 .nav-block h2{margin:0 0 14px;font-size:15px;font-weight:700}
+.nav-block-top{margin:22px 0 0;border-top:0;padding:0}
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chips a{
   display:inline-block;padding:6px 12px;background:var(--sheet);

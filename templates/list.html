@@ -27,6 +27,15 @@
 
 {% if intro %}<div class="prose">{{ intro|safe }}</div>{% endif %}
 
+{% for b in blocks %}
+<section class="nav-block nav-block-top">
+  <h2>{{ b.title }}</h2>
+  <div class="chips">
+    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+
 <div class="ad"></div>
 
 <div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}">
@@ -45,15 +54,6 @@
     {% endif %}
   {% endif %}
 </div>
-
-{% for b in blocks %}
-<section class="nav-block">
-  <h2>{{ b.title }}</h2>
-  <div class="chips">
-    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
-  </div>
-</section>
-{% endfor %}
 
 <script>window.__SLUG__={{ slugmap|safe }};</script>
 <script src="/static/filter.js" defer></script>

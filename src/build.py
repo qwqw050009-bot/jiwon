@@ -350,13 +350,15 @@ def main():
         sub = [{"name": f"{r} {name}", "url": f"/region/{regs[r]['slug']}/{c['slug']}/",
                 "count": len([a for a in items if a["region"] == r])}
                for r in regs if any(a["region"] == r for a in items)]
+        other_cats = [x for x in cat_chips if x["name"] != name]
         render_list(
             f"/category/{c['slug']}/", f"{name} 분야 지원사업",
             f"{c['desc']}. 현재 접수 중인 공고를 마감일 순으로 정리했습니다.",
             items,
             title=f"{name} 분야 정부지원사업 모음 | {SITE['name']}",
             desc=f"{name} 지원사업 {len(items)}건. {c['desc']}. 마감일과 지원대상을 한눈에 확인하세요.",
-            blocks=[{"title": "지역으로 좁히기", "items": sub}],
+            blocks=[{"title": "다른 분야", "items": other_cats},
+                    {"title": "지역으로 좁히기", "items": sub}],
             sel_category=name, ics_url=f"/calendar/{c['slug']}.ics", limit=20,
         )
 
@@ -368,13 +370,15 @@ def main():
         sub = [{"name": f"{rname} {cn}", "url": f"/region/{r['slug']}/{cats[cn]['slug']}/",
                 "count": len([a for a in items if a["category"] == cn])}
                for cn in cats if any(a["category"] == cn for a in items)]
+        other_regs = [x for x in reg_chips if x["name"] != rname]
         render_list(
             f"/region/{r['slug']}/", f"{rname} 지역 지원사업",
             f"{rname}에 사업장을 둔 기업이 신청할 수 있는 공고입니다.",
             items,
             title=f"{rname} 정부지원사업 · 보조금 공고 모음 | {SITE['name']}",
             desc=f"{rname} 지역 중소기업·소상공인 지원사업 {len(items)}건을 마감일 순으로 정리했습니다.",
-            blocks=[{"title": "분야로 좁히기", "items": sub}],
+            blocks=[{"title": "다른 지역", "items": other_regs},
+                    {"title": "분야로 좁히기", "items": sub}],
             sel_region=rname, ics_url=f"/calendar/{r['slug']}.ics", limit=20,
         )
         for cn, c in cats.items():
