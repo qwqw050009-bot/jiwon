@@ -108,7 +108,8 @@
   var board = document.getElementById('scrap-board');
   if (!board) return;
 
-  function cls(d) {
+  function cls(d, p) {
+    if (d === 9999) return ['d-a', '상시', p || '상시 접수'];
     if (d < 0) return ['d-c', '마감', (-d) + '일 전 종료'];
     if (d === 0) return ['d-u', '오늘', '오늘 마감'];
     if (d <= 7) return ['d-u', 'D-' + d, ''];
@@ -142,11 +143,12 @@
     } else { al.hidden = true; }
 
     board.innerHTML = items.map(function (a) {
-      var c = cls(a.d), sub = c[2] || (a.e.slice(5) + ' 마감');
+      var c = cls(a.d, a.p), sub = c[2] || (a.e ? a.e.slice(5) + ' 마감' : '');
+      var blurb = a.s ? '<p class="blurb">' + esc(a.s) + '</p>' : '';
       return '<a class="row" href="/notice/' + a.i + '/">' +
         '<div class="dday ' + c[0] + '">' + c[1] + '<small>' + sub + '</small></div>' +
         '<div><h3>' + esc(a.t) + '</h3><div class="meta"><i>' + esc(a.o) + '</i><i>' +
-        esc(a.c) + '</i><i class="amt">' + esc(a.m) + '</i></div></div>' +
+        esc(a.c) + '</i><i class="amt">' + esc(a.m) + '</i></div>' + blurb + '</div>' +
         '<button type="button" class="star" data-id="' + a.i + '" aria-pressed="true" ' +
         'aria-label="스크랩 해제"></button></a>';
     }).join('');

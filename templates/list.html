@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% from "_row.html" import row %}
+{% from "_ad.html" import ad_slot with context %}
+{% block jsonld %}
+{% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
+{% endblock %}
 {% block body %}
 <div class="head">
   <h1>{{ h1 }}</h1>
@@ -32,7 +36,13 @@
 
 {% include "_filter.html" %}
 
-{% if intro %}<div class="prose">{{ intro|safe }}</div>{% endif %}
+{% if intro_paras %}
+<div class="prose intro">
+  {% for p in intro_paras %}<p>{{ p|safe }}</p>{% endfor %}
+</div>
+{% elif intro %}
+<div class="prose intro">{{ intro|safe }}</div>
+{% endif %}
 
 {% for b in blocks %}
 <section class="nav-block nav-block-top">
@@ -43,9 +53,9 @@
 </section>
 {% endfor %}
 
-<div class="ad"></div>
+{% if ad_top %}{{ ad_slot('list-top') }}{% endif %}
 
-<div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}">
+<div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}" data-ad-mid="{{ ad_mid_after or 0 }}">
   {% if sections %}
     {% for s in sections %}
     <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
@@ -53,7 +63,10 @@
     {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
     {% endfor %}
   {% else %}
-    {% for a in items[:limit or 20] %}{{ row(a) }}{% else %}
+    {% for a in items[:limit or 20] %}
+    {{ row(a) }}
+    {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list-mid') }}{% endif %}
+    {% else %}
     <p class="note">지금 접수 중인 공고가 없습니다. 새 공고는 매일 아침 갱신됩니다.</p>
     {% endfor %}
     {% if items|length > (limit or 20) %}
@@ -61,6 +74,24 @@
     {% endif %}
   {% endif %}
 </div>
+
+{% if faqs %}
+<section class="faq" id="faq">
+  <h2>자주 묻는 질문</h2>
+  <dl>
+    {% for f in faqs %}
+    <dt>{{ f.q }}</dt>
+    <dd>{{ f.a }}</dd>
+    {% endfor %}
+  </dl>
+</section>
+{% endif %}
+
+{% if ad_bottom %}{{ ad_slot('list-bottom') }}{% endif %}
+
+{% if ad_mid_after and site.adsense_client %}
+<template id="ad-mid-src">{{ ad_slot('list-mid', push=false) }}</template>
+{% endif %}
 
 <script>window.__SLUG__={{ slugmap|safe }};</script>
 <script src="/static/filter.js?v={{ asset_v }}" defer></script>

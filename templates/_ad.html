@@ -1,0 +1,14 @@
+{# 애드센스 슬롯. min-height는 CSS에서 CLS 방지용으로 잡는다.
+   슬롯 ID가 없어도 data-ad-format=auto 로 반응형 유닛을 요청한다. #}
+{% macro ad_slot(pos, push=true) %}
+{% if site.adsense_client %}
+<aside class="ad-slot{% if pos.endswith('bottom') %} ad-slot--bottom{% elif pos.endswith('mid') %} ad-slot--mid{% endif %}" data-ad-pos="{{ pos }}" aria-label="광고">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="{{ site.adsense_client }}"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  {% if push %}<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>{% endif %}
+</aside>
+{% endif %}
+{% endmacro %}

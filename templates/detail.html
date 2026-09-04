@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_row.html" import row %}
+{% from "_ad.html" import ad_slot with context %}
 {% block jsonld %}
 <script type="application/ld+json">{{ jsonld|safe }}</script>
 <script type="application/ld+json">{{ faq_jsonld|safe }}</script>
@@ -36,7 +37,7 @@
     <ul>{% for x in a.ai.fit %}<li>{{ x }}</li>{% endfor %}</ul>
   </div>
 
-  <div class="ad"></div>
+  {{ ad_slot('detail-mid') }}
 
   <div class="sec">
     <h2>신청 전 확인할 점</h2>
@@ -57,4 +58,5 @@
   <h2>{{ a.region }} {{ a.category }} 분야 {% if a.is_closed %}현재 접수 중인{% else %}다른{% endif %} 공고</h2>
   <div class="board">{% for x in related %}{{ row(x) }}{% endfor %}</div>
 </section>
+{{ ad_slot('detail-bottom') }}
 {% endblock %}

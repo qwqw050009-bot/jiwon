@@ -37,6 +37,7 @@ import kstartup
 import ics
 import pages as static_pages
 import guides
+import intros
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -103,6 +104,7 @@ def decorate(a):
     if a.get("period_type") == "always":
         a["cls"], a["dlabel"] = "d-a", "상시"
         a["dsub"] = a.get("period_raw") or "상시 접수"
+        a["blurb"] = intros.blurb_of(a)
         return a
     d = a["dday"]
     if d < 0:
@@ -118,6 +120,7 @@ def decorate(a):
     else:
         a["cls"], a["dlabel"] = "d-o", f"D-{d}"
         a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else ""
+    a["blurb"] = intros.blurb_of(a)
     return a
 
 
@@ -259,14 +262,20 @@ SLUGMAP = json.dumps({
 
 
 def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
-                intro=None, sel_region=None, sel_category=None, today=0,
+                intro=None, intro_paras=None, faqs=None, faq_jsonld=None,
+                sel_region=None, sel_category=None, today=0,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
                 sections=None, tally_items=None, beginner_cta=False):
+    n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
+    ad_top, ad_mid_after, ad_bottom = intros.ad_plan(
+        n_for_ads, has_sections=bool(sections))
     html = env.get_template("list.html").render(
         site=SITE, path=path, title=title or f"{h1} | {SITE['name']}",
         desc=desc or lede, h1=h1, lede=lede, items=items,
         tally=tally(tally_items if tally_items is not None else items),
-        blocks=blocks or [], intro=intro,
+        blocks=blocks or [], intro=intro, intro_paras=intro_paras or [],
+        faqs=faqs or [], faq_jsonld=faq_jsonld or "",
+        ad_top=ad_top, ad_mid_after=ad_mid_after, ad_bottom=ad_bottom,
         all_regions=config.REGIONS, all_categories=config.CATEGORIES,
         sel_region=sel_region, sel_category=sel_category, slugmap=SLUGMAP,
         today=today, new_cnt=new_cnt, ics_url=ics_url,
@@ -435,9 +444,7 @@ def main():
             cross = [a for a in items if a["category"] == cn]
             if not cross:
                 continue
-            intro = (f"<p>{rname} 지역에서 접수 중인 {cn} 분야 지원사업 {len(cross)}건입니다. "
-                     f"{c['desc']}에 해당하며, 소관기관은 "
-                     f"{', '.join(sorted({a['org'] for a in cross})[:3])} 등입니다.</p>")
+            intro_paras, faqs = intros.build(rname, cn, c, cross)
             other_regs_same_cat = [
                 {"name": r2, "url": f"/region/{regs[r2]['slug']}/{c['slug']}/",
                  "count": len([a for a in by_reg[r2] if a["category"] == cn])}
@@ -449,7 +456,7 @@ def main():
                 cross,
                 title=f"{rname} {cn} 지원사업 {len(cross)}건 — 마감일 순 | {SITE['name']}",
                 desc=f"{rname} {cn} 분야 정부지원사업 {len(cross)}건. 지원대상, 지원규모, 마감일을 정리했습니다.",
-                intro=intro,
+                intro_paras=intro_paras, faqs=faqs, faq_jsonld=intros.faq_jsonld(faqs),
                 blocks=[{"title": f"{rname} 다른 분야", "items": sub},
                         {"title": f"다른 지역의 {cn}", "items": other_regs_same_cat}],
                 sel_region=rname, sel_category=cn, limit=20,
@@ -523,6 +530,7 @@ def main():
         "docs-checklist": ("서류", "tag-docs"),
         "biz-plan-structure": ("전략", "tag-strategy"),
         "grant-vs-loan": ("기초", "tag-basic"),
+        "always-deadline": ("전략", "tag-strategy"),
     }
     def _guide_card(slug, h1, desc):
         tag_name, tag_cls = GUIDE_TAGS.get(slug, ("가이드", "tag-basic"))
@@ -611,7 +619,8 @@ def main():
              "o": a.get("org", ""), "m": a.get("amount", ""),
              "e": a.get("apply_end") or "", "d": a["dday"],
              "n": 1 if a["is_new"] else 0,
-             "p": a.get("period_raw", "")}
+             "p": a.get("period_raw", ""),
+             **({"s": a["blurb"]} if a.get("blurb") else {})}
             for a in rows]
     with open(os.path.join(DIST, "notices.json"), "w", encoding="utf-8") as f:
         json.dump(feed, f, ensure_ascii=False, separators=(",", ":"))
