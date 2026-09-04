@@ -13,6 +13,13 @@
   {% endif %}
 </div>
 
+{% if beginner_cta %}
+<a class="beginner-cta" href="/guide/start/">
+  <b>지원사업, 처음이신가요?</b>
+  <span>나에게 맞는 공고를 어디서부터 찾아야 할지 시작 가이드에서 확인하세요 →</span>
+</a>
+{% endif %}
+
 {% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}
 {% if today %}<a class="today-bar" href="/urgent/">오늘 마감되는 공고가 <b>{{ today }}건</b> 있습니다. 바로 확인하기</a>{% endif %}
 

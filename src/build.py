@@ -216,7 +216,7 @@ SLUGMAP = json.dumps({
 def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 intro=None, sel_region=None, sel_category=None, today=0,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
-                sections=None, tally_items=None):
+                sections=None, tally_items=None, beginner_cta=False):
     html = env.get_template("list.html").render(
         site=SITE, path=path, title=title or f"{h1} | {SITE['name']}",
         desc=desc or lede, h1=h1, lede=lede, items=items,
@@ -226,6 +226,7 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         sel_region=sel_region, sel_category=sel_category, slugmap=SLUGMAP,
         today=today, new_cnt=new_cnt, ics_url=ics_url,
         limit=limit or 0, more_href=more_href or "", sections=sections or [],
+        beginner_cta=beginner_cta,
     )
     write(path, html)
 
@@ -307,7 +308,7 @@ def main():
         desc="중소기업·소상공인 정부지원사업을 마감일 순서로 정리합니다. 지역·분야별로 접수 중인 공고를 확인하세요.",
         blocks=hub, today=sum(1 for a in rows if a["dday"] == 0), new_cnt=new_cnt,
         ics_url="/calendar/all.ics", sections=sections, more_href="/all/",
-        tally_items=rows,
+        tally_items=rows, beginner_cta=True,
     )
 
     # 전체 목록

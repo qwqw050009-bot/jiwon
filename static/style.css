@@ -210,6 +210,14 @@ footer a:hover{text-decoration:underline}
 }
 .today-bar b{color:#FFC9A8}
 
+.beginner-cta{
+  margin:18px 0 0;padding:14px 16px;display:block;text-decoration:none;
+  background:var(--open);color:#fff;border-radius:2px;
+}
+.beginner-cta b{display:block;font-size:15px;font-weight:800;margin-bottom:3px}
+.beginner-cta span{font-size:13px;opacity:.92}
+.beginner-cta:hover{opacity:.94}
+
 .snote{
   position:fixed;left:14px;right:14px;bottom:14px;z-index:50;max-width:460px;
   margin:0 auto;background:var(--ink);color:#fff;padding:14px 16px;
