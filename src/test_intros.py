@@ -147,10 +147,34 @@ def test_blurb_skips_generic_fallback():
     assert intros.blurb_of(generic_amt) == ""
 
 
+def test_hub_and_page_intros():
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    hub_r = intros.region_hub_intro(40, 17)
+    assert "17곳" in hub_r
+    assert "전남광주통합특별시" in hub_r
+    assert "광주와 전남을 한 단위" in hub_r
+    hub_c = intros.category_hub_intro(40)
+    assert "8종" in hub_c
+    paras = intros.region_page_intro("전남광주", [_item(region="전남광주")] * 3)
+    blob = "\n".join(paras)
+    assert "전남광주통합특별시에서" in blob
+    assert "3건" in blob
+    for bad in AWKWARD:
+        assert bad not in blob
+    cparas = intros.category_page_intro("창업", cats["창업"], [_item()] * 4)
+    cblob = "\n".join(cparas)
+    assert "/guide/pre-vs-early/" in cblob
+    mparas = intros.category_page_intro("경영", cats["경영"], [_item(category="경영")] * 2)
+    assert "/guide/sme-grant-checklist/" in "\n".join(mparas)
+    assert intros.CATEGORY_GUIDE["창업"][0] == "/guide/pre-vs-early/"
+    assert intros.CATEGORY_GUIDE["경영"][0] == "/guide/sme-grant-checklist/"
+
+
 if __name__ == "__main__":
     test_intro_length_and_uniqueness()
     test_sample_combos_read_naturally()
     test_jeonnam_gwangju_stays_united()
     test_ad_plan_thin_vs_long()
     test_blurb_skips_generic_fallback()
+    test_hub_and_page_intros()
     print("intros tests ok")

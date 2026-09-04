@@ -45,7 +45,7 @@
       '<div><h3>' + esc(a.t) + (a.n ? '<span class="tag-new">신규</span>' : '') + '</h3><div class="meta"><i>' + esc(a.o) + '</i><i>' +
       esc(a.c) + '</i><i class="amt">' + esc(a.m) + '</i></div>' + blurb + '</div>' +
       '<button type="button" class="star" data-id="' + a.i + '" aria-pressed="' +
-      (window.Scrap && Scrap.has(a.i)) + '" aria-label="스크랩"></button></a>';
+      (window.Scrap && Scrap.has(a.i) ? 'true' : 'false') + '" aria-label="스크랩"></button></a>';
   }
 
   function summary() {

@@ -53,9 +53,9 @@ CATEGORY_GUIDE = {
     "기술": ("/guide/biz-plan-structure/", "사업계획서 기본 구조"),
     "인력": ("/guide/docs-checklist/", "준비서류 총정리"),
     "수출": ("/guide/voucher-vs-selection/", "바우처와 선정 사업 차이"),
-    "내수": ("/guide/voucher-vs-selection/", "바우처와 선정 사업 차이"),
-    "창업": ("/guide/start/", "지원사업 시작 가이드"),
-    "경영": ("/guide/aply-trgt-check/", "신청 자격 확인"),
+    "내수": ("/guide/sme-grant-checklist/", "소상공인 지원금 체크리스트"),
+    "창업": ("/guide/pre-vs-early/", "예비·초기창업패키지 차이"),
+    "경영": ("/guide/sme-grant-checklist/", "소상공인 지원금 체크리스트"),
     "기타": ("/guide/aply-trgt-check/", "신청 자격 확인"),
 }
 
@@ -279,6 +279,58 @@ def build(region, category, cat, items):
         })
 
     return paras, faqs
+
+
+def region_hub_intro(n, n_regions):
+    """지역 허브(/region/)용 소개 HTML. 칩은 위에 두고 목록은 SSR로 둔다."""
+    return (
+        f"<p>사업장 소재지 기준 공고 {n}건을 마감이 가까운 순으로 둡니다. "
+        f"지역은 {n_regions}곳으로 나뉩니다.</p>"
+        "<p>전남광주통합특별시는 광주와 전남을 한 단위로 둡니다. "
+        "소재지 제한이 없는 사업은 전국에서 보시면 됩니다.</p>"
+    )
+
+
+def category_hub_intro(n):
+    """분야 허브(/category/)용 소개 HTML."""
+    return (
+        f"<p>지원 분야 8종으로 나눈 공고 {n}건입니다. 아래는 전체를 마감일 순으로 "
+        "둔 목록이고, 칩을 누르면 해당 분야만 봅니다.</p>"
+        "<p>창업은 예비·초기 사업화, 경영은 이미 운영 중인 소상공인 쪽이 많습니다. "
+        "융자·보증은 금융에서 따로 모았습니다.</p>"
+    )
+
+
+def region_page_intro(region, items):
+    """지역 단독 페이지 소개 문단. 없는 공고를 지어내지 않는다."""
+    n = len(items or [])
+    p1 = (
+        f"{_where(region)} 지원사업은 {n}건입니다. "
+        "분야를 가리지 않고 마감이 가까운 순으로 두었습니다."
+    )
+    p2 = REGION_BLURB.get(region) or (
+        f"{h(region)} 소재 사업장 기준 공고입니다. 공고문 대상 지역을 원문에서 확인하세요."
+    )
+    return [p1, p2]
+
+
+def category_page_intro(category, cat, items):
+    """분야 단독 페이지 소개 문단."""
+    n = len(items or [])
+    cat_desc = (cat or {}).get("desc") or f"{category} 지원"
+    cat_note = CATEGORY_BLURB.get(category) or (
+        f"{h(category)}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
+    )
+    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
+    p1 = (
+        f"{h(category)} 분야 지원사업은 {n}건입니다. "
+        f"{h(cat_desc)}에 해당하는 공고를 마감이 가까운 순으로 두었습니다."
+    )
+    p2 = (
+        f"{cat_note} 신청이 처음이면 "
+        f'<a href="{h(href)}">{h(gname)}</a>{_josa(gname, "을", "를")} 먼저 보시면 됩니다.'
+    )
+    return [p1, p2]
 
 
 def faq_jsonld(faqs):

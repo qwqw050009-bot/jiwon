@@ -261,14 +261,50 @@ SLUGMAP = json.dumps({
 }, ensure_ascii=False)
 
 
+def crumb_ld(crumbs):
+    """화면에 보이는 빵가루와 같은 순서의 BreadcrumbList JSON-LD."""
+    if not crumbs:
+        return ""
+    els = []
+    for i, c in enumerate(crumbs, 1):
+        row = {"@type": "ListItem", "position": i, "name": c["name"]}
+        if c.get("url"):
+            row["item"] = SITE["domain"] + c["url"]
+        els.append(row)
+    return json.dumps({
+        "@context": "https://schema.org", "@type": "BreadcrumbList",
+        "itemListElement": els,
+    }, ensure_ascii=False)
+
+
+def website_ld():
+    """홈 전용 WebSite + SearchAction. 검색 실주소는 헤더 폼과 같다."""
+    return json.dumps({
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": SITE["name"],
+        "url": SITE["domain"] + "/",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": SITE["domain"] + "/all/?q={search_term_string}",
+            },
+            "query-input": "required name=search_term_string",
+        },
+    }, ensure_ascii=False)
+
+
 def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 intro=None, intro_paras=None, faqs=None, faq_jsonld=None,
                 sel_region=None, sel_category=None, today=0,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
-                sections=None, tally_items=None, beginner_cta=False):
+                sections=None, tally_items=None, beginner_cta=False,
+                crumbs=None, website_jsonld=""):
     n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
+    crumbs = crumbs or []
     html = env.get_template("list.html").render(
         site=SITE, path=path, title=title or f"{h1} | {SITE['name']}",
         desc=desc or lede, h1=h1, lede=lede, items=items,
@@ -280,7 +316,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         sel_region=sel_region, sel_category=sel_category, slugmap=SLUGMAP,
         today=today, new_cnt=new_cnt, ics_url=ics_url,
         limit=limit or 0, more_href=more_href or "", sections=sections or [],
-        beginner_cta=beginner_cta,
+        beginner_cta=beginner_cta, crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
+        website_jsonld=website_jsonld or "",
     )
     write(path, html)
 
@@ -354,15 +391,14 @@ def main():
                      "href": "/all/", "total": sum(1 for a in rows if a["is_open"])})
 
     render_list(
-        "/", "마감이 가까운 순서로 봅니다",
-        "정부·지자체·공공기관이 공고한 사업자 지원사업을 한곳에 모았습니다. "
-        "매일 아침 새 공고가 올라오고, 마감이 임박한 순서로 정렬됩니다.",
+        "/", SITE["tagline"],
+        "마감일 순으로 무료 정리합니다. 회원가입 없이 지역·분야 롱테일로 좁혀 보세요.",
         [],
         title=f"{SITE['name']} — 정부지원사업 마감일 순 정리",
         desc="중소기업·소상공인 정부지원사업을 마감일 순서로 정리합니다. 지역·분야별로 접수 중인 공고를 확인하세요.",
         blocks=hub, today=sum(1 for a in rows if a["dday"] == 0), new_cnt=new_cnt,
         ics_url="/calendar/all.ics", sections=sections, more_href="/all/",
-        tally_items=rows, beginner_cta=True,
+        tally_items=rows, beginner_cta=True, website_jsonld=website_ld(),
     )
 
     # 전체 목록
@@ -396,10 +432,24 @@ def main():
     # 서버 렌더 items가 비어있으면 JS 유무와 상관없이 항상 빈 화면으로
     # 보임 — CLAUDE.md 4번 규칙 "JS 꺼져도 서버 렌더 목록이 보여야 한다"
     # 위반이기도 했다). 분야·지역 칩 아래에 실제 목록도 함께 보여준다.
-    render_list("/category/", "분야별로 찾기",
-                "지원 분야 8종으로 나눠 정리했습니다.", rows, limit=20, blocks=[hub[0]])
-    render_list("/region/", "지역별로 찾기",
-                "사업장 소재지 기준으로 신청 가능한 공고를 모았습니다.", rows, limit=20, blocks=[hub[1]])
+    render_list(
+        "/category/", "분야별로 찾기",
+        "금융부터 창업·경영까지 8종. 마감이 가까운 순으로 둡니다.",
+        rows, limit=20, blocks=[hub[0]],
+        intro=intros.category_hub_intro(len(rows)),
+        crumbs=[{"name": "홈", "url": "/"}, {"name": "분야", "url": "/category/"}],
+        title=f"분야별 정부지원사업 | {SITE['name']}",
+        desc="금융·기술·인력·수출·내수·창업·경영 분야 정부지원사업을 마감일 순으로 정리합니다.",
+    )
+    render_list(
+        "/region/", "지역별로 찾기",
+        "사업장 소재지 기준, 마감일 순. 전남광주는 통합 단위입니다.",
+        rows, limit=20, blocks=[hub[1]],
+        intro=intros.region_hub_intro(len(rows), len(regs)),
+        crumbs=[{"name": "홈", "url": "/"}, {"name": "지역", "url": "/region/"}],
+        title=f"지역별 정부지원사업 | {SITE['name']}",
+        desc="시·도 사업장 소재지 기준으로 신청 가능한 정부지원사업을 마감일 순으로 정리합니다.",
+    )
 
     # 분야별
     for name, c in cats.items():
@@ -412,13 +462,17 @@ def main():
         other_cats = [x for x in cat_chips if x["name"] != name]
         render_list(
             f"/category/{c['slug']}/", f"{name} 분야 지원사업",
-            f"{c['desc']}. 현재 접수 중인 공고를 마감일 순으로 정리했습니다.",
+            f"{c['desc']}. 마감이 가까운 순입니다.",
             items,
             title=f"{name} 분야 정부지원사업 모음 | {SITE['name']}",
             desc=f"{name} 지원사업 {len(items)}건. {c['desc']}. 마감일과 지원대상을 한눈에 확인하세요.",
+            intro_paras=intros.category_page_intro(name, c, items),
             blocks=[{"title": "다른 분야", "items": other_cats},
                     {"title": "지역으로 좁히기", "items": sub}],
             sel_category=name, ics_url=f"/calendar/{c['slug']}.ics", limit=20,
+            crumbs=[{"name": "홈", "url": "/"},
+                    {"name": "분야", "url": "/category/"},
+                    {"name": name, "url": f"/category/{c['slug']}/"}],
         )
 
     # 지역별 + 지역x분야 롱테일
@@ -432,13 +486,17 @@ def main():
         other_regs = [x for x in reg_chips if x["name"] != rname]
         render_list(
             f"/region/{r['slug']}/", f"{rname} 지역 지원사업",
-            f"{rname}에 사업장을 둔 기업이 신청할 수 있는 공고입니다.",
+            f"{rname} 사업장 기준 공고를 마감일 순으로 둡니다.",
             items,
             title=f"{rname} 정부지원사업 · 보조금 공고 모음 | {SITE['name']}",
             desc=f"{rname} 지역 중소기업·소상공인 지원사업 {len(items)}건을 마감일 순으로 정리했습니다.",
+            intro_paras=intros.region_page_intro(rname, items),
             blocks=[{"title": "다른 지역", "items": other_regs},
                     {"title": "분야로 좁히기", "items": sub}],
             sel_region=rname, ics_url=f"/calendar/{r['slug']}.ics", limit=20,
+            crumbs=[{"name": "홈", "url": "/"},
+                    {"name": "지역", "url": "/region/"},
+                    {"name": rname, "url": f"/region/{r['slug']}/"}],
         )
         for cn, c in cats.items():
             cross = [a for a in items if a["category"] == cn]
@@ -460,6 +518,10 @@ def main():
                 blocks=[{"title": f"{rname} 다른 분야", "items": sub},
                         {"title": f"다른 지역의 {cn}", "items": other_regs_same_cat}],
                 sel_region=rname, sel_category=cn, limit=20,
+                crumbs=[{"name": "홈", "url": "/"},
+                        {"name": "지역", "url": "/region/"},
+                        {"name": rname, "url": f"/region/{r['slug']}/"},
+                        {"name": cn, "url": f"/region/{r['slug']}/{c['slug']}/"}],
             )
 
     # 공고 상세 (접수 중 + 마감 후 최근 것)
@@ -474,13 +536,25 @@ def main():
             "description": a["ai"]["summary"],
         }, ensure_ascii=False)
         title_suffix = "— 마감된 공고 정리" if a.get("is_closed") else "— 신청자격·마감일 정리"
+        rslug = (regs.get(a.get("region") or "") or {}).get("slug")
+        cslug = (cats.get(a.get("category") or "") or {}).get("slug")
+        npath = f"/notice/{a['id']}/"
+        crumbs = [{"name": "홈", "url": "/"}]
+        if rslug:
+            crumbs.append({"name": a.get("region") or "지역",
+                           "url": f"/region/{rslug}/"})
+        if rslug and cslug:
+            crumbs.append({"name": a.get("category") or "분야",
+                           "url": f"/region/{rslug}/{cslug}/"})
+        crumbs.append({"name": a.get("title") or "공고", "url": npath})
         html = env.get_template("detail.html").render(
-            site=SITE, path=f"/notice/{a['id']}/",
+            site=SITE, path=npath, page="detail",
             title=f"{a['title']} {title_suffix} | {SITE['name']}",
             desc=a["ai"]["summary"][:150], a=a, related=rel,
             jsonld=ld, faq_jsonld=faq_jsonld(a),
+            crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
         )
-        write(f"/notice/{a['id']}/", html)
+        write(npath, html)
 
     for a in rows:
         render_notice(a, rows)
@@ -531,6 +605,8 @@ def main():
         "biz-plan-structure": ("전략", "tag-strategy"),
         "grant-vs-loan": ("기초", "tag-basic"),
         "always-deadline": ("전략", "tag-strategy"),
+        "pre-vs-early": ("전략", "tag-strategy"),
+        "sme-grant-checklist": ("서류", "tag-docs"),
     }
     def _guide_card(slug, h1, desc):
         tag_name, tag_cls = GUIDE_TAGS.get(slug, ("가이드", "tag-basic"))

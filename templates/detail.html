@@ -10,9 +10,16 @@
   {% if a.is_closed %}
   <p class="alert">이 공고는 접수가 마감되었습니다. 아래에서 현재 접수 중인 유사 공고를 확인하세요.</p>
   {% endif %}
-  <div class="dday {{ a.cls }}" style="text-align:left;font-size:15px">{{ a.dlabel }} · {{ a.dsub }}</div>
-  <h1>{{ a.title }}</h1>
-  <p><span class="badge-ai">AI 요약</span>{{ a.ai.summary }}</p>
+  <div class="detail-kicker">
+    <div class="dday {{ a.cls }}">{{ a.dlabel }}<small>{{ a.dsub }}</small></div>
+    <div>
+      <p class="detail-meta"><i>{{ a.org }}</i><i>{{ a.region }}</i><i>{{ a.category }}</i></p>
+      <h1>{{ a.title }}</h1>
+    </div>
+  </div>
+  {% if a.ai and a.ai.summary %}
+  <p class="lede">{{ a.ai.summary }}</p>
+  {% endif %}
 
   <dl class="facts">
     <div><dt>소관기관</dt><dd>{{ a.org }}</dd></div>
@@ -24,6 +31,10 @@
     <div><dt>신청방법</dt><dd>{{ a.method }}</dd></div>
     {% if a.contact %}<div><dt>문의처</dt><dd>{{ a.contact }}</dd></div>{% endif %}
   </dl>
+
+  <div class="cta-bar cta-bar--lead">
+    <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문 공고 보기</a>
+  </div>
 
   {% if a.points %}
   <div class="sec">
@@ -50,13 +61,23 @@
     <p class="note"><a href="/guide/docs-checklist/">정부지원사업 공통 준비서류와 발급처 총정리 →</a></p>
   </div>
 
-  <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문 공고 보기</a>
+  <div class="cta-bar cta-bar--end">
+    <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문 공고 보기</a>
+    <button type="button" class="cta-star" id="scrap-btn" data-id="{{ a.id }}" aria-pressed="false"><span>스크랩</span></button>
+  </div>
   <p class="note">위 해설은 공고 내용을 신청자 관점에서 정리한 것입니다. 지원 조건과 예산은 기관 사정으로 변경될 수 있으니 신청 전 원문을 확인하세요.</p>
 </article>
 
-<section class="nav-block">
-  <h2>{{ a.region }} {{ a.category }} 분야 {% if a.is_closed %}현재 접수 중인{% else %}다른{% endif %} 공고</h2>
-  <div class="board">{% for x in related %}{{ row(x) }}{% endfor %}</div>
+{% if related %}
+<section class="related">
+  <div class="board">
+    <div class="sec-head">
+      <h2>{{ a.region }} {{ a.category }} 분야 {% if a.is_closed %}현재 접수 중인{% else %}다른{% endif %} 공고</h2>
+      <span>{{ related|length }}건</span>
+    </div>
+    {% for x in related %}{{ row(x) }}{% endfor %}
+  </div>
 </section>
+{% endif %}
 {{ ad_slot('detail_bottom') }}
 {% endblock %}
