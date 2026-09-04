@@ -19,6 +19,7 @@ import hashlib
 import html as html_module
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import date, datetime, timezone
@@ -199,6 +200,26 @@ def archived_notices(rows, today):
               f"(소스 전환/ID 생성 로직 변경 의심). 최근 {MAX_ARCHIVED}건만 생성합니다.")
         out = out[-MAX_ARCHIVED:]
     return out
+
+
+def howto_jsonld(h1, desc, content_html):
+    """
+    가이드 본문의 <h2>단계 제목</h2><p>설명</p> 구조를 그대로 HowTo 구조화
+    데이터로 옮긴다. 페이지에 보이는 순서/문구를 그대로 재사용할 뿐, 없는
+    단계를 지어내지 않는다 (구글 HowTo 가이드라인 — 화면과 일치해야 함).
+    "1단계 — ", "2단계 — " 형태의 h2만 단계로 인정한다.
+    """
+    steps = []
+    for m in re.finditer(r"<h2>(\d단계\s*—\s*[^<]+)</h2>\s*<p>(.*?)</p>", content_html, re.S):
+        name = html_module.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip()
+        text = html_module.unescape(re.sub(r"<[^>]+>", " ", m.group(2))).strip()
+        steps.append({"@type": "HowToStep", "name": name, "text": text[:300]})
+    if not steps:
+        return None
+    return json.dumps({
+        "@context": "https://schema.org", "@type": "HowTo",
+        "name": h1, "description": desc, "step": steps,
+    }, ensure_ascii=False)
 
 
 def faq_jsonld(a):
@@ -496,9 +517,10 @@ def main():
         desc="정부지원사업 신청 자격, 서류, 바우처·선정사업 차이 등 기본기를 정리했습니다.",
         h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'))
     for slug, h1, desc, content in guide_list:
+        jsonld = howto_jsonld(h1, desc, content) if slug == "start" else None
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",
-            desc=desc, h1=h1, content=content))
+            desc=desc, h1=h1, content=content, jsonld=jsonld))
 
     # 고정 페이지 (애드센스 심사 필수)
     site_stats = {
