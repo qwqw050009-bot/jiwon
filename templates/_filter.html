@@ -32,4 +32,4 @@
     </select>
   </div>
 </section>
-<p class="f-count" id="f-count" aria-live="polite"></p>
+<p class="f-count" id="f-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>

@@ -173,10 +173,11 @@
         render(true);
         return;
       }
-      compute();
-      var soon = view.filter(function (a) { return a.d >= 0 && a.d <= 7; }).length;
-      document.getElementById('f-count').textContent =
-        view.length + '건' + (soon ? ' · 이번 주 마감 ' + soon + '건' : '');
+      // 요약판 상태(사용자가 아직 필터를 안 건드림)에서는 f-count를 다시
+      // 계산하지 않는다. notices.json에는 시군구 정보가 없어서, 시군구
+      // 페이지에서 picked.region(광역 단위)만으로 client 계산을 하면
+      // "3건"짜리 페이지에 광역 전체 건수(예: 80건)가 뜨는 버그가 있었다.
+      // 서버가 렌더링할 때 이미 정확한 값을 #f-count에 넣어뒀으니 그대로 둔다.
       summary();
     })
     .catch(function () { root.style.display = 'none'; });
