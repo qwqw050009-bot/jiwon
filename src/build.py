@@ -572,6 +572,15 @@ def main():
         robots = "User-agent: *\nDisallow: /\n"
     open(os.path.join(DIST, "robots.txt"), "w", encoding="utf-8").write(robots)
 
+    # ads.txt: 애드센스 심사·수익 인증에 필요한 표준 파일.
+    # pub-XXXX 부분은 adsense_client("ca-pub-XXXX")에서 "ca-" 접두만 뗀 값이고,
+    # 뒤의 f08c47fec0942fa0은 구글이 모든 퍼블리셔 공통으로 쓰는 고정 인증값이다
+    # (비밀값 아님 — 구글 자체 문서에 실린 표준 상수).
+    if SITE.get("adsense_client"):
+        pub_id = SITE["adsense_client"].removeprefix("ca-")
+        open(os.path.join(DIST, "ads.txt"), "w", encoding="utf-8").write(
+            f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n")
+
     # IndexNow(빙·네이버 지원): 소유확인 키 파일은 로그인/가입 없이 쓰는
     # 공개 토큰이라 늘 배포해두고, 실제 검색엔진 핑은 색인을 허용할 때만 보낸다.
     open(os.path.join(DIST, f"{config.INDEXNOW_KEY}.txt"), "w", encoding="utf-8").write(config.INDEXNOW_KEY)
