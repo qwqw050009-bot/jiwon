@@ -388,6 +388,11 @@ def main():
             intro = (f"<p>{rname} 지역에서 접수 중인 {cn} 분야 지원사업 {len(cross)}건입니다. "
                      f"{c['desc']}에 해당하며, 소관기관은 "
                      f"{', '.join(sorted({a['org'] for a in cross})[:3])} 등입니다.</p>")
+            other_regs_same_cat = [
+                {"name": r2, "url": f"/region/{regs[r2]['slug']}/{c['slug']}/",
+                 "count": len([a for a in by_reg[r2] if a["category"] == cn])}
+                for r2 in regs if r2 != rname and any(a["category"] == cn for a in by_reg[r2])
+            ]
             render_list(
                 f"/region/{r['slug']}/{c['slug']}/", f"{rname} {cn} 지원사업",
                 f"{rname} 지역 {cn} 분야 공고를 마감일 순으로 정리했습니다.",
@@ -395,7 +400,8 @@ def main():
                 title=f"{rname} {cn} 지원사업 {len(cross)}건 — 마감일 순 | {SITE['name']}",
                 desc=f"{rname} {cn} 분야 정부지원사업 {len(cross)}건. 지원대상, 지원규모, 마감일을 정리했습니다.",
                 intro=intro,
-                blocks=[{"title": f"{rname} 다른 분야", "items": sub}],
+                blocks=[{"title": f"{rname} 다른 분야", "items": sub},
+                        {"title": f"다른 지역의 {cn}", "items": other_regs_same_cat}],
                 sel_region=rname, sel_category=cn, limit=20,
             )
 
