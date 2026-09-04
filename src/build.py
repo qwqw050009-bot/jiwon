@@ -508,10 +508,21 @@ def main():
 
     # 가이드 (검색 유입용 상시 콘텐츠 — 공고와 달리 매일 안 바뀐다)
     guide_list = guides.build()
-    guide_links = "".join(
-        f'<a class="guide-card" href="/guide/{slug}/"><b>{h1}</b><span>{desc}</span></a>'
-        for slug, h1, desc, _ in guide_list
-    )
+    GUIDE_TAGS = {
+        "start": ("시작하기", "tag-start"),
+        "aply-trgt-check": ("기초", "tag-basic"),
+        "voucher-vs-selection": ("전략", "tag-strategy"),
+        "docs-checklist": ("서류", "tag-docs"),
+        "biz-plan-structure": ("전략", "tag-strategy"),
+        "grant-vs-loan": ("기초", "tag-basic"),
+    }
+    def _guide_card(slug, h1, desc):
+        tag_name, tag_cls = GUIDE_TAGS.get(slug, ("가이드", "tag-basic"))
+        return (f'<a class="guide-card" href="/guide/{slug}/">'
+                f'<span class="guide-tag {tag_cls}">{tag_name}</span>'
+                f'<b>{h1}</b><span class="guide-desc">{desc}</span></a>')
+
+    guide_links = "".join(_guide_card(slug, h1, desc) for slug, h1, desc, _ in guide_list)
     write("/guide/", env.get_template("page.html").render(
         site=SITE, path="/guide/", title=f"정부지원사업 가이드 | {SITE['name']}",
         desc="정부지원사업 신청 자격, 서류, 바우처·선정사업 차이 등 기본기를 정리했습니다.",

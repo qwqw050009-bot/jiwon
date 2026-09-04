@@ -20,14 +20,14 @@
 </head>
 <body data-page="{{ page|default('') }}">
 <header class="top"><div class="wrap">
-  <a class="brand" href="/">지원사업 <span>마감판</span></a>
+  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
   <nav>
-    <a href="/urgent/">마감임박</a>
-    <a href="/category/">분야</a>
-    <a href="/region/">지역</a>
-    <a href="/calendar/">캘린더</a>
-    <a href="/guide/">가이드</a>
-    <a href="/scrap/" class="nav-scrap">스크랩<b id="scrap-count" hidden></b></a>
+    <a href="/urgent/" class="{{ 'active' if path.startswith('/urgent/') }}">마감임박</a>
+    <a href="/category/" class="{{ 'active' if path.startswith('/category/') }}">분야</a>
+    <a href="/region/" class="{{ 'active' if path.startswith('/region/') }}">지역</a>
+    <a href="/calendar/" class="{{ 'active' if path.startswith('/calendar/') }}">캘린더</a>
+    <a href="/guide/" class="{{ 'active' if path.startswith('/guide/') }}">가이드</a>
+    <a href="/scrap/" class="nav-scrap {{ 'active' if path.startswith('/scrap/') }}">스크랩<b id="scrap-count" hidden></b></a>
   </nav>
 </div></header>
 
