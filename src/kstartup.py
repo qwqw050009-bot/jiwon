@@ -204,21 +204,33 @@ class KstartupSource:
     """
     운영용. KSTARTUP_KEY 환경변수 필요 (BIZINFO_KEY와 별도 발급).
     dataType=json을 보내도 서버는 항상 XML로 응답한다 (실호출로 확인).
+
+    주의(2026-09-04 실호출로 확인): rcrt_prgs_yn=Y 필터를 걸어도 서버가
+    무시하고 전체 29,988건을 그대로 돌려줬다 — 파라미터명이 다르거나
+    서버가 이 필터를 지원 안 하는 것으로 보인다. 그래서 이 필터를 믿지 않고
+    두 겹으로 방어한다: ① MAX_PAGES로 페이지네이션 자체를 하드 캡 ②
+    sources._process()의 D-day 계산이 마감 지난 공고를 걸러낸다(기존
+    안전장치, 이미 검증됨). rcrt_prgs_yn 파라미터는 혹시 몰라 남겨두되
+    기대하지 않는다.
     """
     URLS = [
         "https://apis.data.go.kr/B552735/kisedKstartupService01/getAnnouncementInformation01",
     ]
     CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "kstartup_cache.json")
+    MAX_PAGES = 30   # per_page=100 기준 최대 3,000건. 하루 한 번 도는 배치가
+                      # 공공API에 300페이지씩 부담 주지 않게 하는 상한선.
 
     def __init__(self, key=None, pages=None):
         self.key = key or os.environ.get("KSTARTUP_KEY", "")
-        self.pages = pages
+        self.pages = pages or self.MAX_PAGES
 
     def _get(self, page, per_page=100, debug=False):
         import time, urllib.parse, urllib.request
+        today8 = date.today().strftime("%Y%m%d")
         q = urllib.parse.urlencode({
             "serviceKey": self.key, "page": page, "perPage": per_page,
-            "rcrt_prgs_yn": "Y",   # 모집 중인 공고만 (안 걸면 3만 건 가까이 나온다)
+            "rcrt_prgs_yn": "Y",              # 실제로는 서버가 무시함(위 주석 참고). 밑져야 본전이라 유지.
+            "pbanc_rcpt_end_dt_GTE": today8,   # 접수종료일이 오늘 이후인 것만 (검증 안 됨, best-effort)
         }, safe="%")
         last = None
         for attempt in range(3):
