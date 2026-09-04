@@ -314,6 +314,104 @@ def region_page_intro(region, items):
     return [p1, p2]
 
 
+def _district_scope(sido, district):
+    d, s = h(district), h(sido)
+    if sido == "전남광주":
+        return (
+            f"전남광주통합특별시 공고와 전국 공고 가운데 해시태그가 '{d}'인 것만 모았습니다. "
+            "광주와 전남을 따로 나누지 않습니다."
+        )
+    return (
+        f"{s} 공고와 전국 공고 가운데 해시태그가 '{d}'인 것만 모았습니다. "
+        "다른 시·도 공고는 같은 이름이 붙어 있어도 넣지 않습니다."
+    )
+
+
+def district_page_intro(sido, district, items):
+    """시군구 허브 소개. 건수·소관기관만 쓰고 지원금·자격을 지어내지 않는다."""
+    n = len(items or [])
+    d, s = h(district), h(sido)
+    p1 = (
+        f"{s} {d} 관련 지원사업은 {n}건입니다. "
+        f"{_district_scope(sido, district)} 마감이 가까운 순입니다."
+    )
+    p2 = h(_org_sentence(_orgs(items)))
+    dated = [a for a in items if a.get("period_type") != "always"]
+    always = [a for a in items if a.get("period_type") == "always"]
+    open_dated = [a for a in dated if a.get("dday", -1) >= 0]
+    urgent = [a for a in open_dated if a.get("dday", 99) <= 7]
+    p3 = _deadline_para(urgent, open_dated, always)
+    return [p1, p2, p3]
+
+
+def district_combo_intro(sido, district, category, cat, items):
+    """시군구×분야 소개·FAQ. 화면에 보이는 건수·기관·마감만 쓴다."""
+    n = len(items or [])
+    d, s, cname = h(district), h(sido), h(category)
+    cat_desc = (cat or {}).get("desc") or f"{category} 지원"
+    dated = [a for a in items if a.get("period_type") != "always"]
+    always = [a for a in items if a.get("period_type") == "always"]
+    open_dated = [a for a in dated if a.get("dday", -1) >= 0]
+    urgent = [a for a in open_dated if a.get("dday", 99) <= 7]
+    orgs = _orgs(items)
+
+    p1 = (
+        f"{s} {d}의 {cname} 지원사업은 {n}건입니다. "
+        f"{h(cat_desc)}에 해당하며, {_district_scope(sido, district)}"
+    )
+    p2 = h(_org_sentence(orgs))
+    p3 = _deadline_para(urgent, open_dated, always)
+    cat_note = CATEGORY_BLURB.get(category) or (
+        f"{cname}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
+    )
+    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
+    p4 = (
+        f"{cat_note} 신청이 처음이면 "
+        f'<a href="{h(href)}">{h(gname)}</a>{_josa(gname, "을", "를")} 먼저 보시면 됩니다.'
+    )
+    paras = [p1, p2, p3, p4]
+    if n <= 2:
+        paras = [p1, p2, p3]
+
+    faqs = [
+        {
+            "q": f"{district} {category} 지원사업은 지금 몇 건인가요?",
+            "a": (
+                f"이 페이지에는 {n}건이 있습니다. "
+                f"이번 주 마감 {len(urgent)}건, 상시 접수 {len(always)}건입니다. "
+                f"새 공고는 매일 아침 목록에 반영됩니다."
+            ),
+        },
+        {
+            "q": f"{district} {category} 목록에는 어떤 공고가 들어가나요?",
+            "a": (
+                f"{_district_scope(sido, district)} "
+                f"{cat_desc} 성격의 공고입니다. "
+                "업력·매출·체납·중복지원 요건은 공고마다 다르니, 각 공고 상세와 원문을 확인하세요."
+            ),
+        },
+        {
+            "q": "마감일과 상시 접수는 어떻게 보나요?",
+            "a": _deadline_answer(urgent, open_dated, always, len(always), len(urgent)),
+        },
+        {
+            "q": "신청은 어디서 하나요?",
+            "a": _apply_answer(orgs),
+        },
+    ]
+    if always:
+        raw0 = _always_raws(always)[0] if _always_raws(always) else "상시 접수"
+        faqs.append({
+            "q": "상시 접수면 천천히 신청해도 되나요?",
+            "a": (
+                f"그렇지 않습니다. 이 목록의 상시 공고 {len(always)}건은 날짜 대신 "
+                f"'{raw0}'처럼 적혀 있고, 예산이 소진되면 조기 마감되는 경우가 많습니다. "
+                f"조건을 확인하는 대로 접수하는 편이 안전합니다."
+            ),
+        })
+    return paras, faqs
+
+
 def category_page_intro(category, cat, items):
     """분야 단독 페이지 소개 문단."""
     n = len(items or [])

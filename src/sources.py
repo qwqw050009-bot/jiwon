@@ -32,6 +32,17 @@ class MockSource:
         return rows
 
 
+class JsonSource:
+    """이미 정규화된 JSON (data/api_cache.json 등). 키가 없을 때 캐시 검증용."""
+
+    def __init__(self, path=None):
+        self.path = path or os.path.join(DATA_DIR, "api_cache.json")
+
+    def fetch(self):
+        with open(self.path, encoding="utf-8") as f:
+            return json.load(f)
+
+
 class BizinfoSource:
     """
     기업마당 오픈API. 인증키 받으면 아래 주석 해제하고 build.py에서 교체.

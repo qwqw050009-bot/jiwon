@@ -11,6 +11,8 @@ python3 src/build.py  → dist/ 에 전체 사이트 생성.
   /region/              지역 허브
   /region/{지역}/        지역별
   /region/{지역}/{분야}/  ← 롱테일 조합 (핵심 트래픽 소스)
+  /region/{지역}/{시군구}/  시군구 허브 (해시태그 정확 일치, 3건 이상)
+  /region/{지역}/{시군구}/{분야}/  시군구×분야 (3건 이상만)
   /notice/{id}/         공고 상세
   /about /privacy /terms /contact   (애드센스 필수 페이지)
   sitemap.xml, robots.txt
@@ -38,6 +40,7 @@ import ics
 import pages as static_pages
 import guides
 import intros
+import districts as distmod
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -331,9 +334,15 @@ def main():
     # 키가 있으면 실데이터, 없으면 목업으로 자동 전환.
     # 로컬에서 키 없이 돌려도 그대로 빌드된다.
     key = os.environ.get("BIZINFO_KEY", "").strip()
+    cache_path = os.path.join(ROOT, "data", "api_cache.json")
     if key:
         print("실데이터 모드 (기업마당 API)")
         rows = sources.load(bizinfo.BizinfoSource(key))
+    elif os.environ.get("MAGAMPAN_USE_CACHE", "").strip() and os.path.exists(cache_path):
+        # 로컬에서 시군구 페이지를 실데이터 스키마(tags)로 검증할 때.
+        # 키가 없는 기본 경로는 기존처럼 목업이다.
+        print("캐시 모드 (data/api_cache.json)")
+        rows = sources.load(sources.JsonSource(cache_path))
     else:
         print("목업 모드 (BIZINFO_KEY 없음)")
         rows = sources.load()
@@ -369,6 +378,11 @@ def main():
     regs = {r["name"]: r for r in config.REGIONS}
     by_cat = {n: [a for a in rows if a["category"] == n] for n in cats}
     by_reg = {n: [a for a in rows if a["region"] == n] for n in regs}
+    # 시군구는 허용 목록×해시태그 정확 일치만. 3건 미만은 페이지를 만들지 않는다.
+    by_district = distmod.grouped(rows)
+    n_dist_hubs = sum(len(v) for v in by_district.values())
+    if n_dist_hubs:
+        print(f"시군구 허브 {n_dist_hubs}곳 (허용 목록 {len(distmod.DISTRICTS)}개 중 {distmod.MIN_COUNT}건 이상)")
 
     cat_chips = [{"name": n, "url": f"/category/{cats[n]['slug']}/", "count": len(v)}
                  for n, v in by_cat.items() if v]
@@ -484,6 +498,16 @@ def main():
                 "count": len([a for a in items if a["category"] == cn])}
                for cn in cats if any(a["category"] == cn for a in items)]
         other_regs = [x for x in reg_chips if x["name"] != rname]
+        d_chips = [
+            {"name": d["name_ko"],
+             "url": f"/region/{r['slug']}/{d['slug']}/",
+             "count": len(ditems)}
+            for d, ditems in by_district.get(rname, [])
+        ]
+        sido_blocks = [{"title": "다른 지역", "items": other_regs}]
+        if d_chips:
+            sido_blocks.append({"title": "시군구로 좁히기", "items": d_chips})
+        sido_blocks.append({"title": "분야로 좁히기", "items": sub})
         render_list(
             f"/region/{r['slug']}/", f"{rname} 지역 지원사업",
             f"{rname} 사업장 기준 공고를 마감일 순으로 둡니다.",
@@ -491,8 +515,7 @@ def main():
             title=f"{rname} 정부지원사업 · 보조금 공고 모음 | {SITE['name']}",
             desc=f"{rname} 지역 중소기업·소상공인 지원사업 {len(items)}건을 마감일 순으로 정리했습니다.",
             intro_paras=intros.region_page_intro(rname, items),
-            blocks=[{"title": "다른 지역", "items": other_regs},
-                    {"title": "분야로 좁히기", "items": sub}],
+            blocks=sido_blocks,
             sel_region=rname, ics_url=f"/calendar/{r['slug']}.ics", limit=20,
             crumbs=[{"name": "홈", "url": "/"},
                     {"name": "지역", "url": "/region/"},
@@ -523,6 +546,76 @@ def main():
                         {"name": rname, "url": f"/region/{r['slug']}/"},
                         {"name": cn, "url": f"/region/{r['slug']}/{c['slug']}/"}],
             )
+
+        # 시군구 허브 + 시군구×분야. 허용 목록 해시태그 정확 일치, MIN_COUNT 이상만 파일로 씀.
+        siblings = [
+            {"name": d["name_ko"],
+             "url": f"/region/{r['slug']}/{d['slug']}/",
+             "count": len(ditems)}
+            for d, ditems in by_district.get(rname, [])
+        ]
+        for d, ditems in by_district.get(rname, []):
+            dpath = f"/region/{r['slug']}/{d['slug']}/"
+            dname = d["name_ko"]
+            d_cat_chips = []
+            d_cross = {}
+            for cn, c in cats.items():
+                cross = [a for a in ditems if a.get("category") == cn]
+                if len(cross) >= distmod.MIN_COUNT:
+                    d_cross[cn] = cross
+                    d_cat_chips.append({
+                        "name": f"{dname} {cn}",
+                        "url": f"{dpath}{c['slug']}/",
+                        "count": len(cross),
+                    })
+            other_d = [x for x in siblings if x["url"] != dpath]
+            d_blocks = []
+            if d_cat_chips:
+                d_blocks.append({"title": "분야로 좁히기", "items": d_cat_chips})
+            if other_d:
+                d_blocks.append({"title": f"{rname} 다른 시군구", "items": other_d})
+            d_blocks.append({"title": f"{rname} 전체", "items": [
+                {"name": f"{rname} 전체", "url": f"/region/{r['slug']}/", "count": len(items)},
+            ]})
+            intro_paras = intros.district_page_intro(rname, dname, ditems)
+            render_list(
+                dpath, f"{rname} {dname} 지원사업",
+                f"{rname} {dname} 관련 공고를 마감일 순으로 정리했습니다.",
+                ditems,
+                title=f"{rname} {dname} 지원사업 {len(ditems)}건 — 마감일 순 | {SITE['name']}",
+                desc=f"{rname} {dname} 정부지원사업 {len(ditems)}건. 해시태그 '{dname}'가 붙은 공고를 마감일 순으로 정리했습니다.",
+                intro_paras=intro_paras,
+                blocks=d_blocks,
+                sel_region=rname, limit=20,
+                crumbs=[{"name": "홈", "url": "/"},
+                        {"name": "지역", "url": "/region/"},
+                        {"name": rname, "url": f"/region/{r['slug']}/"},
+                        {"name": dname, "url": dpath}],
+            )
+            for cn, cross in d_cross.items():
+                c = cats[cn]
+                intro_paras, faqs = intros.district_combo_intro(rname, dname, cn, c, cross)
+                other_cats = [x for x in d_cat_chips if x["url"] != f"{dpath}{c['slug']}/"]
+                combo_blocks = []
+                if other_cats:
+                    combo_blocks.append({"title": f"{dname} 다른 분야", "items": other_cats})
+                if other_d:
+                    combo_blocks.append({"title": f"{rname} 다른 시군구", "items": other_d})
+                render_list(
+                    f"{dpath}{c['slug']}/", f"{rname} {dname} {cn} 지원사업",
+                    f"{rname} {dname} {cn} 분야 공고를 마감일 순으로 정리했습니다.",
+                    cross,
+                    title=f"{rname} {dname} {cn} 지원사업 {len(cross)}건 — 마감일 순 | {SITE['name']}",
+                    desc=f"{rname} {dname} {cn} 분야 정부지원사업 {len(cross)}건. 마감일과 지원대상을 정리했습니다.",
+                    intro_paras=intro_paras, faqs=faqs, faq_jsonld=intros.faq_jsonld(faqs),
+                    blocks=combo_blocks,
+                    sel_region=rname, sel_category=cn, limit=20,
+                    crumbs=[{"name": "홈", "url": "/"},
+                            {"name": "지역", "url": "/region/"},
+                            {"name": rname, "url": f"/region/{r['slug']}/"},
+                            {"name": dname, "url": dpath},
+                            {"name": cn, "url": f"{dpath}{c['slug']}/"}],
+                )
 
     # 공고 상세 (접수 중 + 마감 후 최근 것)
     def render_notice(a, pool):
