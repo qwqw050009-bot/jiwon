@@ -190,6 +190,10 @@ def archived_notices(rows, today):
         row["is_new"] = False
         row = decorate(row)
         row["is_closed"] = True
+        # 아카이브에 얼어붙은 "ai" 스냅샷도 옛날 조사 버그 문구를 담고
+        # 있을 수 있다. enrich_all()을 다시 거치지 않는 경로라 여기서도
+        # 같은 방식으로(비용 없이) 고쳐준다.
+        row["ai"] = enrich.heal_broken_josa(row.get("ai"), row)
         out.append(row)
 
     _save_archive(kept)
@@ -377,12 +381,16 @@ def main():
                 "7일 안에 접수가 끝나는 공고만 모았습니다.", urgent, limit=20, blocks=hub)
 
     # 허브
+    # 예전엔 items=[] 로 넘겨서 상단 통계는 실제 숫자가 뜨는데 본문은
+    # "지금 접수 중인 공고가 없습니다"만 고정으로 뜨는 버그가 있었다
+    # (filter.js가 사용자가 필터를 건드리기 전엔 목록을 안 채우는 구조라,
+    # 서버 렌더 items가 비어있으면 JS 유무와 상관없이 항상 빈 화면으로
+    # 보임 — CLAUDE.md 4번 규칙 "JS 꺼져도 서버 렌더 목록이 보여야 한다"
+    # 위반이기도 했다). 분야·지역 칩 아래에 실제 목록도 함께 보여준다.
     render_list("/category/", "분야별로 찾기",
-                "지원 분야 8종으로 나눠 정리했습니다.", [], blocks=[hub[0]],
-                tally_items=rows)
+                "지원 분야 8종으로 나눠 정리했습니다.", rows, limit=20, blocks=[hub[0]])
     render_list("/region/", "지역별로 찾기",
-                "사업장 소재지 기준으로 신청 가능한 공고를 모았습니다.", [], blocks=[hub[1]],
-                tally_items=rows)
+                "사업장 소재지 기준으로 신청 가능한 공고를 모았습니다.", rows, limit=20, blocks=[hub[1]])
 
     # 분야별
     for name, c in cats.items():
@@ -607,6 +615,16 @@ def main():
             for a in rows]
     with open(os.path.join(DIST, "notices.json"), "w", encoding="utf-8") as f:
         json.dump(feed, f, ensure_ascii=False, separators=(",", ":"))
+
+    # 404 페이지. Cloudflare Pages는 dist/404.html이 있으면 존재하지 않는
+    # URL에 이 파일을 진짜 404 상태코드로 돌려준다 — 없으면(지금까지 없었음)
+    # 홈페이지를 200으로 대신 돌려주는 소프트 404가 나서 SEO에 안 좋았다.
+    # sitemap에 넣으면 안 되므로 write() 대신 직접 쓴다.
+    html_404 = env.get_template("404.html").render(
+        site=SITE, path="/404.html", title=f"페이지를 찾을 수 없습니다 | {SITE['name']}",
+        desc="요청하신 페이지를 찾을 수 없습니다.", noindex=True,
+    )
+    open(os.path.join(DIST, "404.html"), "w", encoding="utf-8").write(html_404)
 
     # sitemap / robots
     today = date.today().isoformat()

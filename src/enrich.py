@@ -106,6 +106,23 @@ def _period_text(row):
     return f"{s} ~ {e}" if s and e else (e or "기간 미정")
 
 
+def _josa(word, has_batchim, no_batchim):
+    """
+    한글 받침 유무에 따라 조사를 고른다 (예: 이/가, 을/를, 은/는, 과/와).
+    받침 판정은 유니코드 한글 완성형 코드 계산으로 한다.
+    한글이 아닌 문자로 끝나거나(영문/숫자/기호) 빈 문자열이면 받침 있는
+    쪽을 기본값으로 쓴다 — "이(가)" 같은 문법 오류 문구를 그대로 노출하는
+    것보다는 한쪽을 골라 틀릴 위험이 훨씬 낫다.
+    """
+    word = (word or "").strip()
+    if not word:
+        return has_batchim
+    code = ord(word[-1]) - 0xAC00
+    if 0 <= code <= 11171:
+        return has_batchim if code % 28 != 0 else no_batchim
+    return has_batchim
+
+
 def _fallback(row):
     """LLM 없이 쓰는 규칙 기반 해설. 모든 필드는 방어적으로 접근한다."""
     org = row.get("org") or "소관기관"
@@ -115,7 +132,10 @@ def _fallback(row):
     method = row.get("method") or "공고문 참조"
     amount = amount_of(row)
 
-    head = f"{org}이(가) {region} 지역 {target}을(를) 대상으로 진행하는 {category} 분야 지원사업입니다."
+    org_josa = _josa(org, "이", "가")
+    target_josa = _josa(target, "을", "를")
+    head = (f"{org}{org_josa} {region} 지역 {target}{target_josa} 대상으로 "
+            f"진행하는 {category} 분야 지원사업입니다.")
     if amount:
         head += f" 지원규모는 {amount} 수준입니다."
     if row.get("overview"):
@@ -140,6 +160,21 @@ def _fallback(row):
     return {"summary": head, "fit": fit, "caution": caution, "checklist": checklist}
 
 
+# 예전 규칙기반 fallback이 조사(이/가, 을/를)를 문법에 안 맞게 리터럴로
+# 붙여 넣던 버그의 흔적. 이 패턴이 남아있으면 AI를 다시 부르지 않고
+# 규칙기반으로만 무료로 재생성해서 고친다 (API 비용 0원). enrich_cache와
+# data/archive.json(마감 공고의 "ai" 스냅샷)에 둘 다 얼어붙어 있을 수
+# 있어서 양쪽에서 재사용할 수 있게 공용 함수로 뺐다.
+_BROKEN_JOSA = re.compile(r"이\(가\)|을\(를\)")
+
+
+def heal_broken_josa(ai, row):
+    """ai가 옛날 조사 버그 문구를 담고 있으면 규칙기반으로 재생성해 돌려준다."""
+    if ai and _BROKEN_JOSA.search(ai.get("summary") or ""):
+        return _fallback(row)
+    return ai
+
+
 def enrich_all(rows, use_llm=False):
     """use_llm=False면 호출 0회. True면 캐시에 없는 것만 호출."""
     cache = _load()
@@ -147,7 +182,11 @@ def enrich_all(rows, use_llm=False):
     for r in rows:
         k = _key(r)
         if k in cache:
-            r["ai"] = cache[k]
+            healed = heal_broken_josa(cache[k], r)
+            r["ai"] = healed
+            if healed is not cache[k]:
+                cache[k] = healed
+                changed = True
             continue
         try:
             r["ai"] = _call_llm(r) if use_llm else _fallback(r)
