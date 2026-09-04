@@ -8,6 +8,7 @@ SITE = {
     "adsense_client": "",                  # ← ca-pub-XXXXXXXX (승인 후 입력)
     "allow_index": True,                   # 도메인 연결 완료 (2026-09-04)
     "ga_id": "",                           # ← G-XXXXXXX (선택)
+    "google_site_verification": "Gu5i_F8dMB1UeRpB-399OCLdtPoVFe1e3Ed2opMQIbQ",
     "email": "contact@example.com",
     "publisher": "지원사업 마감판",
 }
