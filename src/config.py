@@ -4,9 +4,9 @@
 SITE = {
     "name": "지원사업 마감판",
     "tagline": "오늘 마감되는 정부지원사업부터 봅니다",
-    "domain": "https://example.com",      # ← 도메인 사면 여기만 교체
+    "domain": "https://magampan.com",
     "adsense_client": "",                  # ← ca-pub-XXXXXXXX (승인 후 입력)
-    "allow_index": False,                  # ← 도메인 연결 후 True 로 바꿀 것
+    "allow_index": True,                   # 도메인 연결 완료 (2026-09-04)
     "ga_id": "",                           # ← G-XXXXXXX (선택)
     "email": "contact@example.com",
     "publisher": "지원사업 마감판",
