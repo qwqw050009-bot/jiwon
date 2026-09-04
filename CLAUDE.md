@@ -6,7 +6,8 @@
 - 데이터: 기업마당 오픈API (`src/bizinfo.py`)
 - 빌드: Python + Jinja2 → `dist/` 정적 생성 (`src/build.py`)
 - 배포: GitHub Actions → Cloudflare Pages (매일 06:00 KST + push 시)
-- 사이트: https://jiwon-5i5.pages.dev
+- 사이트: https://magampan.com (도메인 연결 완료, 2026-09-04)
+  구 배포 URL: https://jiwon-5i5.pages.dev (계속 살아있음, 커스텀 도메인의 별칭)
 
 ## 파일 역할
 - `src/config.py` — 사이트 설정, 분야 8종, 지역 17종
@@ -18,7 +19,11 @@
 - `src/enrich.py` — 공고별 해설 생성. 캐시 필수
 - `src/build.py` — 전체 페이지 생성, sitemap, robots
 - `src/ics.py` — 캘린더 구독 파일
-- `src/pages.py` — 애드센스 필수 고정 페이지
+- `src/pages.py` — 애드센스 필수 고정 페이지 (about/privacy/terms/contact)
+- `src/guides.py` — `/guide/` 상시 콘텐츠(신청자격/바우처차이/서류/
+  사업계획서/지원금vs융자/시작가이드). 공고와 달리 매일 안 바뀌는
+  검색 유입용 글. 새 가이드 추가 시 `build.py`의 `GUIDE_TAGS`에도
+  태그 등록할 것
 - `templates/` — Jinja2 템플릿
 - `static/filter.js` — 지역·분야 클라이언트 필터
 - `static/scrap.js` — 로그인 없는 스크랩 (localStorage)
@@ -50,9 +55,13 @@ JS가 꺼져도 서버 렌더 목록이 보여야 한다.
 `enrich.py`의 캐시를 우회하는 코드를 넣지 마라.
 공고 하나당 평생 1회만 호출한다.
 
-**6. 색인 설정을 함부로 켜지 마라**
-`config.py`의 `allow_index`는 도메인 연결 전까지 False다.
-무료 주소로 색인되면 도메인 이전 시 중복 콘텐츠가 된다.
+**6. 색인 설정을 함부로 건드리지 마라**
+`config.py`의 `allow_index`는 도메인 연결 전까지 False였고, 2026-09-04
+도메인(magampan.com) 연결 후 True로 전환했다. 다시 False로 되돌리는 건
+검색엔진에서 사이트 전체를 내리는 것과 같으니 그럴 이유가 명확할 때만.
+구글/네이버 소유확인 메타태그(`google_site_verification`,
+`naver_site_verification`)와 IndexNow 키(`config.INDEXNOW_KEY`)도
+같은 이유로 이유 없이 지우지 마라 — 지우면 서치콘솔 연결이 끊긴다.
 
 **7. 인증키를 코드에 쓰지 마라**
 `BIZINFO_KEY`, `KSTARTUP_KEY`, `ANTHROPIC_API_KEY`는 환경변수로만 읽는다.
@@ -63,6 +72,30 @@ K-Startup처럼 나중에 추가하는 소스는 해당 API 키 환경변수가 
 필수 소스처럼 연결해서 키 없으면 빌드가 죽거나 결과가 달라지게 하지 마라.
 같은 이유로 보강 소스가 실패해도(네트워크 오류 등) 빈 리스트로 대체하고
 전체 빌드를 죽이지 않는다.
+
+## 알려진 미해결 버그 (2026-09-04 기준)
+
+**1. 지역×분야 조합 페이지의 소프트 404**
+`/region/{지역}/{분야}/`처럼 실제로 생성 안 된 조합 URL에 접속하면
+Cloudflare Pages가 진짜 404 대신 홈페이지 내용을 그대로 200으로
+돌려준다. 예: `/region/sejong/manpower/` → 홈 화면 그대로 노출.
+sitemap에는 실제 생성된 페이지만 들어가 있어 직접적 피해는 적지만,
+외부에서 아무 URL이나 접근·크롤링하면 대량의 중복 콘텐츠 URL이
+열려있는 셈이라 SEO에 안 좋다. Cloudflare Pages의 404 처리(커스텀
+404.html 또는 `_redirects` 설정)를 점검해야 한다.
+
+**2. `enrich.py` 규칙기반 fallback의 조사(조사 이/가, 을/를) 오류**
+LLM 호출 없이 `_fallback()`이 쓰일 때(`ANTHROPIC_API_KEY` 없거나
+호출 실패 시) "산업통상부이(가) 전국 지역 중소기업을(를) 대상으로"처럼
+조사가 문법에 안 맞게 리터럴로 붙어서 노출된다. 받침 유무에 따른
+조사 선택 로직이 없음.
+
+**3. `/region/`, `/category/` 허브 페이지가 항상 비어 보임**
+상단 통계(tally)는 실제 숫자로 뜨는데, 본문은 "지금 접수 중인 공고가
+없습니다"가 고정으로 뜬다. `filter.js`가 사용자가 필터를 건드리기
+전까지(`touched=false`) 목록을 안 채우게 짜여 있어서, items가 빈
+리스트인 허브 페이지는 구조적으로 항상 이 상태다. 크롤러 관점에서
+소프트 404처럼 보일 수 있다.
 
 ## 작업 방식
 - 수정 후 반드시 `python src/build.py` 로 빌드가 통과하는지 확인
