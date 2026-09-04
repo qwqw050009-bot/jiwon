@@ -117,7 +117,12 @@ footer a:hover{text-decoration:underline}
   font:inherit;font-size:15px;font-weight:600;color:var(--ink);
   background:none;border:0;padding:13px 16px;cursor:pointer;text-align:left;
 }
+.f-toggle:hover{background:#FAFBF8}
 .f-toggle:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+.f-badge{
+  flex:0 0 auto;padding:3px 8px;border-radius:2px;border:1px solid var(--line);
+  color:var(--muted);font-size:11px;font-weight:700;letter-spacing:-.01em;
+}
 .f-summary{flex:1}
 .filter.has-pick .f-summary{color:var(--urgent)}
 .f-caret{
