@@ -170,6 +170,44 @@ def test_hub_and_page_intros():
     assert intros.CATEGORY_GUIDE["경영"][0] == "/guide/sme-grant-checklist/"
 
 
+def test_district_intros_from_visible_facts():
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    items = [
+        _item(region="경기", category="경영", title="안산 경영 1",
+              org="안산시", dday=2, apply_end="2026-09-06"),
+        _item(region="전국", category="경영", title="안산 상시",
+              org="중소벤처기업부", period_type="always",
+              period_raw="예산 소진시까지", dday=9999),
+        _item(region="경기", category="금융", title="안산 금융",
+              org="경기도", dday=12, apply_end="2026-09-16"),
+    ]
+    paras = intros.district_page_intro("경기", "안산시", items)
+    blob = "\n".join(paras)
+    assert "3건" in blob
+    assert "안산시" in blob
+    assert "해시태그" in blob
+    assert "안산시" in blob and "경기도" in blob or "소관기관" in blob
+    for bad in AWKWARD:
+        assert bad not in blob, bad
+    paras2, faqs = intros.district_combo_intro(
+        "경기", "안산시", "경영", cats["경영"], items[:2])
+    blob2 = "\n".join(paras2)
+    assert "경영" in blob2 and "2건" in blob2
+    assert faqs[0]["a"].startswith("이 페이지에는 2건이 있습니다.")
+    ld = intros.faq_jsonld(faqs)
+    for f in faqs:
+        assert f["q"] in ld and f["a"] in ld
+    # 전남광주는 통합 단위로 남긴다
+    jparas = intros.district_page_intro("전남광주", "여수시", [
+        _item(region="전남광주", org="전남광주통합특별시"),
+    ])
+    jblob = "\n".join(jparas)
+    assert "전남광주통합특별시" in jblob
+    assert "여수시" in jblob
+    assert "광주시만" not in jblob
+    assert "광주와 전남을 따로" in jblob
+
+
 if __name__ == "__main__":
     test_intro_length_and_uniqueness()
     test_sample_combos_read_naturally()
@@ -177,4 +215,5 @@ if __name__ == "__main__":
     test_ad_plan_thin_vs_long()
     test_blurb_skips_generic_fallback()
     test_hub_and_page_intros()
+    test_district_intros_from_visible_facts()
     print("intros tests ok")
