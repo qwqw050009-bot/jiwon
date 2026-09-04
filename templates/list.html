@@ -1,39 +1,52 @@
 {% extends "base.html" %}
 {% from "_row.html" import row %}
+{% from "_ad.html" import ad_slot with context %}
+{% block jsonld %}
+{% if website_jsonld %}<script type="application/ld+json">{{ website_jsonld|safe }}</script>{% endif %}
+{% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
+{% endblock %}
 {% block body %}
-<div class="head">
+<div class="head{% if path == '/' %} head-home{% endif %}">
+  {% if path == '/' %}<p class="kicker">무료 · 마감일 순 · 지역·분야</p>{% endif %}
   <h1>{{ h1 }}</h1>
   <p>{{ lede }}</p>
   {% if tally %}
   <div class="tally">
-    <span class="u"><b>{{ tally.urgent }}</b>건 이번주 마감</span>
-    <span class="s"><b>{{ tally.soon }}</b>건 2주 내 마감</span>
-    <span><b>{{ tally.open }}</b>건 접수중</span>
+    <span class="u"><b>{{ tally.urgent }}</b>이번주 마감</span>
+    <span class="s"><b>{{ tally.soon }}</b>2주 내</span>
+    <span><b>{{ tally.open }}</b>접수중</span>
   </div>
   {% endif %}
 </div>
 
+{% if intro_paras %}
+<div class="prose intro">
+  {% for p in intro_paras %}<p>{{ p|safe }}</p>{% endfor %}
+</div>
+{% elif intro %}
+<div class="prose intro">{{ intro|safe }}</div>
+{% endif %}
+
 {% if beginner_cta %}
 <a class="beginner-cta" href="/guide/start/">
   <b>지원사업, 처음이신가요?</b>
-  <span>나에게 맞는 공고를 어디서부터 찾아야 할지 시작 가이드에서 확인하세요 →</span>
+  <span>시작 가이드에서 찾는 순서를 확인하세요 →</span>
 </a>
 {% endif %}
 
 {% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}
-{% if today %}<a class="today-bar" href="/urgent/">오늘 마감되는 공고가 <b>{{ today }}건</b> 있습니다. 바로 확인하기</a>{% endif %}
+{% if today %}<a class="today-bar" href="/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
 {% if ics_url %}
 <a class="sub-cal" href="{{ ics_url }}" download>
-  <b>이 목록을 내 캘린더에 구독</b>
-  <span>마감일이 자동으로 들어오고, 하루 전에 알림이 뜹니다</span>
+  <b>이 목록을 캘린더에 구독</b>
+  <span>마감일이 들어오고, 하루 전에 알림이 뜹니다</span>
 </a>
 {% endif %}
 
 {% include "_filter.html" %}
 
-{% if intro %}<div class="prose">{{ intro|safe }}</div>{% endif %}
-
+{% if not intro_paras %}
 {% for b in blocks %}
 <section class="nav-block nav-block-top">
   <h2>{{ b.title }}</h2>
@@ -42,10 +55,11 @@
   </div>
 </section>
 {% endfor %}
+{% endif %}
 
-<div class="ad"></div>
+{% if ad_top %}{{ ad_slot('list_top') }}{% endif %}
 
-<div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}">
+<div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}" data-ad-mid="{{ ad_mid_after or 0 }}" data-ad-client="{{ site.adsense_client or '' }}" data-ad-slot-mid="{{ (site.adsense_slots or {}).get('list_mid', '') }}">
   {% if sections %}
     {% for s in sections %}
     <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
@@ -53,7 +67,10 @@
     {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
     {% endfor %}
   {% else %}
-    {% for a in items[:limit or 20] %}{{ row(a) }}{% else %}
+    {% for a in items[:limit or 20] %}
+    {{ row(a) }}
+    {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
+    {% else %}
     <p class="note">지금 접수 중인 공고가 없습니다. 새 공고는 매일 아침 갱신됩니다.</p>
     {% endfor %}
     {% if items|length > (limit or 20) %}
@@ -61,6 +78,31 @@
     {% endif %}
   {% endif %}
 </div>
+
+{% if faqs %}
+<section class="faq" id="faq">
+  <h2>자주 묻는 질문</h2>
+  <dl>
+    {% for f in faqs %}
+    <dt>{{ f.q }}</dt>
+    <dd>{{ f.a }}</dd>
+    {% endfor %}
+  </dl>
+</section>
+{% endif %}
+
+{% if intro_paras %}
+{% for b in blocks %}
+<section class="nav-block">
+  <h2>{{ b.title }}</h2>
+  <div class="chips">
+    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endif %}
+
+{% if ad_bottom %}{{ ad_slot('list_bottom') }}{% endif %}
 
 <script>window.__SLUG__={{ slugmap|safe }};</script>
 <script src="/static/filter.js?v={{ asset_v }}" defer></script>

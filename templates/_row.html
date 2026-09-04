@@ -4,6 +4,7 @@
   <div>
     <h3>{{ a.title }}{% if a.is_new %}<span class="tag-new">신규</span>{% endif %}</h3>
     <div class="meta"><i>{{ a.org }}</i><i>{{ a.category }}</i><i class="amt">{{ a.amount }}</i></div>
+    {% if a.blurb %}<p class="blurb">{{ a.blurb }}</p>{% endif %}
   </div>
   <button type="button" class="star" data-id="{{ a.id }}" aria-pressed="false" aria-label="스크랩"></button>
 </a>

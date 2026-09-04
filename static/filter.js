@@ -39,12 +39,13 @@
 
   function rowHTML(a) {
     var c = cls(a.d, a.p), sub = c[2] || (a.e ? a.e.slice(5) + ' 마감' : '');
+    var blurb = a.s ? '<p class="blurb">' + esc(a.s) + '</p>' : '';
     return '<a class="row" href="/notice/' + a.i + '/">' +
       '<div class="dday ' + c[0] + '">' + c[1] + '<small>' + sub + '</small></div>' +
       '<div><h3>' + esc(a.t) + (a.n ? '<span class="tag-new">신규</span>' : '') + '</h3><div class="meta"><i>' + esc(a.o) + '</i><i>' +
-      esc(a.c) + '</i><i class="amt">' + esc(a.m) + '</i></div></div>' +
+      esc(a.c) + '</i><i class="amt">' + esc(a.m) + '</i></div>' + blurb + '</div>' +
       '<button type="button" class="star" data-id="' + a.i + '" aria-pressed="' +
-      (window.Scrap && Scrap.has(a.i)) + '" aria-label="스크랩"></button></a>';
+      (window.Scrap && Scrap.has(a.i) ? 'true' : 'false') + '" aria-label="스크랩"></button></a>';
   }
 
   function summary() {
@@ -75,6 +76,16 @@
     else view.sort(function (x, y) { return (x.d < 0) - (y.d < 0) || x.d - y.d; });
   }
 
+  function midAdHTML() {
+    var client = board.dataset.adClient || '';
+    var slot = board.dataset.adSlotMid || '';
+    var mid = parseInt(board.dataset.adMid, 10) || 0;
+    if (!mid || !client || !slot) return '';
+    return '<aside class="ad-slot ad-slot--mid" data-ad-pos="list_mid" aria-label="광고">' +
+      '<ins class="adsbygoogle" style="display:block" data-ad-client="' + esc(client) +
+      '" data-ad-slot="' + esc(slot) + '" data-ad-format="auto" data-full-width-responsive="true"></ins></aside>';
+  }
+
   function render(reset) {
     if (!touched) { summary(); return; }   // 요약판 유지
     if (reset) shown = PAGE;
@@ -82,7 +93,14 @@
     if (!view.length) {
       board.innerHTML = '<p class="note">조건에 맞는 공고가 없습니다. 선택을 줄이거나 마감된 공고까지 함께 보세요.</p>';
     } else {
-      var html = view.slice(0, shown).map(rowHTML).join('');
+      var mid = parseInt(board.dataset.adMid, 10) || 0;
+      var ad = midAdHTML();
+      var slice = view.slice(0, shown);
+      var html = '';
+      for (var i = 0; i < slice.length; i++) {
+        html += rowHTML(slice[i]);
+        if (ad && (i + 1) === mid && (i + 1) < view.length) html += ad;
+      }
       if (view.length > shown) {
         html += '<button type="button" class="more" id="f-more">' +
           Math.min(PAGE * 2, view.length - shown) + '건 더 보기</button>';
@@ -90,6 +108,9 @@
         html += '<a class="more" href="' + MORE + '">전체 공고 보기</a>';
       }
       board.innerHTML = html;
+      if (ad && board.querySelector('.ad-slot--mid ins.adsbygoogle')) {
+        try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (err) {}
+      }
     }
     var soon = view.filter(function (a) { return a.d >= 0 && a.d <= 7; }).length;
     document.getElementById('f-count').textContent =

@@ -1,0 +1,18 @@
+{# 애드센스 디스플레이 유닛.
+   site.adsense_slots[key] 가 있을 때만 그린다. ID가 비어 있으면
+   빈 박스를 남기지 않고, 페이지 <head>의 자동 광고만 동작한다.
+   key: list_top / list_mid / list_bottom / detail_mid / detail_bottom #}
+{% macro ad_slot(key) %}
+{% set slot_id = (site.adsense_slots or {}).get(key, '') %}
+{% if site.adsense_client and slot_id %}
+<aside class="ad-slot{% if key.endswith('bottom') %} ad-slot--bottom{% elif key.endswith('mid') %} ad-slot--mid{% endif %}" data-ad-pos="{{ key }}" aria-label="광고">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="{{ site.adsense_client }}"
+       data-ad-slot="{{ slot_id }}"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</aside>
+{% endif %}
+{% endmacro %}

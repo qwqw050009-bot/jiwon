@@ -14,9 +14,16 @@
 <meta property="og:description" content="{{ desc }}">
 <meta property="og:url" content="{{ site.domain }}{{ path }}">
 <meta property="og:site_name" content="{{ site.name }}">
+<meta property="og:image" content="{{ site.domain }}/static/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{ site.name }} — {{ site.tagline }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{{ site.domain }}/static/og.png">
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
 {% if site.adsense_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>{% endif %}
+{% if crumb_jsonld %}<script type="application/ld+json">{{ crumb_jsonld|safe }}</script>{% endif %}
 {% block jsonld %}{% endblock %}
 </head>
 <body data-page="{{ page|default('') }}">
@@ -46,6 +53,17 @@
 </header>
 
 <main class="wrap">
+{% if crumbs %}
+<nav class="crumbs" aria-label="현재 위치">
+  {% for c in crumbs %}
+    {% if not loop.last %}
+    <a href="{{ c.url }}">{{ c.name }}</a><span class="crumbs-sep" aria-hidden="true">/</span>
+    {% else %}
+    <span aria-current="page">{{ c.name }}</span>
+    {% endif %}
+  {% endfor %}
+</nav>
+{% endif %}
 {% block body %}{% endblock %}
 </main>
 
