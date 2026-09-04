@@ -41,6 +41,13 @@ a{color:inherit}
 .hsearch input:focus{outline:none}
 .hsearch:focus-within{border-color:var(--ink);background:var(--sheet)}
 
+.hstart{
+  flex:0 0 auto;display:flex;align-items:center;white-space:nowrap;
+  padding:8px 14px;border-radius:20px;font-size:13px;font-weight:700;
+  color:var(--open);border:1px solid var(--open);text-decoration:none;
+}
+.hstart:hover{background:var(--open);color:#fff}
+
 .navbar{
   display:flex;gap:2px;overflow-x:auto;background:var(--ink);
   border-radius:22px;padding:5px;margin-bottom:16px;
@@ -56,6 +63,7 @@ a{color:inherit}
 @media(max-width:700px){
   .top-row{height:auto;flex-wrap:wrap;padding-top:12px;padding-bottom:10px;gap:10px}
   .hsearch{max-width:none;flex-basis:100%;order:3}
+  .hstart{margin-left:auto}
   .navbar{border-radius:0;margin:0 -20px 14px;padding:6px 20px}
 }
 
@@ -330,7 +338,7 @@ footer a:hover{text-decoration:underline}
 @media(max-width:560px){.guide-list{grid-template-columns:1fr}}
 
 .chips.cal a{padding:8px 14px;font-size:15px}
-@media(max-width:700px){.top nav{gap:2px;font-size:13px}.top nav a{padding:7px 8px}.brand{font-size:17px}.brand-mark{width:22px;height:22px}}
+@media(max-width:700px){.navbar a{padding:7px 8px}.brand{font-size:17px}.brand-mark{width:22px;height:22px}}
 
 /* ── 섹션 구분 (메인 요약판) ── */
 .sec-head{
