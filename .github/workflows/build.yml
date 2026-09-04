@@ -29,7 +29,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add data/enrich_cache.json data/seen.json data/archive.json data/kstartup_cache.json || true
+          git add data/enrich_cache.json data/seen.json data/archive.json data/kstartup_cache.json data/api_cache.json || true
           git diff --staged --quiet || git commit -m "data update"
           git push || true
       - name: deploy
