@@ -37,7 +37,7 @@
     <ul>{% for x in a.ai.fit %}<li>{{ x }}</li>{% endfor %}</ul>
   </div>
 
-  {{ ad_slot('detail-mid') }}
+  {{ ad_slot('detail_mid') }}
 
   <div class="sec">
     <h2>신청 전 확인할 점</h2>
@@ -58,5 +58,5 @@
   <h2>{{ a.region }} {{ a.category }} 분야 {% if a.is_closed %}현재 접수 중인{% else %}다른{% endif %} 공고</h2>
   <div class="board">{% for x in related %}{{ row(x) }}{% endfor %}</div>
 </section>
-{{ ad_slot('detail-bottom') }}
+{{ ad_slot('detail_bottom') }}
 {% endblock %}

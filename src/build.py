@@ -267,8 +267,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
                 sections=None, tally_items=None, beginner_cta=False):
     n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
-    ad_top, ad_mid_after, ad_bottom = intros.ad_plan(
-        n_for_ads, has_sections=bool(sections))
+    ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
+        intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
     html = env.get_template("list.html").render(
         site=SITE, path=path, title=title or f"{h1} | {SITE['name']}",
         desc=desc or lede, h1=h1, lede=lede, items=items,

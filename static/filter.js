@@ -76,6 +76,16 @@
     else view.sort(function (x, y) { return (x.d < 0) - (y.d < 0) || x.d - y.d; });
   }
 
+  function midAdHTML() {
+    var client = board.dataset.adClient || '';
+    var slot = board.dataset.adSlotMid || '';
+    var mid = parseInt(board.dataset.adMid, 10) || 0;
+    if (!mid || !client || !slot) return '';
+    return '<aside class="ad-slot ad-slot--mid" data-ad-pos="list_mid" aria-label="광고">' +
+      '<ins class="adsbygoogle" style="display:block" data-ad-client="' + esc(client) +
+      '" data-ad-slot="' + esc(slot) + '" data-ad-format="auto" data-full-width-responsive="true"></ins></aside>';
+  }
+
   function render(reset) {
     if (!touched) { summary(); return; }   // 요약판 유지
     if (reset) shown = PAGE;
@@ -84,14 +94,12 @@
       board.innerHTML = '<p class="note">조건에 맞는 공고가 없습니다. 선택을 줄이거나 마감된 공고까지 함께 보세요.</p>';
     } else {
       var mid = parseInt(board.dataset.adMid, 10) || 0;
-      var tpl = document.getElementById('ad-mid-src');
+      var ad = midAdHTML();
       var slice = view.slice(0, shown);
       var html = '';
       for (var i = 0; i < slice.length; i++) {
         html += rowHTML(slice[i]);
-        if (mid && (i + 1) === mid && (i + 1) < view.length && tpl) {
-          html += tpl.innerHTML;
-        }
+        if (ad && (i + 1) === mid && (i + 1) < view.length) html += ad;
       }
       if (view.length > shown) {
         html += '<button type="button" class="more" id="f-more">' +
@@ -100,7 +108,7 @@
         html += '<a class="more" href="' + MORE + '">전체 공고 보기</a>';
       }
       board.innerHTML = html;
-      if (tpl && board.querySelector('.ad-slot--mid ins.adsbygoogle')) {
+      if (ad && board.querySelector('.ad-slot--mid ins.adsbygoogle')) {
         try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (err) {}
       }
     }

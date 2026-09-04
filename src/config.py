@@ -6,6 +6,17 @@ SITE = {
     "tagline": "오늘 마감되는 정부지원사업부터 봅니다",
     "domain": "https://magampan.com",
     "adsense_client": "ca-pub-2738052782253666",
+    # 디스플레이 광고 단위 슬롯 ID. 비어 있으면 수동 유닛을 그리지 않고
+    # <head>의 자동 광고만 동작한다(빈 회색 박스를 남기지 않기 위함).
+    # 애드센스 > 광고 > 디스플레이 광고에서 단위를 만든 뒤 숫자 ID를 넣으면
+    # 해당 자리에 채워진다. 가짜 ID를 넣지 말 것.
+    "adsense_slots": {
+        "list_top": "",
+        "list_mid": "",
+        "list_bottom": "",
+        "detail_mid": "",
+        "detail_bottom": "",
+    },
     "allow_index": True,                   # 도메인 연결 완료 (2026-09-04)
     "ga_id": "",                           # ← G-XXXXXXX (선택)
     "google_site_verification": "Gu5i_F8dMB1UeRpB-399OCLdtPoVFe1e3Ed2opMQIbQ",
