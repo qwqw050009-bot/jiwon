@@ -16,25 +16,48 @@ body{
 a{color:inherit}
 .wrap{max-width:920px;margin:0 auto;padding:0 20px}
 
-/* ── 상단 ── */
-.top{border-bottom:2px solid var(--ink);background:var(--sheet)}
-.top .wrap{display:flex;align-items:center;gap:16px;height:68px}
+/* ── 상단: 브랜드+검색 줄, 그 아래 아이콘 필 메뉴바 ── */
+.top{background:var(--sheet);border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:center;gap:22px;height:60px}
 .brand{
-  display:flex;align-items:center;gap:9px;font-weight:800;font-size:20px;
-  letter-spacing:-.02em;text-decoration:none;color:var(--ink);white-space:nowrap;
+  display:flex;align-items:center;gap:9px;font-weight:800;font-size:19px;
+  letter-spacing:-.02em;text-decoration:none;color:var(--ink);white-space:nowrap;flex:0 0 auto;
 }
 .brand-mark{
-  width:26px;height:26px;flex:0 0 auto;border-radius:6px;
+  width:24px;height:24px;flex:0 0 auto;border-radius:6px;
   background:linear-gradient(155deg,var(--urgent),var(--soon));
 }
 .brand b{color:var(--urgent);font-weight:800;margin-left:2px}
-.top nav{margin-left:auto;display:flex;gap:4px;font-size:14px}
-.top nav a{
-  color:var(--muted);text-decoration:none;font-weight:600;
-  padding:8px 12px;border-radius:5px;
+
+.hsearch{
+  flex:1;max-width:420px;display:flex;align-items:center;gap:8px;
+  background:var(--paper);border:1px solid var(--line);border-radius:20px;
+  padding:8px 14px;
 }
-.top nav a:hover{color:var(--ink);background:var(--paper)}
-.top nav a.active{color:#fff;background:var(--ink)}
+.hsearch svg{flex:0 0 auto;width:15px;height:15px;fill:none;stroke:var(--muted);stroke-width:2}
+.hsearch input{
+  flex:1;min-width:0;border:0;background:none;font:inherit;font-size:14px;color:var(--ink);
+}
+.hsearch input:focus{outline:none}
+.hsearch:focus-within{border-color:var(--ink);background:var(--sheet)}
+
+.navbar{
+  display:flex;gap:2px;overflow-x:auto;background:var(--ink);
+  border-radius:22px;padding:5px;margin-bottom:16px;
+}
+.navbar a{
+  display:flex;align-items:center;gap:6px;flex:0 0 auto;
+  color:rgba(255,255,255,.72);text-decoration:none;font-weight:600;font-size:13px;
+  padding:8px 14px;border-radius:18px;white-space:nowrap;
+}
+.navbar a svg{width:15px;height:15px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8}
+.navbar a:hover{color:#fff;background:rgba(255,255,255,.1)}
+.navbar a.active{color:var(--ink);background:#fff}
+@media(max-width:700px){
+  .top-row{height:auto;flex-wrap:wrap;padding-top:12px;padding-bottom:10px;gap:10px}
+  .hsearch{max-width:none;flex-basis:100%;order:3}
+  .navbar{border-radius:0;margin:0 -20px 14px;padding:6px 20px}
+}
 
 /* ── 헤드 ── */
 .head{padding:38px 0 22px}

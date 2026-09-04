@@ -16,6 +16,15 @@
   if (seedR) picked.region.add(seedR);
   if (seedC) picked.category.add(seedC);
 
+  // 헤더 검색창에서 ?q=검색어 로 넘어온 경우 그대로 반영 (전체 목록 페이지 등)
+  var seedQ = new URLSearchParams(location.search).get('q');
+  if (seedQ) {
+    q = seedQ.trim().toLowerCase();
+    touched = true;
+    var qInput = document.getElementById('f-q');
+    if (qInput) qInput.value = seedQ;
+  }
+
   function cls(d, a) {
     if (d === 9999) return ['d-a', '상시', a || '상시 접수'];
     if (d < 0) return ['d-c', '마감', (-d) + '일 전 종료'];
@@ -138,6 +147,11 @@
     .then(function (r) { return r.json(); })
     .then(function (d) {
       all = d; root.classList.add('ready'); paint();
+      if (touched) {
+        // 헤더 검색(?q=)으로 이미 검색어가 세팅된 경우 바로 결과를 그린다.
+        render(true);
+        return;
+      }
       compute();
       var soon = view.filter(function (a) { return a.d >= 0 && a.d <= 7; }).length;
       document.getElementById('f-count').textContent =

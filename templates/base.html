@@ -19,17 +19,29 @@
 {% block jsonld %}{% endblock %}
 </head>
 <body data-page="{{ page|default('') }}">
-<header class="top"><div class="wrap">
-  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
-  <nav>
-    <a href="/urgent/" class="{{ 'active' if path.startswith('/urgent/') }}">마감임박</a>
-    <a href="/category/" class="{{ 'active' if path.startswith('/category/') }}">분야</a>
-    <a href="/region/" class="{{ 'active' if path.startswith('/region/') }}">지역</a>
-    <a href="/calendar/" class="{{ 'active' if path.startswith('/calendar/') }}">캘린더</a>
-    <a href="/guide/" class="{{ 'active' if path.startswith('/guide/') }}">가이드</a>
-    <a href="/scrap/" class="nav-scrap {{ 'active' if path.startswith('/scrap/') }}">스크랩<b id="scrap-count" hidden></b></a>
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
+    <form class="hsearch" action="/all/" method="get">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input type="search" name="q" placeholder="공고명·기관으로 검색">
+    </form>
+  </div>
+  <nav class="wrap navbar">
+    <a href="/urgent/" class="{{ 'active' if path.startswith('/urgent/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>마감임박</a>
+    <a href="/category/" class="{{ 'active' if path.startswith('/category/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>분야</a>
+    <a href="/region/" class="{{ 'active' if path.startswith('/region/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>지역</a>
+    <a href="/calendar/" class="{{ 'active' if path.startswith('/calendar/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>캘린더</a>
+    <a href="/guide/" class="{{ 'active' if path.startswith('/guide/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H12v17H6.5A2.5 2.5 0 0 0 4 22.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H12v17h5.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>가이드</a>
+    <a href="/scrap/" class="nav-scrap {{ 'active' if path.startswith('/scrap/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.9 6.2.9-4.5 4.5 1.1 6.2L12 17.5 6.4 20.5l1.1-6.2-4.5-4.5 6.2-.9z"/></svg>스크랩<b id="scrap-count" hidden></b></a>
   </nav>
-</div></header>
+</header>
 
 <main class="wrap">
 {% block body %}{% endblock %}
