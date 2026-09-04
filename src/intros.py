@@ -48,6 +48,30 @@ CATEGORY_BLURB = {
     "기타": "위 일곱 분야에 넣기 어려운 공고입니다. 제목과 소관기관을 보고 업종·상황이 맞는지만 가려 보시면 됩니다.",
 }
 
+# CATEGORY_BLURB의 두 번째 표현. 같은 분야 문장이 지역 17곳 페이지에
+# 토씨 하나 안 틀리고 반복되면 중복 콘텐츠 신호가 되기 쉬워서, 지역명을
+# 씨드로 한 해시로 두 표현 중 하나를 고정 선택한다(빌드마다 안 바뀜).
+CATEGORY_BLURB_ALT = {
+    "금융": "상환 의무가 있는 융자·보증과, 이자만 지원하는 이차보전이 한 목록에 섞여 있습니다. 갚아야 하는 자금인지 먼저 확인하세요.",
+    "기술": "R&D 과제와 기술사업화 지원이 대부분입니다. 발표평가까지 가는 경쟁형이 많아, 신청 전에 사업계획서부터 준비하는 편이 유리합니다.",
+    "인력": "채용·인건비 지원과 교육훈련 지원이 함께 있습니다. 4대보험 가입 이력을 미리 확인해 두면 서류 준비가 빨라집니다.",
+    "수출": "수출바우처·해외전시회 참가 지원이 많고, 예산이 정해진 바우처형이 섞여 있어 조건만 맞으면 서두르는 편이 낫습니다.",
+    "내수": "국내 판로·유통·마케팅 지원입니다. 온라인몰 입점, 홍보영상, 전시 참가 지원이 대표적입니다.",
+    "창업": "초기·예비창업자를 위한 사업화 자금과 입주공간 지원이 중심입니다. 업력 기준은 사업자등록일부터 셉니다.",
+    "경영": "운영 중인 사업장의 시설개선·컨설팅 지원입니다. 창업 초기가 아니어도 신청 가능한 공고가 많습니다.",
+    "기타": "여덟 분야 분류에 딱 맞지 않는 공고들입니다. 제목과 지원대상을 먼저 확인하시면 됩니다.",
+}
+
+
+def _blurb_variant(region, category, primary, alt):
+    v = alt.get(category)
+    if not v:
+        return primary.get(category) or ""
+    # region 문자열 해시로 결정 — 같은 (지역,분야) 조합은 재빌드해도 항상
+    # 같은 문장이 나와서 페이지 내용이 매일 흔들리지 않는다.
+    return v if (sum(ord(c) for c in region) % 2 == 0) else (primary.get(category) or v)
+
+
 CATEGORY_GUIDE = {
     "금융": ("/guide/grant-vs-loan/", "지원금과 융자의 차이"),
     "기술": ("/guide/biz-plan-structure/", "사업계획서 기본 구조"),
@@ -237,7 +261,7 @@ def build(region, category, cat, items):
 
     p3 = _deadline_para(urgent, open_dated, always)
 
-    cat_note = CATEGORY_BLURB.get(category) or (
+    cat_note = _blurb_variant(region, category, CATEGORY_BLURB, CATEGORY_BLURB_ALT) or (
         f"{h(category)}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
     )
     href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
@@ -366,7 +390,7 @@ def district_combo_intro(sido, district, category, cat, items):
     )
     p2 = h(_org_sentence(orgs))
     p3 = _deadline_para(urgent, open_dated, always)
-    cat_note = CATEGORY_BLURB.get(category) or (
+    cat_note = _blurb_variant(sido, category, CATEGORY_BLURB, CATEGORY_BLURB_ALT) or (
         f"{cname}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
     )
     href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
