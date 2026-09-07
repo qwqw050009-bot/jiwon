@@ -831,6 +831,12 @@ def main():
         open(os.path.join(DIST, "ads.txt"), "w", encoding="utf-8").write(
             f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n")
 
+    # 네이버 서치어드바이저 HTML 파일 소유확인. 사이트 루트에 그대로 둔다.
+    naver_html = "naver0defc699223f8ffa807d6d0bc99bb36c.html"
+    naver_src = os.path.join(ROOT, naver_html)
+    if os.path.exists(naver_src):
+        shutil.copy2(naver_src, os.path.join(DIST, naver_html))
+
     # IndexNow(빙·네이버 지원): 소유확인 키 파일은 로그인/가입 없이 쓰는
     # 공개 토큰이라 늘 배포해두고, 실제 검색엔진 핑은 색인을 허용할 때만 보낸다.
     open(os.path.join(DIST, f"{config.INDEXNOW_KEY}.txt"), "w", encoding="utf-8").write(config.INDEXNOW_KEY)
