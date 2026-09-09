@@ -219,6 +219,40 @@ def test_district_intros_from_visible_facts():
     assert "광주와 전남을 따로" in jblob
 
 
+def test_home_and_category_search_copy():
+    html = intros.home_intro(2, 11, 40)
+    assert "오늘 마감" in html and "이번 주 마감" in html
+    assert "2건" in html and "11건" in html and "40건" in html
+    assert "회원가입 없이" in html
+    assert "/urgent/" in html
+    hrefs = [g["href"] for g in intros.HOME_GUIDES]
+    assert hrefs == [
+        "/guide/find-by-deadline/",
+        "/guide/pre-vs-early/",
+        "/guide/grant-vs-loan/",
+    ]
+    assert intros.category_title("창업") == "창업 지원사업 마감일 | 지원사업 마감판"
+    desc = intros.category_desc("금융", {"desc": "융자·보증·이차보전 등 자금 지원"})
+    assert desc.startswith("금융 분야 정부지원사업을 마감일 순으로")
+    assert "회원가입 없이" in desc
+    assert "지역별로" in desc
+
+
+def test_deadline_guide_exists_and_links_lists():
+    import guides
+    rows = {slug: (h1, desc, content) for slug, h1, desc, content in guides.build()}
+    assert "find-by-deadline" in rows
+    assert "pre-vs-early" in rows
+    assert "grant-vs-loan" in rows
+    content = rows["find-by-deadline"][2]
+    assert "오늘 마감" in content and "이번 주 마감" in content
+    assert "/category/startup/" in content
+    assert "/category/financial/" in content
+    assert "체험" not in content
+    assert "/category/financial/" in rows["grant-vs-loan"][2]
+    assert "/category/startup/" in rows["pre-vs-early"][2]
+
+
 if __name__ == "__main__":
     test_intro_length_and_uniqueness()
     test_sample_combos_read_naturally()
@@ -227,4 +261,6 @@ if __name__ == "__main__":
     test_blurb_skips_generic_fallback()
     test_hub_and_page_intros()
     test_district_intros_from_visible_facts()
+    test_home_and_category_search_copy()
+    test_deadline_guide_exists_and_links_lists()
     print("intros tests ok")

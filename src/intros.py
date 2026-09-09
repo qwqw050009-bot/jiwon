@@ -13,6 +13,7 @@ import json
 import re
 
 from enrich import _josa
+import config
 
 
 # 지역 페이지가 "무엇을 묶는지"만 설명한다. 특정 공고·예산을 지어내지 않는다.
@@ -346,6 +347,53 @@ def region_hub_intro(n, n_regions):
         f"지역은 {n_regions}곳으로 나뉩니다.</p>"
         "<p>전남광주통합특별시는 광주와 전남을 한 단위로 둡니다. "
         "소재지 제한이 없는 사업은 전국에서 보시면 됩니다.</p>"
+    )
+
+
+HOME_GUIDES = [
+    {
+        "href": "/guide/find-by-deadline/",
+        "name": "마감일로 지원사업 찾기",
+        "desc": "오늘 마감·이번 주 마감부터 보는 순서",
+    },
+    {
+        "href": "/guide/pre-vs-early/",
+        "name": "예비·초기창업패키지 차이",
+        "desc": "사업자등록 전과 업력 제한",
+    },
+    {
+        "href": "/guide/grant-vs-loan/",
+        "name": "지원금과 융자 차이",
+        "desc": "갚지 않는 돈과 갚는 정책자금",
+    },
+]
+
+
+def home_intro(today_n, week_n, open_n):
+    """
+    홈 소개 HTML. 화면에 보이는 건수만 쓴다. 없는 공고를 지어내지 않는다.
+    검색엔진이 '오늘 마감'·'이번 주 마감' 문구를 JS 없이 읽게 한다.
+    """
+    return (
+        f"<p>지금 <a href=\"/urgent/\">오늘 마감</a> {int(today_n)}건, "
+        f"<a href=\"/urgent/\">이번 주 마감</a> {int(week_n)}건입니다. "
+        f"접수 중인 공고 {int(open_n)}건을 마감일 순으로 둡니다. "
+        "회원가입 없이 지역·분야로 좁힐 수 있습니다.</p>"
+    )
+
+
+def category_title(name):
+    """분야 목록 title. 검색어(분야 + 마감일)를 앞에 둔다."""
+    return f"{name} 지원사업 마감일 | {config.SITE['name']}"
+
+
+def category_desc(name, cat):
+    """분야 목록 meta. 마감일 순·회원가입 없음·지역을 명시한다."""
+    extra = (cat or {}).get("desc") or f"{name} 지원"
+    return (
+        f"{name} 분야 정부지원사업을 마감일 순으로 정리합니다. "
+        f"회원가입 없이 지역별로 오늘 마감·이번 주 마감을 확인할 수 있습니다. "
+        f"{extra}."
     )
 
 

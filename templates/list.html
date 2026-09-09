@@ -12,7 +12,7 @@
   <p>{{ lede }}</p>
   {% if tally %}
   <div class="tally">
-    <span class="u"><b>{{ tally.urgent }}</b>이번주 마감</span>
+    <span class="u"><b>{{ tally.urgent }}</b>이번 주 마감</span>
     <span class="s"><b>{{ tally.soon }}</b>2주 내</span>
     <span><b>{{ tally.open }}</b>접수중</span>
   </div>
@@ -32,6 +32,17 @@
   <b>지원사업, 처음이신가요?</b>
   <span>시작 가이드에서 찾는 순서를 확인하세요 →</span>
 </a>
+{% endif %}
+
+{% if home_guides %}
+<nav class="home-guides" aria-label="가이드">
+  <p>지원사업을 찾기 전에 읽어 두면 좋은 글입니다.</p>
+  <ul>
+    {% for g in home_guides %}
+    <li><a href="{{ g.href }}"><b>{{ g.name }}</b> — {{ g.desc }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
 {% endif %}
 
 {% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}

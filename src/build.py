@@ -303,7 +303,7 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 sel_region=None, sel_category=None, today=0,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
                 sections=None, tally_items=None, beginner_cta=False,
-                crumbs=None, website_jsonld=""):
+                crumbs=None, website_jsonld="", home_guides=None):
     n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
@@ -320,7 +320,7 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         today=today, new_cnt=new_cnt, ics_url=ics_url,
         limit=limit or 0, more_href=more_href or "", sections=sections or [],
         beginner_cta=beginner_cta, crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
-        website_jsonld=website_jsonld or "",
+        website_jsonld=website_jsonld or "", home_guides=home_guides or [],
     )
     write(path, html)
 
@@ -404,15 +404,23 @@ def main():
     sections.append({"title": "접수 중인 공고", "items": [a for a in rows if a["is_open"]][:5],
                      "href": "/all/", "total": sum(1 for a in rows if a["is_open"])})
 
+    today_n = sum(1 for a in rows if a["dday"] == 0)
+    week_n = sum(1 for a in rows if 0 <= a["dday"] <= 7)
+    open_n = sum(1 for a in rows if a.get("is_open"))
     render_list(
         "/", SITE["tagline"],
-        "마감일 순으로 무료 정리합니다. 회원가입 없이 지역·분야 롱테일로 좁혀 보세요.",
+        "마감일 순으로 무료 정리합니다. 회원가입 없이 지역·분야로 좁혀 보세요.",
         [],
-        title=f"{SITE['name']} — 정부지원사업 마감일 순 정리",
-        desc="중소기업·소상공인 정부지원사업을 마감일 순서로 정리합니다. 지역·분야별로 접수 중인 공고를 확인하세요.",
-        blocks=hub, today=sum(1 for a in rows if a["dday"] == 0), new_cnt=new_cnt,
+        title=f"정부지원사업 마감일 | {SITE['name']}",
+        desc=(
+            "정부지원사업을 마감일 순으로 정리합니다. "
+            "회원가입 없이 지역·분야로 오늘 마감과 이번 주 마감을 확인할 수 있습니다."
+        ),
+        intro=intros.home_intro(today_n, week_n, open_n),
+        blocks=hub, today=today_n, new_cnt=new_cnt,
         ics_url="/calendar/all.ics", sections=sections, more_href="/all/",
         tally_items=rows, beginner_cta=True, website_jsonld=website_ld(),
+        home_guides=intros.HOME_GUIDES,
     )
 
     # 전체 목록
@@ -478,8 +486,8 @@ def main():
             f"/category/{c['slug']}/", f"{name} 분야 지원사업",
             f"{c['desc']}. 마감이 가까운 순입니다.",
             items,
-            title=f"{name} 분야 정부지원사업 모음 | {SITE['name']}",
-            desc=f"{name} 지원사업 {len(items)}건. {c['desc']}. 마감일과 지원대상을 한눈에 확인하세요.",
+            title=intros.category_title(name),
+            desc=intros.category_desc(name, c),
             intro_paras=intros.category_page_intro(name, c, items),
             blocks=[{"title": "다른 분야", "items": other_cats},
                     {"title": "지역으로 좁히기", "items": sub}],
@@ -692,6 +700,7 @@ def main():
     guide_list = guides.build()
     GUIDE_TAGS = {
         "start": ("시작하기", "tag-start"),
+        "find-by-deadline": ("시작하기", "tag-start"),
         "aply-trgt-check": ("기초", "tag-basic"),
         "voucher-vs-selection": ("전략", "tag-strategy"),
         "docs-checklist": ("서류", "tag-docs"),
@@ -700,6 +709,8 @@ def main():
         "always-deadline": ("전략", "tag-strategy"),
         "pre-vs-early": ("전략", "tag-strategy"),
         "sme-grant-checklist": ("서류", "tag-docs"),
+        "cert-guide": ("서류", "tag-docs"),
+        "rejected-retry": ("전략", "tag-strategy"),
     }
     def _guide_card(slug, h1, desc):
         tag_name, tag_cls = GUIDE_TAGS.get(slug, ("가이드", "tag-basic"))
@@ -713,7 +724,7 @@ def main():
         desc="정부지원사업 신청 자격, 서류, 바우처·선정사업 차이 등 기본기를 정리했습니다.",
         h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'))
     for slug, h1, desc, content in guide_list:
-        jsonld = howto_jsonld(h1, desc, content) if slug == "start" else None
+        jsonld = howto_jsonld(h1, desc, content) if slug in ("start", "find-by-deadline") else None
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",
             desc=desc, h1=h1, content=content, jsonld=jsonld))
@@ -782,6 +793,11 @@ def main():
         )
     rss.append("</channel></rss>")
     open(os.path.join(DIST, "rss.xml"), "w", encoding="utf-8").write("\n".join(rss))
+    # rss.xml은 sitemap에 넣지 않는다. 피드 URL이 HTML 페이지처럼 크롤되면
+    # 중복 신호가 되므로 noindex 헤더만 붙인다.
+    open(os.path.join(DIST, "_headers"), "w", encoding="utf-8").write(
+        "/rss.xml\n  X-Robots-Tag: noindex\n"
+    )
 
     # 필터용 데이터 (압축 키)
     feed = [{"i": a["id"], "t": a["title"], "c": a["category"], "r": a["region"],
