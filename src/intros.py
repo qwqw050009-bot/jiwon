@@ -447,62 +447,203 @@ def _always_guide_html():
     return f'<a href="{h(href)}">{h(name)}</a>'
 
 
-def _deadline_para(urgent, open_dated, always, skip_nearest=False, skip_always=False):
+def _guide_pair_html(href, name, has_batchim, no_batchim):
+    """링크 뒤에 붙는 조사는 앵커가 아니라 평문 제목 받침으로 고른다."""
+    return f'<a href="{h(href)}">{h(name)}</a>{_josa(name, has_batchim, no_batchim)}'
+
+
+def _workplace_guide_link():
+    href, name = CATEGORY_GUIDE["기타"]
+    return f'<a href="{h(href)}">{h(name)}</a>'
+
+
+def _workplace_guide_html(has_batchim="을", no_batchim="를"):
+    href, name = CATEGORY_GUIDE["기타"]
+    return _guide_pair_html(href, name, has_batchim, no_batchim)
+
+
+def _iro(word):
+    return _josa((word or "").strip() or "상시 접수", "으로", "로")
+
+
+def _always_cta(always, style, short=False, label=""):
+    """상시 건수가 있을 때만 쓴다. 문장 골격을 style로 갈라 복붙을 줄인다."""
+    n = len(always or [])
+    if not n:
+        return ""
+    raws = _always_raws(always)
+    last = raws[-1] if raws else "상시 접수"
+    shown = ", ".join(f"'{h(x)}'" for x in raws[:2]) or "'상시 접수'"
+    raw0 = f"'{h(raws[0])}'" if raws else "'상시 접수'"
+    ghtml = _always_guide_html()
+    geul = _josa(ALWAYS_GUIDE[1], "을", "를")
+    cat = f"{h(label)} 목록의 " if label else ""
+    style = int(style) % 5
+    if short:
+        variants = (
+            f"{cat}상시 {n}건은 예산이 끝나면 닫힙니다.",
+            f"{cat}날짜 없는 접수가 {n}건입니다.",
+            f"{cat}상시 {n}건 원문은 {raw0}입니다.",
+            f"{cat}목록 하단 상시 {n}건은 마감일이 없습니다.",
+            f"{cat}상시 {n}건은 {shown}{_iro(last)} 적혀 있습니다.",
+        )
+        return variants[style]
+    variants = (
+        f"{cat}상시 접수는 {n}건입니다. 원문에는 {shown}{_iro(last)} 적혀 있고, "
+        f"예산이 먼저 끊길 수 있어 {ghtml}{geul} 참고하세요.",
+        f"{cat}날짜 없는 접수가 {n}건입니다. 원문 표기는 {raw0}입니다.",
+        f"{cat}상시 {n}건은 목록 하단입니다. {ghtml}{geul} 보면 예산 소진형을 구분할 수 있습니다.",
+        f"{cat}상시 {n}건은 마감일이 없고 원문은 {raw0}입니다.",
+        f"{cat}날짜 없는 상시 {n}건은 예산이 끝나면 닫힙니다. 원문에는 {shown}{_iro(last)} 적혀 있습니다.",
+    )
+    return variants[style]
+
+
+def _deadline_focus(today_n, urgent_n, dated_n, always_n):
+    if today_n and not always_n and urgent_n <= today_n:
+        return "today_only"
+    if always_n and always_n >= max(dated_n, urgent_n, 1):
+        return "always_heavy"
+    if urgent_n == 0 and dated_n:
+        return "quiet_week"
+    if today_n:
+        return "today_mix"
+    if urgent_n:
+        return "week"
+    if always_n:
+        return "always_only"
+    return "empty"
+
+
+def _deadline_para(urgent, open_dated, always, skip_nearest=False, skip_always=False,
+                   style=0, orgs=None, compact=False, label=""):
+    """
+    오늘/이번 주/상시 비중에 따라 짧은 문장을 고른다. 상시 0건이면
+    상시 가이드 CTA를 넣지 않고, 상시가 있어도 문장을 style로 가른다.
+    compact면 앞 문단이 이미 건수를 말했으니 숫자를 되풀이하지 않는다.
+    """
+    urgent = urgent or []
+    open_dated = open_dated or []
+    always = always or []
+    today_n = sum(1 for a in urgent if a.get("dday") == 0)
+    urgent_n = len(urgent)
+    dated_n = len(open_dated)
+    always_n = len(always)
+    style = int(style) % 5
+    focus = _deadline_focus(today_n, urgent_n, dated_n, always_n)
     bits = []
+
+    nearest = None
     if urgent:
-        today_n = sum(1 for a in urgent if a.get("dday") == 0)
         nearest = min(urgent, key=lambda a: (a.get("dday"), a.get("apply_end") or ""))
-        qtitle = "" if skip_nearest else _quote_title(nearest.get("title"))
-        end = "" if skip_nearest else h(nearest.get("apply_end") or "")
-        if today_n:
-            if qtitle and today_n == 1:
-                bits.append(f"오늘 마감은 {qtitle}입니다.")
-            elif today_n:
-                extra = f" 그중 하나는 {qtitle}입니다." if qtitle else ""
-                bits.append(f"오늘 마감되는 공고가 {today_n}건 있습니다.{extra}")
-            if len(urgent) > today_n:
-                bits.append(f"이번 주 마감은 모두 {len(urgent)}건입니다.")
-            elif skip_nearest and not today_n:
-                bits.append(f"이번 주 안에 접수가 끝나는 공고는 {len(urgent)}건입니다.")
-        elif skip_nearest:
-            bits.append(f"이번 주 안에 접수가 끝나는 공고는 {len(urgent)}건입니다.")
-        elif qtitle and end:
-            bits.append(
-                f"가장 가까운 마감은 {end}의 {qtitle}입니다. "
-                f"이번 주 안에 접수가 끝나는 공고는 {len(urgent)}건입니다."
-            )
-        else:
-            bits.append(f"이번 주 안에 접수가 끝나는 공고는 {len(urgent)}건입니다.")
     elif open_dated:
         nearest = min(open_dated, key=lambda a: (a.get("dday"), a.get("apply_end") or ""))
-        end = h(nearest.get("apply_end") or "")
-        qtitle = "" if skip_nearest else _quote_title(nearest.get("title"))
+    qtitle = "" if skip_nearest or not nearest else _quote_title(nearest.get("title"))
+    end = "" if skip_nearest or not nearest else h((nearest or {}).get("apply_end") or "")
+
+    # 앞 문단이 오늘/이번 주/상시 건수를 이미 말했으면 같은 숫자를 반복하지 않는다.
+    if compact:
+        if always and not skip_always:
+            bits.append(_always_cta(always, style, short=style in (1, 3, 4), label=label))
+        elif always and skip_always:
+            bits.append(_always_cta(always, style, short=True, label=label))
+        return " ".join(b for b in bits if b)
+
+    if focus == "today_only":
+        today_only = (
+            f"오늘 마감만 {today_n}건입니다." + (f" {qtitle}" if qtitle and today_n == 1 else ""),
+            f"접수가 오늘 끝나는 공고는 {today_n}건입니다.",
+            f"오늘까지인 접수가 {today_n}건입니다.",
+            f"이번 주가 아니라 오늘 마감이 {today_n}건입니다.",
+            f"오늘 닫히는 접수는 {today_n}건입니다.",
+        )
+        bits.append(today_only[style].strip())
+    elif focus in ("today_mix",) or today_n:
+        if style == 0 and qtitle and today_n == 1:
+            bits.append(f"오늘 마감은 {qtitle}입니다.")
+        elif style == 1:
+            bits.append(f"오늘까지 접수하는 공고가 {today_n}건입니다.")
+        elif style == 2:
+            bits.append(f"접수가 오늘 끝나는 공고는 {today_n}건입니다.")
+        elif style == 3 and qtitle:
+            bits.append(f"오늘 닫히는 공고가 {today_n}건입니다." + (
+                f" 하나는 {qtitle}입니다." if today_n > 1 else f" {qtitle}"))
+        else:
+            extra = f" {qtitle}" if qtitle and today_n == 1 else ""
+            bits.append(f"오늘 마감 {today_n}건입니다.{extra}")
+        if urgent_n > today_n:
+            bits.append(
+                f"이번 주 마감은 모두 {urgent_n}건입니다." if style % 2 == 0
+                else f"이번 주 안으로 끝나는 접수는 {urgent_n}건입니다."
+            )
+    elif focus == "week" or urgent_n:
+        if style in (0, 4) and qtitle and end:
+            bits.append(f"가장 가까운 마감은 {end}의 {qtitle}입니다.")
+            if style == 0:
+                bits.append(f"이번 주 마감은 {urgent_n}건입니다.")
+        elif style == 1 and end:
+            bits.append(f"이번 주 마감 {urgent_n}건 중 가장 가까운 날짜는 {end}입니다.")
+        elif style == 2:
+            bits.append(f"이번 주 안에 접수가 끝나는 공고는 {urgent_n}건입니다.")
+        elif style == 3 and qtitle:
+            bits.append(f"일주일 안 마감 {urgent_n}건입니다. 가까운 것은 {qtitle}입니다.")
+        else:
+            bits.append(f"일주일 안 마감 {urgent_n}건입니다.")
+    elif focus == "quiet_week" or dated_n:
+        quiet = (
+            f"일주일 안 마감은 없고, 날짜가 남은 공고는 {dated_n}건입니다.",
+            f"이번 주 마감은 없습니다. 날짜형 접수는 {dated_n}건입니다.",
+            f"급한 마감은 없고 날짜가 남은 공고가 {dated_n}건입니다.",
+            f"일주일 안 마감은 없습니다. 남은 날짜형은 {dated_n}건입니다.",
+            f"이번 주 안에 닫히는 공고는 없고 날짜형은 {dated_n}건입니다.",
+        )
         if skip_nearest:
-            bits.append(f"일주일 안 마감은 없고, 날짜가 남은 공고는 {len(open_dated)}건입니다.")
+            bits.append(quiet[style])
         elif end and qtitle:
-            bits.append(f"일주일 안 마감은 없고, 가장 가까운 마감일은 {end}의 {qtitle}입니다.")
+            titled = (
+                f"일주일 안 마감은 없고, 가장 가까운 마감일은 {end}의 {qtitle}입니다.",
+                f"이번 주 안에 닫히는 공고는 없습니다. 다음 마감은 {end} {qtitle}입니다.",
+                f"가장 가까운 날짜형 마감은 {end}입니다. {qtitle}",
+                f"급한 마감은 없습니다. {end}의 {qtitle}"
+                f"{_josa((nearest or {}).get('title') or '', '이', '가')} 가장 가깝습니다.",
+                f"일주일 안 마감은 없고 다음 날짜는 {end}입니다.",
+            )
+            bits.append(titled[style])
         elif end:
-            bits.append(f"일주일 안 마감은 없고, 가장 가까운 마감일은 {end}입니다.")
-    if always and skip_always:
-        bits.append(
-            f"상시 공고는 예산이 끝나면 날짜 전에 닫히는 경우가 많아 "
-            f"{_always_guide_html()}{_josa(ALWAYS_GUIDE[1], '을', '를')} 함께 보시면 됩니다."
-        )
-    elif always:
-        raws = _always_raws(always)
-        shown = ", ".join(f"'{h(x)}'" for x in raws[:2])
-        bits.append(
-            f"날짜 없는 상시 접수는 {len(always)}건이며, 원문에는 {shown}처럼 적혀 있습니다. "
-            f"예산이 끝나면 날짜 전에 닫히는 경우가 많아 "
-            f"{_always_guide_html()}{_josa(ALWAYS_GUIDE[1], '을', '를')} 함께 보시면 됩니다."
-        )
+            bits.append(f"가장 가까운 마감일은 {end}입니다.")
+        else:
+            bits.append(quiet[style])
+
+    if always:
+        org0 = ((orgs or [""])[0] or "").strip()
+        short = skip_always or focus == "always_heavy" and style in (1, 4) or style in (1, 3)
+        if focus == "always_heavy" and not skip_always and style == 2 and org0:
+            bits.append(
+                f"{h(org0)} 소관 쪽 상시가 {always_n}건입니다. "
+                + _always_cta(always, style, short=True, label=label)
+            )
+        else:
+            bits.append(_always_cta(always, style, short=bool(short), label=label))
+
     if not bits:
-        bits.append("지금 접수 기간이 남은 공고가 거의 없으니, 목록의 마감 표시를 기준으로 보세요.")
-    return " ".join(bits)
+        quiet = (
+            "지금 접수 기간이 남은 공고가 거의 없으니, 목록의 마감 표시를 기준으로 보세요.",
+            "날짜가 남은 공고가 거의 없습니다. 카드의 마감 표시를 보세요.",
+            "지금 열린 접수가 거의 없습니다.",
+            "목록의 마감 표시를 기준으로 남은 기간을 보시면 됩니다.",
+            "접수 중인 날짜가 거의 없습니다.",
+        )
+        bits.append(quiet[style])
+    return " ".join(b for b in bits if b)
 
 
 def _layout_id(seed):
-    return sum(ord(c) for c in (seed or "")) % 5
+    """짧은 한글 씨드에서 충돌이 덜 나게 FNV-1a로 버킷을 고른다."""
+    hval = 2166136261
+    for ch in (seed or ""):
+        hval ^= ord(ch)
+        hval = (hval * 16777619) & 0xFFFFFFFF
+    return int(hval % 5)
 
 
 def _item_facts(items):
@@ -592,9 +733,14 @@ def _region_hook(region):
     return REGION_HOOK.get(region) or _scope_short(region)
 
 
-def _guide_html(category):
+def _guide_anchor(category):
     href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
-    return f'<a href="{h(href)}">{h(gname)}</a>{_josa(gname, "을", "를")}'
+    return f'<a href="{h(href)}">{h(gname)}</a>', gname
+
+
+def _guide_html(category):
+    link, gname = _guide_anchor(category)
+    return f"{link}{_josa(gname, '을', '를')}"
 
 
 def _count_lead(region, category, facts, style):
@@ -611,7 +757,7 @@ def _count_lead(region, category, facts, style):
     return f"{cat} 분야만 모아 {n}건입니다. {_scope_short(region)}"
 
 
-def _mix_sentence(facts):
+def _mix_sentence(facts, style=0):
     u, a, o = len(facts["urgent"]), len(facts["always"]), len(facts["open_dated"])
     bits = []
     if facts["today"]:
@@ -623,8 +769,28 @@ def _mix_sentence(facts):
     if a:
         bits.append(f"상시 접수 {a}건")
     if not bits:
-        return "지금 접수 기간이 남은 공고가 거의 없습니다."
-    return "이 페이지에는 " + ", ".join(bits) + "이 있습니다."
+        quiet = (
+            "지금 접수 기간이 남은 공고가 거의 없습니다.",
+            "날짜가 남은 접수가 거의 없습니다.",
+            "지금 열린 접수가 거의 없습니다.",
+            "접수 기간이 남은 공고가 거의 없습니다.",
+            "마감이 남은 건이 거의 없습니다.",
+        )
+        return quiet[int(style) % 5]
+    joined = ", ".join(bits)
+    dotted = " · ".join(bits)
+    style = int(style) % 5
+    if style == 0:
+        return f"이 페이지에는 {joined}이 있습니다."
+    if style == 1:
+        return f"지금 {dotted}입니다."
+    if style == 2:
+        return f"목록 기준으로 {joined}입니다."
+    if style == 3:
+        if len(bits) == 1:
+            return f"{bits[0]}입니다."
+        return f"{bits[0]}이고, {', '.join(bits[1:])}입니다."
+    return f"접수 상태는 {joined}입니다."
 
 
 def _org_lead(facts):
@@ -786,21 +952,22 @@ def _pack_paras(sentences, max_paras=4):
 
 
 def _next_step(category, facts):
-    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
-    link = f'<a href="{h(href)}">{h(gname)}</a>'
+    """가이드 제목의 받침으로 조사를 붙인다. 링크 뒤에 를/을을 하드코딩하지 않는다."""
+    link, gname = _guide_anchor(category)
+    eul = _josa(gname, "을", "를")
     if category == "금융":
         return f"제목에 융자·보증·이차보전이 있으면 갚는 돈이니 {link}부터 보시면 됩니다."
     if category == "기술":
-        return f"선정형 R&D면 사업계획서 완성도가 결과를 가르니 {link}를 보면 됩니다."
+        return f"선정형 R&D면 사업계획서 완성도가 결과를 가르니 {link}{eul} 보면 됩니다."
     if category == "인력":
         return f"인건비·채용 공고는 4대보험 서류를 먼저 챙기고, 발급처는 {link}에 있습니다."
     if category == "수출":
-        return f"바우처형이면 예산이 날짜보다 먼저 끊기니 {link}를 함께 보세요."
+        return f"바우처형이면 예산이 날짜보다 먼저 끊기니 {link}{eul} 함께 보세요."
     if category in ("내수", "경영"):
         return f"이미 운영 중인 사업장이면 {link} 순서로 걸러 보세요."
     if category == "창업":
         return f"예비와 기창업은 업력 산정이 다르니 {link}에서 트랙을 가리세요."
-    return f"제목과 지원대상이 맞는지 가린 뒤 {link}를 보시면 됩니다."
+    return f"제목과 지원대상이 맞는지 가린 뒤 {link}{eul} 보시면 됩니다."
 
 
 def _combo_paras(region, category, cat, facts):
@@ -817,28 +984,44 @@ def _combo_paras(region, category, cat, facts):
     titled = _title_lead(facts)
     used_title = bool(titled)
     orgs = _org_sentence(facts["orgs"])
-    mix = _mix_sentence(facts)
+    mix = _mix_sentence(facts, layout)
     count = _count_lead(region, category, facts, layout)
+    nxt = _next_step(category, facts)
+    tgt = _target_sentence(facts)
+
+    # 오늘 마감이 있어도 레이아웃마다 첫 문장을 다르게 둔다.
+    if layout == 0:
+        open_s = f"{count} {desc}입니다. {mix}"
+    elif layout == 1:
+        open_s = f"{titled or count} {mix}"
+    elif layout == 2:
+        open_s = f"{orgs} {h(category)}만 보면 {n}건입니다. {_scope_short(region)}"
+        orgs = ""
+    elif layout == 3:
+        if shape == "always":
+            open_s = f"{titled or mix} {count}"
+        else:
+            open_s = f"{weave} {count}"
+            weave = ""
+    else:
+        if shape == "today" and titled:
+            open_s = f"{titled} {_scope_short(region)}"
+        elif shape == "always":
+            open_s = f"{titled or mix} {count}"
+        else:
+            open_s = f"{count} {mix}"
+
+    mix_used = bool(mix) and mix in open_s
+    dl_style = (_layout_id(f"{region}|{category}|dl") + layout) % 5
     deadline = _deadline_para(
         facts["urgent"], facts["open_dated"], facts["always"],
         skip_nearest=used_title,
         skip_always=used_title and not facts.get("nearest"),
+        style=dl_style,
+        orgs=facts["orgs"],
+        compact=mix_used,
+        label=category,
     )
-    nxt = _next_step(category, facts)
-    tgt = _target_sentence(facts)
-
-    if shape == "today" or (layout == 1 and titled):
-        open_s = f"{titled or count} {mix}"
-    elif shape == "always":
-        open_s = f"{titled or mix} {count}"
-    elif shape == "one_org" or layout == 2:
-        open_s = f"{orgs} {h(category)}만 보면 {n}건입니다. {_scope_short(region)}"
-        orgs = ""
-    elif layout == 3:
-        open_s = f"{weave} {count}"
-        weave = ""
-    else:
-        open_s = f"{count} {desc}입니다. {mix}"
 
     if layout == 0:
         mid = [hook, weave, tgt]
@@ -858,8 +1041,9 @@ def _combo_paras(region, category, cat, facts):
 
     sentences = [open_s] + mid + tail
     paras = _pack_paras(sentences, max_paras=4)
-    if n <= 2:
-        paras = paras[:3]
+    if n <= 2 and len(paras) > 3:
+        # 짧은 목록도 가이드 다음 단계는 남긴다 (조사 회귀 포함).
+        paras = paras[:2] + paras[-1:]
     blob = " ".join(paras)
     if region not in blob and _region_label(region) not in blob:
         if paras:
@@ -1026,13 +1210,18 @@ def region_page_intro(region, items):
         f"{h(region)} 소재 사업장 기준 공고입니다. 공고문 대상 지역을 원문에서 확인하세요."
     )
     p2 = f"{p2} {h(_org_lead(facts))}"
-    p3 = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
+    p3 = _deadline_para(
+        facts["urgent"], facts["open_dated"], facts["always"],
+        style=_layout_id(f"{region}|page"),
+        orgs=facts["orgs"],
+        label=region,
+    )
     if facts["cats"]:
         shown = ", ".join(h(c) for c in facts["cats"][:5])
         p4 = (
             f"이 목록에 올라온 분야는 {shown}입니다. "
             f"분야를 좁히려면 아래 칩을 누르면 됩니다. "
-            f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
+            f"{_workplace_guide_link()}도 함께 보세요."
         )
         return [p1, p2, p3, p4]
     return [p1, p2, p3]
@@ -1061,7 +1250,12 @@ def district_page_intro(sido, district, items):
     sido_note = REGION_BLURB.get(sido) or _scope_short(sido)
     mix = _mix_sentence(facts)
     orgs = h(_org_lead(facts))
-    deadline = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
+    deadline = _deadline_para(
+        facts["urgent"], facts["open_dated"], facts["always"],
+        style=layout,
+        orgs=facts["orgs"],
+        label=district,
+    )
     titled = _title_lead(facts)
     cats = ""
     if facts["cats"]:
@@ -1093,7 +1287,7 @@ def district_page_intro(sido, district, items):
     if cats:
         paras.append(
             f"{cats} 분야를 더 좁히려면 아래 칩을 누르면 됩니다. "
-            f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
+            f"{_workplace_guide_link()}도 함께 보세요."
         )
     return [re.sub(r"\s+", " ", p).strip() for p in paras if p and p.strip()]
 
@@ -1107,13 +1301,18 @@ def district_combo_intro(sido, district, category, cat, items):
     layout = _layout_id(f"{sido}|{district}|{category}")
     weave = _combo_weave(sido, category)
     scope = _district_scope(sido, district)
-    deadline = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
+    deadline = _deadline_para(
+        facts["urgent"], facts["open_dated"], facts["always"],
+        style=layout,
+        orgs=facts["orgs"],
+        label=category,
+    )
     orgs = h(_org_lead(facts))
     mix = _mix_sentence(facts)
     titled = _title_lead(facts)
     guide = (
         f"신청이 처음이면 {_guide_html(category)} 먼저 보시면 됩니다. "
-        f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
+        f"{_workplace_guide_link()}도 함께 보세요."
     )
     if layout == 0:
         paras = [
@@ -1170,7 +1369,7 @@ def category_page_intro(category, cat, items):
     p3 = (
         f"{h(_org_lead(facts))} 지역을 좁히려면 "
         f'<a href="/region/">지역별 목록</a>과 '
-        f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>을 보시면 됩니다.'
+        f"{_workplace_guide_html()} 보시면 됩니다."
     )
     return [p1, p2, p3]
 

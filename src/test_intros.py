@@ -104,7 +104,7 @@ def test_sample_combos_read_naturally():
         blob = "\n".join(paras)
         assert 3 <= len(paras) <= 4
         assert "3건" in blob
-        assert "/guide/always-deadline/" in blob
+        assert "상시" in blob or "날짜 없는" in blob
         assert "3건" in faqs[0]["a"]
         faq_blob = "\n".join(f["a"] for f in faqs)
         assert "서울경제진흥원" in faq_blob or "중소벤처기업부" in faq_blob
@@ -252,11 +252,70 @@ def test_home_and_category_search_copy():
 
 
 def _strip_tokens(text, *tokens):
-    t = text
+    t = re.sub(r"<[^>]+>", " ", text or "")
     for tok in tokens:
         if tok:
             t = t.replace(tok, "X")
     return " ".join(t.split())
+
+
+def _token_jaccard(left, right):
+    left_set, right_set = set(left.split()), set(right.split())
+    return len(left_set & right_set) / max(1, len(left_set | right_set))
+
+
+def test_etc_combo_guide_josa():
+    """기타 가이드 제목 '보는 법'은 받침이 있어 을이다. 법를가 나오면 안 된다."""
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    items = [
+        _item(region="경북", category="기타", title="경북 기타 1",
+              org="경상북도", dday=0, apply_end="2026-09-04"),
+        _item(region="경북", category="기타", title="경북 기타 2", org="중소벤처기업부",
+              period_type="always", period_raw="예산 소진시까지", dday=9999),
+        _item(region="경북", category="기타", title="경북 기타 3", org="산업통상부", dday=12),
+    ]
+    paras, _ = intros.build("경북", "기타", cats["기타"], items)
+    html = "\n".join(paras)
+    plain = re.sub(r"<[^>]+>", "", html)
+    assert "법를" not in html
+    assert "법를" not in plain
+    assert "법을" in plain
+    assert "이(가)" not in html and "을(를)" not in html
+    nxt = intros._next_step("기타", {"n": 2})
+    assert "법를" not in nxt
+    assert re.search(r"법</a>을", nxt)
+    import enrich
+    for name, (_href, gname) in intros.CATEGORY_GUIDE.items():
+        step = intros._next_step(name, {"n": 1})
+        eul = enrich._josa(gname, "을", "를")
+        wrong = "를" if eul == "을" else "을"
+        assert f"</a>{wrong}" not in step, (name, gname, step)
+        if f"</a>{eul}" in step:
+            assert step.count(f"</a>{eul}") >= 1
+
+
+def test_deadline_para_varies_and_skips_always_cta_when_zero():
+    urgent = [_item(dday=0, apply_end="2026-09-04", title="오늘A")]
+    dated = urgent + [_item(dday=20, apply_end="2026-09-24", title="여유A")]
+    always = [_item(period_type="always", period_raw="예산 소진시까지", dday=9999)]
+    texts = [
+        intros._deadline_para(urgent, dated, always, style=i, label="창업")
+        for i in range(5)
+    ]
+    assert len(set(texts)) >= 4, texts
+    empty = intros._deadline_para(urgent, dated, [], style=0)
+    assert "/guide/always-deadline/" not in empty
+    assert "상시" not in empty
+    compact = intros._deadline_para(
+        urgent, dated, [], style=2, compact=True)
+    assert compact == ""
+    compact_al = [
+        intros._deadline_para(
+            urgent, dated, always, style=i, compact=True, label="금융")
+        for i in range(5)
+    ]
+    assert all("오늘 마감" not in t for t in compact_al)
+    assert len(set(compact_al)) >= 3
 
 
 def test_combos_differ_beyond_region_category_tokens():
@@ -287,12 +346,18 @@ def test_combos_differ_beyond_region_category_tokens():
         left = _strip_tokens(blobs[(a, b)], a, b, "전남광주통합특별시", "전남광주")
         right = _strip_tokens(blobs[(c, d)], c, d, "전남광주통합특별시", "전남광주")
         assert left != right, ((a, b), (c, d), left[:80], right[:80])
-        # 토큰만 바꾼 문장이면 공유 n-gram이 거의 전부다. 40% 넘게 달라야 한다.
-        left_set, right_set = set(left.split()), set(right.split())
-        share = len(left_set & right_set) / max(1, len(left_set | right_set))
-        # 같은 목록 사실을 쓰면 건수·기관 문장은 겹친다. 토큰만 바꾼
-        # 문장이면 0.85를 넘기므로, 그 아래면 골격이 갈린 것으로 본다.
-        assert share < 0.75, ((a, b), (c, d), share)
+        share = _token_jaccard(left, right)
+        # 지역·분야 토큰만 바꾼 복붙이면 0.70을 넘는다. 레이아웃·기관·분야가
+        # 다른 조합은 그 아래여야 한다.
+        assert share < 0.70, ((a, b), (c, d), share, left[:120], right[:120])
+        dl_left = intros._deadline_para(
+            [same[0]], [same[0], same[2]], [same[1]],
+            style=intros._layout_id(f"{a}|{b}|dl"), label=b, compact=True)
+        dl_right = intros._deadline_para(
+            [same[0]], [same[0], same[2]], [same[1]],
+            style=intros._layout_id(f"{c}|{d}|dl"), label=d, compact=True)
+        if intros._layout_id(f"{a}|{b}|dl") != intros._layout_id(f"{c}|{d}|dl") or b != d:
+            assert dl_left != dl_right, ((a, b), (c, d), dl_left, dl_right)
 
 
 def test_intro_has_no_repeated_sentences():
@@ -365,6 +430,8 @@ if __name__ == "__main__":
     test_hub_and_page_intros()
     test_district_intros_from_visible_facts()
     test_home_and_category_search_copy()
+    test_etc_combo_guide_josa()
+    test_deadline_para_varies_and_skips_always_cta_when_zero()
     test_combos_differ_beyond_region_category_tokens()
     test_intro_has_no_repeated_sentences()
     test_guide_tags_cover_all_slugs()
