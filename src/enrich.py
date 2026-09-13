@@ -123,35 +123,133 @@ def _josa(word, has_batchim, no_batchim):
     return has_batchim
 
 
+def _place_of(region):
+    region = (region or "").strip()
+    if region == "전남광주":
+        return "전남광주통합특별시"
+    return region
+
+
+# 제목에 이미 보이는 지원 성격만 고른다. 공고명을 새로 지어내지 않는다.
+_SUPPORT_KEYS = (
+    "특례보증", "이차보전", "신용보증", "기술보증", "융자", "보증",
+    "수출바우처", "바우처", "R&D", "연구개발", "기술개발", "특허",
+    "인건비", "채용", "교육훈련", "교육", "수출", "전시회", "전시",
+    "마케팅", "판로", "컨설팅", "시설개선", "시설", "사업화", "입주",
+    "예비창업", "초기창업", "창업", "전통시장", "스마트상점", "착한가격",
+)
+
+
+def _support_cue(title, category):
+    title = title or ""
+    found = [k for k in _SUPPORT_KEYS if k in title]
+    if found:
+        # 긴 키를 먼저 매칭한 순서 유지. 같은 계열은 하나만.
+        picked = []
+        for k in found:
+            if any(k in p or p in k for p in picked):
+                continue
+            picked.append(k)
+            if len(picked) == 2:
+                break
+        return "·".join(picked) + " 지원"
+    if category:
+        return f"{category} 지원"
+    return "지원"
+
+
+def _urgency_cue(row):
+    if row.get("period_type") == "always":
+        raw = (row.get("period_raw") or "상시 접수").strip()
+        return f"원문 접수기간은 '{raw}'입니다."
+    dday = row.get("dday")
+    end = (row.get("apply_end") or "").strip()
+    if dday == 0:
+        return "오늘 마감입니다."
+    if isinstance(dday, int) and 0 < dday <= 7:
+        return f"{end}까지 접수합니다." if end else "이번 주 안에 접수가 끝납니다."
+    if isinstance(dday, int) and dday < 0:
+        return "접수가 끝난 공고입니다."
+    if end:
+        return f"접수 마감은 {end}입니다."
+    return ""
+
+
+def card_line(row):
+    """
+    목록 카드용 한 줄. 소관기관·대상·지원 성격·마감 힌트만 쓰고
+    금액·자격·프로그램명을 지어내지 않는다. 조사는 받침으로 고른다.
+    """
+    row = row or {}
+    org = (row.get("org") or "").strip()
+    region = (row.get("region") or "").strip()
+    target = (row.get("target") or "").strip()
+    category = (row.get("category") or "").strip()
+    title = (row.get("title") or "").strip()
+    if not (org or region or target or category or title):
+        return ""
+    org = org or "소관기관"
+    support = _support_cue(title, category)
+    place = _place_of(region)
+    og = _josa(org, "이", "가")
+    sg = _josa(support, "을", "를")
+    seed = f"{org}|{row.get('title') or ''}|{category}"
+    variant = sum(ord(c) for c in seed) % 3
+    urgency = _urgency_cue(row)
+
+    if variant == 0 and target and place:
+        head = (
+            f"{org}{og} {place} 소재 {target}{_josa(target, '을', '를')} "
+            f"대상으로 {support}합니다."
+        )
+    elif variant == 1 and target:
+        head = f"{org}{og} {target}에게 {support}합니다."
+        if place:
+            head += f" 대상 지역은 {place}입니다."
+    else:
+        head = f"{org}{og} {support}{sg} 진행합니다."
+        bits = []
+        if place:
+            bits.append(f"대상 지역은 {place}")
+        if target:
+            bits.append(f"대상은 {target}")
+        if bits:
+            head += " " + ", ".join(bits) + "입니다."
+    if urgency:
+        head += " " + urgency
+    return head
+
+
 def _fallback(row):
     """LLM 없이 쓰는 규칙 기반 해설. 모든 필드는 방어적으로 접근한다."""
-    org = row.get("org") or "소관기관"
-    region = row.get("region") or "전국"
-    target = row.get("target") or "중소기업"
-    category = row.get("category") or "기타"
-    method = row.get("method") or "공고문 참조"
+    org = (row.get("org") or "").strip() or "소관기관"
+    region = (row.get("region") or "").strip() or "전국"
+    target = (row.get("target") or "").strip()
+    category = (row.get("category") or "").strip() or "기타"
+    method = (row.get("method") or "").strip() or "공고문 참조"
     amount = amount_of(row)
+    place = _place_of(region)
 
-    org_josa = _josa(org, "이", "가")
-    target_josa = _josa(target, "을", "를")
-    head = (f"{org}{org_josa} {region} 지역 {target}{target_josa} 대상으로 "
-            f"진행하는 {category} 분야 지원사업입니다.")
+    head = card_line(row)
     if amount:
-        head += f" 지원규모는 {amount} 수준입니다."
-    if row.get("overview"):
-        head += " " + row["overview"][:120]
+        head += f" 공고문에는 지원규모가 {amount}로 적혀 있습니다."
 
-    fit = [f"{region}에 사업장을 둔 {target}",
-           f"{category} 분야 지원이 필요한 곳",
-           "신청 시점에 국세·지방세 체납이 없는 사업자"]
+    who = target or "신청 대상은 공고문 참조"
+    fit = [
+        f"{place}에 사업장을 둔 {who}" if target else f"{place} 소재 사업장 기준 공고",
+        f"{category} 분야 지원이 필요한 곳",
+        "신청 시점에 국세·지방세 체납이 없는 사업자",
+    ]
 
     caution = []
     if row.get("period_type") == "always":
-        caution.append(f"접수기간이 '{row.get('period_raw')}'로 명시되어 있어 조기 마감될 수 있습니다.")
+        raw = (row.get("period_raw") or "상시 접수").strip()
+        caution.append(f"접수기간이 '{raw}'로 명시되어 있어 예산이 끝나면 날짜 전에 닫힐 수 있습니다.")
     else:
         caution.append(f"접수기간은 {_period_text(row)}입니다. 마감 전 여유를 두고 신청하세요.")
     caution.append("같은 연도에 유사 사업을 받았다면 중복 지원이 제한될 수 있습니다.")
-    caution.append(f"신청은 {method.splitlines()[0] if method else '공고문 참조'} 방식으로 받습니다.")
+    method0 = method.splitlines()[0].strip() if method else "공고문 참조"
+    caution.append(f"신청은 {method0} 방식으로 받습니다.")
 
     checklist = ["사업자등록증명원", "국세·지방세 완납증명서",
                  "최근 연도 재무제표 또는 부가세과세표준증명"]
@@ -161,16 +259,24 @@ def _fallback(row):
 
 
 # 예전 규칙기반 fallback이 조사(이/가, 을/를)를 문법에 안 맞게 리터럴로
-# 붙여 넣던 버그의 흔적. 이 패턴이 남아있으면 AI를 다시 부르지 않고
-# 규칙기반으로만 무료로 재생성해서 고친다 (API 비용 0원). enrich_cache와
+# 붙여 넣던 버그의 흔적, 그리고 "OO가 OO 지역 OO를 대상으로 진행하는
+# OO 분야 지원사업입니다" 상투구. 둘 다 AI를 다시 부르지 않고
+# 규칙기반으로만 무료로 재생성한다 (API 비용 0원). enrich_cache와
 # data/archive.json(마감 공고의 "ai" 스냅샷)에 둘 다 얼어붙어 있을 수
 # 있어서 양쪽에서 재사용할 수 있게 공용 함수로 뺐다.
-_BROKEN_JOSA = re.compile(r"이\(가\)|을\(를\)")
+_BROKEN_JOSA = re.compile(r"이\(가\)|을\(를\)|은\(는\)")
+_GENERIC_FALLBACK = re.compile(
+    r"(?:이|가) .+? 지역 .+?(?:을|를) 대상으로 진행하는 .+? 분야 지원사업입니다"
+)
 
 
 def heal_broken_josa(ai, row):
-    """ai가 옛날 조사 버그 문구를 담고 있으면 규칙기반으로 재생성해 돌려준다."""
-    if ai and _BROKEN_JOSA.search(ai.get("summary") or ""):
+    """
+    옛날 조사 버그 문구이거나, 카드에서 버리는 상투구 fallback이면
+    규칙기반으로 재생성해 돌려준다. 캐시를 우회해 LLM을 부르지 않는다.
+    """
+    s = (ai or {}).get("summary") or ""
+    if (not s) or _BROKEN_JOSA.search(s) or _GENERIC_FALLBACK.search(s):
         return _fallback(row)
     return ai
 

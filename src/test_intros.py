@@ -59,11 +59,12 @@ def test_intro_length_and_uniqueness():
             seen.add(blob)
             assert r["name"] in blob or r["name"] == "전남광주"
             if r["name"] == "전국":
-                assert "전국에서 신청할 수 있는" in blob
+                assert "사업장 소재지 제한이 없는" in blob or "전국에서 신청할 수 있는" in blob
             elif r["name"] == "전남광주":
-                assert "전남광주통합특별시에서" in blob
+                assert "전남광주통합특별시" in blob
+                assert "광주와 전남을 따로" in blob or "광주와 전남을 한" in blob or "광주와 전남을 나누지" in blob
             else:
-                assert f"{r['name']}에서 지금" in blob
+                assert r["name"] in blob
                 assert f"{r['name']} 지역에서" not in blob
             assert c["name"] in blob
             assert "기관A" in blob or "기관B" in blob
@@ -101,7 +102,7 @@ def test_sample_combos_read_naturally():
         paras, faqs = intros.build(region, category, cats[category], items)
         blob = "\n".join(paras)
         assert 3 <= len(paras) <= 4
-        assert "지원사업은 3건입니다" in blob
+        assert "3건" in blob
         assert "/guide/always-deadline/" in blob
         assert faqs[0]["a"].startswith("이 페이지에는 3건이 있습니다.")
         ld = intros.faq_jsonld(faqs)
@@ -141,10 +142,17 @@ def test_blurb_skips_generic_fallback():
     assert len(b) <= 90
     generic = _item(ai={"summary":
         "서울경제진흥원이 서울 지역 중소기업을 대상으로 진행하는 창업 분야 지원사업입니다."})
-    assert intros.blurb_of(generic) == ""
-    generic_amt = _item(ai={"summary":
+    g = intros.blurb_of(generic)
+    assert g
+    assert "이(가)" not in g and "을(를)" not in g
+    assert "대상으로 진행하는" not in g
+    assert "서울경제진흥원" in g
+    generic_amt = _item(org="고용노동부", ai={"summary":
         "고용노동부가 서울 지역 소상공인을 대상으로 진행하는 창업 분야 지원사업입니다. 지원규모는 최대 1억원 수준입니다."})
-    assert intros.blurb_of(generic_amt) == ""
+    g2 = intros.blurb_of(generic_amt)
+    assert g2
+    assert "대상으로 진행하는" not in g2
+    assert "고용노동부" in g2
     # 실제 운영 데이터처럼 boilerplate 뒤에 진짜 개요 문장이 붙는 경우.
     # 예전엔 _GENERIC_BLURB가 뒷부분만 지워서 "중소기업을 ." 같은 잘린
     # 조각이 그대로 남는 버그가 있었다(2026-09-04 라이브에서 실제 발견).
@@ -176,9 +184,9 @@ def test_hub_and_page_intros():
     cblob = "\n".join(cparas)
     assert "/guide/pre-vs-early/" in cblob
     mparas = intros.category_page_intro("경영", cats["경영"], [_item(category="경영")] * 2)
-    assert "/guide/sme-grant-checklist/" in "\n".join(mparas)
+    assert "/guide/sme-apply/" in "\n".join(mparas)
     assert intros.CATEGORY_GUIDE["창업"][0] == "/guide/pre-vs-early/"
-    assert intros.CATEGORY_GUIDE["경영"][0] == "/guide/sme-grant-checklist/"
+    assert intros.CATEGORY_GUIDE["경영"][0] == "/guide/sme-apply/"
 
 
 def test_district_intros_from_visible_facts():
@@ -228,14 +236,56 @@ def test_home_and_category_search_copy():
     hrefs = [g["href"] for g in intros.HOME_GUIDES]
     assert hrefs == [
         "/guide/find-by-deadline/",
-        "/guide/pre-vs-early/",
-        "/guide/grant-vs-loan/",
+        "/guide/workplace-region/",
+        "/guide/deadline-alert/",
     ]
     assert intros.category_title("창업") == "창업 지원사업 마감일 | 지원사업 마감판"
     desc = intros.category_desc("금융", {"desc": "융자·보증·이차보전 등 자금 지원"})
     assert desc.startswith("금융 분야 정부지원사업을 마감일 순으로")
     assert "회원가입 없이" in desc
     assert "지역별로" in desc
+
+
+def _strip_tokens(text, *tokens):
+    t = text
+    for tok in tokens:
+        if tok:
+            t = t.replace(tok, "X")
+    return " ".join(t.split())
+
+
+def test_combos_differ_beyond_region_category_tokens():
+    """같은 목록 사실이어도 조합마다 문장 골격이 달라야 한다."""
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    same = [
+        _item(title="공통 공고 오늘", org="서울경제진흥원", dday=0, apply_end="2026-09-04"),
+        _item(title="공통 공고 상시", org="중소벤처기업부",
+              period_type="always", period_raw="예산 소진시까지", dday=9999),
+        _item(title="공통 공고 여유", org="산업통상부", dday=20, apply_end="2026-09-24"),
+    ]
+    pairs = [
+        ("서울", "창업", "경기", "금융"),
+        ("서울", "창업", "대구", "창업"),
+        ("서울", "창업", "서울", "금융"),
+        ("전남광주", "경영", "전국", "경영"),
+        ("제주", "수출", "세종", "인력"),
+    ]
+    blobs = {}
+    for a, b, c, d in pairs:
+        for region, category in ((a, b), (c, d)):
+            key = (region, category)
+            if key in blobs:
+                continue
+            paras, _ = intros.build(region, category, cats[category], same)
+            blobs[key] = "\n".join(paras)
+    for a, b, c, d in pairs:
+        left = _strip_tokens(blobs[(a, b)], a, b, "전남광주통합특별시", "전남광주")
+        right = _strip_tokens(blobs[(c, d)], c, d, "전남광주통합특별시", "전남광주")
+        assert left != right, ((a, b), (c, d), left[:80], right[:80])
+        # 토큰만 바꾼 문장이면 공유 n-gram이 거의 전부다. 40% 넘게 달라야 한다.
+        left_set, right_set = set(left.split()), set(right.split())
+        share = len(left_set & right_set) / max(1, len(left_set | right_set))
+        assert share < 0.72, ((a, b), (c, d), share)
 
 
 def test_deadline_guide_exists_and_links_lists():
@@ -251,6 +301,16 @@ def test_deadline_guide_exists_and_links_lists():
     assert "체험" not in content
     assert "/category/financial/" in rows["grant-vs-loan"][2]
     assert "/category/startup/" in rows["pre-vs-early"][2]
+    for slug in ("sme-apply", "sme-types", "deadline-alert", "workplace-region"):
+        assert slug in rows, slug
+    assert "/category/management/" in rows["sme-apply"][2]
+    assert "/guide/sme-grant-checklist/" in rows["sme-apply"][2]
+    assert "/category/financial/" in rows["sme-types"][2]
+    assert "/calendar/" in rows["deadline-alert"][2]
+    assert "/urgent/" in rows["deadline-alert"][2]
+    assert "/region/nationwide/" in rows["workplace-region"][2]
+    assert "/region/jeonnam-gwangju/" in rows["workplace-region"][2]
+    assert "광주와 전남을 따로" in rows["workplace-region"][2]
 
 
 if __name__ == "__main__":
@@ -262,5 +322,6 @@ if __name__ == "__main__":
     test_hub_and_page_intros()
     test_district_intros_from_visible_facts()
     test_home_and_category_search_copy()
+    test_combos_differ_beyond_region_category_tokens()
     test_deadline_guide_exists_and_links_lists()
     print("intros tests ok")

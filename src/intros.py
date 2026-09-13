@@ -12,7 +12,7 @@ from html import escape as h
 import json
 import re
 
-from enrich import _josa
+from enrich import _josa, card_line
 import config
 
 
@@ -107,13 +107,292 @@ CATEGORY_GUIDE = {
     "기술": ("/guide/biz-plan-structure/", "사업계획서 기본 구조"),
     "인력": ("/guide/docs-checklist/", "준비서류 총정리"),
     "수출": ("/guide/voucher-vs-selection/", "바우처와 선정 사업 차이"),
-    "내수": ("/guide/sme-grant-checklist/", "소상공인 지원금 체크리스트"),
+    "내수": ("/guide/sme-apply/", "소상공인 지원금 신청 방법"),
     "창업": ("/guide/pre-vs-early/", "예비·초기창업패키지 차이"),
-    "경영": ("/guide/sme-grant-checklist/", "소상공인 지원금 체크리스트"),
-    "기타": ("/guide/aply-trgt-check/", "신청 자격 확인"),
+    "경영": ("/guide/sme-apply/", "소상공인 지원금 신청 방법"),
+    "기타": ("/guide/workplace-region/", "지역 제한 공고 보는 법"),
 }
 
 ALWAYS_GUIDE = ("/guide/always-deadline/", "상시 접수 공고, 지금 신청해야 하는 이유")
+
+# 지역을 행정 구조로만 묶는다. 특정 공고·예산을 지어내지 않는다.
+# 전남광주는 통합 단위 그대로 둔다 (분리 금지).
+_REGION_GROUP = {
+    "서울": "metro_gu", "부산": "metro_gu", "대구": "metro_gu", "대전": "metro_gu",
+    "인천": "metro_gun", "울산": "metro_gun",
+    "경기": "wide",
+    "강원": "do", "충북": "do", "충남": "do", "전북": "do", "경북": "do", "경남": "do",
+    "세종": "city", "제주": "island",
+    "전남광주": "united",
+    "전국": "nation",
+}
+
+# (행정구조, 분야)마다 한 문장. 지역명 토큰만 갈아끼운 문장이 100쪽을
+# 채우지 않도록, 구·군 구조와 분야 성격을 한 문장에 엮는다.
+_COMBO_WEAVE = {
+    ("metro_gu", "금융"): (
+        "{r} 금융 공고는 시 사업과 구청 사업이 한 목록입니다. "
+        "융자·보증·이차보전은 갚는 돈인지부터 보고, 소관기관이 구청이면 "
+        "그 구 사업장 요건을 원문에서 확인하세요."
+    ),
+    ("metro_gu", "기술"): (
+        "{r} 기술 공고는 광역시 과제와 구 단위 과제가 섞여 있습니다. "
+        "R&D·기술개발은 선정형이 많아 사업계획서를 먼저 보는 편이 낫고, "
+        "구청 공고면 그 구 소재 기업인지부터 가리세요."
+    ),
+    ("metro_gu", "인력"): (
+        "{r} 인력 공고는 시 고용 사업과 구 채용 지원이 함께 올라옵니다. "
+        "4대보험·고용 유지 기간을 보는 경우가 많고, 소관기관이 구청이면 "
+        "그 구 사업장 기준입니다."
+    ),
+    ("metro_gu", "수출"): (
+        "{r} 수출 공고는 시 해외진출 사업과 구 단위 바우처가 한 목록입니다. "
+        "예산 소진형이면 조건을 확인하는 대로 접수하는 쪽이 유리합니다."
+    ),
+    ("metro_gu", "내수"): (
+        "{r} 내수 공고는 시 판로 사업과 구 마케팅 지원이 섞여 있습니다. "
+        "채널 입점·홍보비·전시는 바우처형과 선정형이 함께 있으니 제목의 "
+        "바우처·선정 표현을 먼저 보세요."
+    ),
+    ("metro_gu", "창업"): (
+        "{r} 창업 공고는 시 창업 센터 사업과 구 단위 사업화가 한 목록입니다. "
+        "업력은 보통 사업자등록일 기준이고, 구청 공고면 그 구 소재인지를 "
+        "원문에서 확인하세요."
+    ),
+    ("metro_gu", "경영"): (
+        "{r} 경영 공고는 시 컨설팅·시설 사업과 구 소상공인 지원이 함께 있습니다. "
+        "업력 제한이 느슨한 편이어도 구 단위면 그 구 사업장 요건이 붙습니다."
+    ),
+    ("metro_gu", "기타"): (
+        "{r}에서 여덟 분야에 넣기 어려운 공고입니다. "
+        "시 사업인지 구 사업인지는 소관기관이 가장 빠른 힌트입니다."
+    ),
+    ("metro_gun", "금융"): (
+        "{r} 금융 공고는 시 사업과 구·군 사업이 섞여 있습니다. "
+        "융자·보증 대상 지역이 특정 구·군으로 좁혀져 있는지 소관기관과 맞춰 보세요."
+    ),
+    ("metro_gun", "기술"): (
+        "{r} 기술 공고는 광역시 과제와 구·군 과제가 함께 있습니다. "
+        "선정형 R&D가 많아 사업계획서부터 보고, 구·군 공고면 그 지역 소재지를 확인하세요."
+    ),
+    ("metro_gun", "인력"): (
+        "{r} 인력 공고는 시 고용과 구·군 채용 지원이 한 목록입니다. "
+        "인건비·교육은 4대보험 가입 현황을 먼저 보는 경우가 많습니다."
+    ),
+    ("metro_gun", "수출"): (
+        "{r} 수출 공고는 시 해외진출과 구·군 바우처가 함께 올라옵니다. "
+        "예산 소진형이면 날짜보다 잔여 예산이 먼저 끊깁니다."
+    ),
+    ("metro_gun", "내수"): (
+        "{r} 내수 공고는 시 유통 사업과 구·군 마케팅이 섞여 있습니다. "
+        "입점·홍보·전시는 공고마다 방식이 다르니 제목과 소관기관을 함께 보세요."
+    ),
+    ("metro_gun", "창업"): (
+        "{r} 창업 공고는 시 사업화와 구·군 입주·교육이 한 목록입니다. "
+        "예비와 기창업은 업력 산정이 다르니 사업자등록일부터 맞춰 보세요."
+    ),
+    ("metro_gun", "경영"): (
+        "{r} 경영 공고는 시 시설·컨설팅과 구·군 소상공인 지원이 함께 있습니다. "
+        "이미 운영 중인 사업장도 문을 두드릴 수 있는 편이지만, 구·군이면 소재지가 갈립니다."
+    ),
+    ("metro_gun", "기타"): (
+        "{r}에서 분류가 애매한 공고입니다. "
+        "구·군 이름이 소관기관에 있으면 그 지역 사업장 기준으로 보면 됩니다."
+    ),
+    ("wide", "금융"): (
+        "{r} 금융 공고는 도와 시·군이 한 목록이라 길어지기 쉽습니다. "
+        "융자·보증·이차보전은 갚는 돈인지 보고, 시·군 이름이 기관에 있으면 "
+        "그 지역 사업장 요건이 붙는 경우가 많습니다."
+    ),
+    ("wide", "기술"): (
+        "{r} 기술 공고는 도 과제와 시·군 과제가 함께 있습니다. "
+        "R&D는 선정형이 많아 사업계획서 완성도를 먼저 보고, 시·군 공고면 소재지를 좁히세요."
+    ),
+    ("wide", "인력"): (
+        "{r} 인력 공고는 도 고용 사업과 시·군 채용 지원이 섞여 목록이 깁니다. "
+        "인건비·교육은 고용 유지 기간을 보는 공고가 많아 인력 현황부터 챙기세요."
+    ),
+    ("wide", "수출"): (
+        "{r} 수출 공고는 도 해외진출과 시·군 바우처가 한 목록입니다. "
+        "시·군 단위 바우처는 예산이 먼저 끝나는 경우가 있으니 조건을 확인하는 대로 보세요."
+    ),
+    ("wide", "내수"): (
+        "{r} 내수 공고는 도 판로 사업과 시·군 마케팅이 함께 올라옵니다. "
+        "31개 시·군이 한 목록이라, 소관기관의 시·군 이름부터 가리는 편이 빠릅니다."
+    ),
+    ("wide", "창업"): (
+        "{r} 창업 공고는 도 창업 센터와 시·군 사업화가 한 목록에 모입니다. "
+        "업력 3년·7년 이내가 흔하고, 시·군 공고면 해당 지역 사업장 요건을 원문에서 보세요."
+    ),
+    ("wide", "경영"): (
+        "{r} 경영 공고는 도 컨설팅·시설과 시·군 소상공인 지원이 함께 있어 목록이 깁니다. "
+        "시·군 이름이 소관기관에 있으면 그 지역 가게·사업장 기준입니다."
+    ),
+    ("wide", "기타"): (
+        "{r}에서 여덟 분야에 넣기 어려운 공고입니다. "
+        "시·군이 많아 제목과 소관기관만 보고 업종·소재지가 맞는지를 가리시면 됩니다."
+    ),
+    ("do", "금융"): (
+        "{r} 금융 공고는 도와 시·군이 한 목록입니다. "
+        "융자·보증은 갚아야 하는 자금인지 먼저 보고, 시·군 공고면 그 지역 사업장 요건을 확인하세요."
+    ),
+    ("do", "기술"): (
+        "{r} 기술 공고는 도 과제와 시·군 과제가 섞여 있습니다. "
+        "선정형 R&D가 많아 신청 전에 사업계획서부터 준비하는 편이 유리합니다."
+    ),
+    ("do", "인력"): (
+        "{r} 인력 공고는 도 고용과 시·군 채용·교육이 함께 있습니다. "
+        "4대보험 가입 이력을 미리 확인해 두면 서류 준비가 빨라집니다."
+    ),
+    ("do", "수출"): (
+        "{r} 수출 공고는 도 해외진출과 시·군 전시·바우처가 한 목록입니다. "
+        "예산 소진형이면 날짜형보다 먼저 닫힐 수 있습니다."
+    ),
+    ("do", "내수"): (
+        "{r} 내수 공고는 도 유통 사업과 시·군 마케팅이 섞여 있습니다. "
+        "대상 지역이 도 전체가 아니라 특정 시·군일 수 있으니 원문을 한 번 더 보세요."
+    ),
+    ("do", "창업"): (
+        "{r} 창업 공고는 도 사업화와 시·군 입주·교육이 함께 올라옵니다. "
+        "예비와 기창업은 업력 산정이 다르니 사업자등록일을 기준으로 보세요."
+    ),
+    ("do", "경영"): (
+        "{r} 경영 공고는 도 시설·컨설팅과 시·군 소상공인 지원이 한 목록입니다. "
+        "소관기관이 시·군이면 해당 지역 사업장 기준으로 좁혀집니다."
+    ),
+    ("do", "기타"): (
+        "{r}에서 분류가 애매한 공고입니다. "
+        "소관기관과 공고문 대상 지역이 일치하는지만 보면 됩니다."
+    ),
+    ("city", "금융"): (
+        "{r} 금융 공고는 시 단위가 중심입니다. "
+        "융자·보증·이차보전은 갚는 돈인지 구분하고, 소재지 제한이 없으면 전국 목록도 함께 보세요."
+    ),
+    ("city", "기술"): (
+        "{r} 기술 공고는 시 단위 R&D·기술개발이 중심입니다. "
+        "선정형이 많아 사업계획서를 먼저 보는 편이 낫습니다."
+    ),
+    ("city", "인력"): (
+        "{r} 인력 공고는 시 단위 채용·인건비·교육이 중심입니다. "
+        "고용 유지 기간과 4대보험 서류를 먼저 챙기세요."
+    ),
+    ("city", "수출"): (
+        "{r} 수출 공고는 시 단위 해외진출·바우처가 중심입니다. "
+        "예산 소진형이면 조건을 확인하는 대로 접수하는 쪽이 유리합니다."
+    ),
+    ("city", "내수"): (
+        "{r} 내수 공고는 시 단위 판로·마케팅이 중심입니다. "
+        "소재지 제한이 없는 국내 판로 사업은 전국 페이지에도 있습니다."
+    ),
+    ("city", "창업"): (
+        "{r} 창업 공고는 시 단위 사업화·입주가 중심입니다. "
+        "업력은 사업자등록일 기준인 경우가 많습니다."
+    ),
+    ("city", "경영"): (
+        "{r} 경영 공고는 시 단위 컨설팅·시설이 중심입니다. "
+        "이미 운영 중인 사업장도 신청을 검토할 수 있는 편이지만 원문 대상을 확인하세요."
+    ),
+    ("city", "기타"): (
+        "{r}에서 여덟 분야에 넣기 어려운 시 단위 공고입니다. "
+        "제목과 지원대상을 보고 해당 여부만 가리시면 됩니다."
+    ),
+    ("island", "금융"): (
+        "{r} 금융 공고는 도 단위가 많은 편입니다. "
+        "융자·보증은 갚는 돈인지 보고, 소재지 제한이 없는 자금은 전국 목록에서 따로 확인할 수 있습니다."
+    ),
+    ("island", "기술"): (
+        "{r} 기술 공고는 도 단위 R&D가 중심입니다. "
+        "선정형이면 사업계획서 완성도가 결과를 가릅니다."
+    ),
+    ("island", "인력"): (
+        "{r} 인력 공고는 도 단위 채용·교육이 많은 편입니다. "
+        "4대보험 가입 현황을 먼저 보면 서류가 빨라집니다."
+    ),
+    ("island", "수출"): (
+        "{r} 수출 공고는 도 단위 해외진출·전시가 중심입니다. "
+        "섬 지역 물류·전시 일정이 원문에 따로 적혀 있는 경우가 있으니 접수 전에 보세요."
+    ),
+    ("island", "내수"): (
+        "{r} 내수 공고는 도 단위 판로·관광 연계 마케팅이 섞여 있습니다. "
+        "소재지 제한이 없는 국내 판로 사업은 전국 페이지에도 있습니다."
+    ),
+    ("island", "창업"): (
+        "{r} 창업 공고는 도 단위 사업화·입주가 중심입니다. "
+        "예비와 기창업 구분은 사업자등록일부터 보시면 됩니다."
+    ),
+    ("island", "경영"): (
+        "{r} 경영 공고는 도 단위 컨설팅·시설이 많은 편입니다. "
+        "이미 운영 중인 사업장 대상이면 업력보다 소재지·체납부터 보세요."
+    ),
+    ("island", "기타"): (
+        "{r}에서 분류가 애매한 도 단위 공고입니다. "
+        "제목과 소관기관을 보고 업종이 맞는지만 가리시면 됩니다."
+    ),
+    ("united", "금융"): (
+        "전남광주통합특별시 금융 공고는 광주와 전남을 나누지 않습니다. "
+        "융자·보증·이차보전은 갚는 돈인지 보고, 예전에 광역시·도로 찾던 공고도 이 목록에 있습니다."
+    ),
+    ("united", "기술"): (
+        "전남광주통합특별시 기술 공고는 광주와 전남을 한 단위로 둡니다. "
+        "R&D·기술개발은 선정형이 많아 사업계획서를 먼저 보세요."
+    ),
+    ("united", "인력"): (
+        "전남광주통합특별시 인력 공고는 광주와 전남을 따로 나누지 않습니다. "
+        "채용·인건비·교육은 4대보험 서류를 먼저 챙기는 편이 낫습니다."
+    ),
+    ("united", "수출"): (
+        "전남광주통합특별시 수출 공고는 광주와 전남을 한 목록으로 둡니다. "
+        "해외진출·바우처는 예산 소진형이 섞여 있어 조건을 확인하는 대로 접수하는 쪽이 유리합니다."
+    ),
+    ("united", "내수"): (
+        "전남광주통합특별시 내수 공고는 광주와 전남을 나누지 않습니다. "
+        "판로·마케팅은 바우처형과 선정형이 함께 있으니 제목의 표현을 먼저 보세요."
+    ),
+    ("united", "창업"): (
+        "전남광주통합특별시 창업 공고는 광주와 전남을 한 단위로 묶습니다. "
+        "예전에 광주광역시나 전라남도로 찾던 사업화도 이 목록에서 보시면 됩니다."
+    ),
+    ("united", "경영"): (
+        "전남광주통합특별시 경영 공고는 광주와 전남을 따로 나누지 않습니다. "
+        "컨설팅·시설은 이미 운영 중인 소상공인도 문을 두드릴 수 있는 편입니다."
+    ),
+    ("united", "기타"): (
+        "전남광주통합특별시에서 여덟 분야에 넣기 어려운 공고입니다. "
+        "광주와 전남을 나누지 않으니, 예전에 광역시·도로 찾던 공고도 여기 있습니다."
+    ),
+    ("nation", "금융"): (
+        "사업장 소재지 제한이 없는 금융 공고만 모았습니다. "
+        "융자·보증·이차보전은 갚는 돈인지 구분하고, 특정 시·도 자금은 해당 지역 페이지에 있습니다."
+    ),
+    ("nation", "기술"): (
+        "사업장 소재지 제한이 없는 기술 공고만 모았습니다. "
+        "R&D는 선정형이 많아 사업계획서부터 보고, 지역 한정 과제는 시·도 페이지에서 보세요."
+    ),
+    ("nation", "인력"): (
+        "사업장 소재지 제한이 없는 인력 공고만 모았습니다. "
+        "채용·인건비·교육은 4대보험 현황을 먼저 보고, 시·도 고용 사업은 지역 페이지에 있습니다."
+    ),
+    ("nation", "수출"): (
+        "사업장 소재지 제한이 없는 수출 공고만 모았습니다. "
+        "해외진출·바우처는 예산 소진형이 섞여 있고, 지역 한정 전시는 해당 시·도에 있습니다."
+    ),
+    ("nation", "내수"): (
+        "사업장 소재지 제한이 없는 내수 공고만 모았습니다. "
+        "판로·마케팅은 전국 어디서나 요건만 맞으면 검토할 수 있고, 지역 한정은 시·도 페이지에 있습니다."
+    ),
+    ("nation", "창업"): (
+        "사업장 소재지 제한이 없는 창업 공고만 모았습니다. "
+        "예비·초기 사업화는 업력부터 가리고, 시·도 창업 센터 사업은 지역 페이지에 있습니다."
+    ),
+    ("nation", "경영"): (
+        "사업장 소재지 제한이 없는 경영 공고만 모았습니다. "
+        "컨설팅·시설은 전국 사업장 대상이고, 구·군 소상공인 지원은 해당 지역 페이지에 있습니다."
+    ),
+    ("nation", "기타"): (
+        "사업장 소재지 제한이 없는, 여덟 분야에 넣기 어려운 공고만 모았습니다. "
+        "특정 시·도에만 열리는 사업은 해당 지역 페이지에서 확인하세요."
+    ),
+}
 
 # 규칙기반 fallback 한 줄. 카드에 반복되면 오히려 약해 보여서 생략한다.
 # enrich._fallback()의 문장 전체("OO가 OO 지역 OO를 대상으로 진행하는
@@ -212,7 +491,137 @@ def _deadline_para(urgent, open_dated, always):
     return " ".join(bits)
 
 
-def _who_answer(region, category, cat_desc):
+def _layout_id(seed):
+    return sum(ord(c) for c in (seed or "")) % 5
+
+
+def _item_facts(items):
+    items = items or []
+    dated = [a for a in items if a.get("period_type") != "always"]
+    always = [a for a in items if a.get("period_type") == "always"]
+    open_dated = [a for a in dated if a.get("dday", -1) >= 0]
+    urgent = [a for a in open_dated if a.get("dday", 99) <= 7]
+    today = [a for a in urgent if a.get("dday") == 0]
+    cats, seen = [], set()
+    for a in items:
+        c = (a.get("category") or "").strip()
+        if c and c not in seen:
+            seen.add(c)
+            cats.append(c)
+    nearest = None
+    pool = urgent or open_dated
+    if pool:
+        nearest = min(pool, key=lambda a: (a.get("dday"), a.get("apply_end") or ""))
+    return {
+        "n": len(items),
+        "dated": dated,
+        "always": always,
+        "open_dated": open_dated,
+        "urgent": urgent,
+        "today": today,
+        "orgs": _orgs(items),
+        "cats": cats,
+        "nearest": nearest,
+    }
+
+
+def _region_label(region):
+    if region == "전남광주":
+        return "전남광주통합특별시"
+    return region
+
+
+def _scope_short(region):
+    if region == "전국":
+        return "사업장 소재지 제한이 없는 공고입니다."
+    if region == "전남광주":
+        return "전남광주통합특별시 단위이며, 광주와 전남을 따로 나누지 않습니다."
+    return f"{h(region)} 사업장 소재지 기준입니다."
+
+
+def _combo_weave(region, category):
+    group = _REGION_GROUP.get(region, "do")
+    tmpl = _COMBO_WEAVE.get((group, category))
+    if tmpl:
+        body = tmpl.format(r=h(_region_label(region)))
+    else:
+        body = (
+            f"{_scope_short(region)} {h(category)} 공고만 이 페이지에 있습니다. "
+            "업력·매출·체납 요건은 공고마다 다르니 원문을 확인하세요."
+        )
+    # 같은 행정구조(예: 서울·대구)여도 지역 고유 문장을 한 문단에 붙여
+    # 토큰만 바꾼 문장이 되지 않게 한다.
+    region_note = _blurb_variant(category, region, REGION_BLURB, REGION_BLURB_ALT)
+    if region_note and region_note not in body:
+        if _layout_id(f"{region}{category}weave") % 2 == 0:
+            return f"{body} {region_note}"
+        return f"{region_note} {body}"
+    return body
+
+
+def _guide_html(category):
+    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
+    return f'<a href="{h(href)}">{h(gname)}</a>{_josa(gname, "을", "를")}'
+
+
+def _count_lead(region, category, facts, style):
+    n = facts["n"]
+    cat = h(category)
+    if style == 0:
+        return f"{_where(region)} {cat} 지원사업은 {n}건입니다."
+    if style == 1:
+        return f"이 목록의 {cat} 공고는 {n}건입니다. {_scope_short(region)}"
+    if style == 2:
+        return f"{_scope_short(region)} {cat}만 보면 지금 {n}건입니다."
+    if style == 3:
+        return f"{h(_region_label(region))} {cat} 지원사업은 {n}건입니다. 마감이 가까운 순입니다."
+    return f"{cat} 분야만 모아 {n}건입니다. {_scope_short(region)}"
+
+
+def _mix_sentence(facts):
+    u, a, o = len(facts["urgent"]), len(facts["always"]), len(facts["open_dated"])
+    bits = []
+    if facts["today"]:
+        bits.append(f"오늘 마감 {len(facts['today'])}건")
+    if u:
+        bits.append(f"이번 주 마감 {u}건")
+    elif o:
+        bits.append(f"날짜가 남은 공고 {o}건")
+    if a:
+        bits.append(f"상시 접수 {a}건")
+    if not bits:
+        return "지금 접수 기간이 남은 공고가 거의 없습니다."
+    return "이 페이지에는 " + ", ".join(bits) + "이 있습니다."
+
+
+def _org_lead(facts):
+    return _org_sentence(facts["orgs"])
+
+
+def _title_lead(facts):
+    nearest = facts.get("nearest")
+    if not nearest:
+        if facts["always"]:
+            raws = _always_raws(facts["always"])
+            shown = ", ".join(f"'{h(x)}'" for x in raws[:2]) or "'상시 접수'"
+            return (
+                f"날짜 없는 상시 접수가 {len(facts['always'])}건 있고, "
+                f"원문에는 {shown}처럼 적혀 있습니다."
+            )
+        return ""
+    qtitle = _quote_title(nearest.get("title"))
+    end = h(nearest.get("apply_end") or "")
+    if nearest.get("dday") == 0 and qtitle:
+        return f"오늘 마감 중 하나는 {qtitle}입니다."
+    if qtitle and end:
+        return f"가장 가까운 마감은 {end}의 {qtitle}입니다."
+    if end:
+        return f"가장 가까운 마감일은 {end}입니다."
+    return ""
+
+
+def _who_answer(region, category, cat_desc, facts=None):
+    facts = facts or {"orgs": [], "cats": []}
     if region == "전국":
         who = "사업장 소재지 제한이 없는 공고입니다. 전국 어디서나 요건만 맞으면 신청을 검토할 수 있습니다."
     elif region == "전남광주":
@@ -222,8 +631,11 @@ def _who_answer(region, category, cat_desc):
         )
     else:
         who = f"{region}에 사업장을 둔 기업이 신청 대상인 공고입니다."
+    extra = ""
+    if facts.get("orgs"):
+        extra = " " + _org_sentence(facts["orgs"])
     return (
-        f"{who} {cat_desc} 성격의 공고입니다. "
+        f"{who} {cat_desc} 성격의 공고입니다.{extra} "
         f"업력·매출·체납·중복지원 요건은 공고마다 다르니, 각 공고 상세와 원문을 확인하세요."
     )
 
@@ -265,78 +677,150 @@ def _where(region):
     return f"{h(region)}에서 지금 접수 중이거나 최근 마감된"
 
 
+def _combo_paras(region, category, cat, facts):
+    """
+    조합마다 문단 순서와 첫 문장을 다르게 짠다. 쓰는 숫자는 이 페이지
+    목록에 보이는 건수·기관·마감·제목뿐이다.
+    """
+    n = facts["n"]
+    cat_desc = (cat or {}).get("desc") or f"{category} 지원"
+    layout = _layout_id(f"{region}|{category}")
+    weave = _combo_weave(region, category)
+    region_note = _blurb_variant(category, region, REGION_BLURB, REGION_BLURB_ALT) or _scope_short(region)
+    cat_note = _blurb_variant(region, category, CATEGORY_BLURB, CATEGORY_BLURB_ALT) or (
+        f"{h(category)}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
+    )
+    deadline = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
+    guide = (
+        f"{cat_note} 신청이 처음이면 {_guide_html(category)} 먼저 보시면 됩니다. "
+        f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
+    )
+    count = _count_lead(region, category, facts, layout)
+    mix = _mix_sentence(facts)
+    orgs = h(_org_lead(facts))
+    titled = _title_lead(facts)
+    desc = h(cat_desc)
+
+    if layout == 0:
+        paras = [
+            f"{count} {desc}에 해당하는 공고를 마감이 가까운 순으로 모아 두었습니다.",
+            f"{weave} {orgs}",
+            deadline,
+            guide,
+        ]
+    elif layout == 1:
+        lead = titled or mix
+        paras = [
+            f"{lead} {count}",
+            f"{orgs} {weave}",
+            deadline,
+            guide,
+        ]
+    elif layout == 2:
+        paras = [
+            f"{orgs} {h(category)} 공고만 보면 {n}건입니다. {_scope_short(region)}",
+            f"{weave} {mix}",
+            deadline if facts["always"] or facts["urgent"] else f"{region_note} {titled}".strip(),
+            guide,
+        ]
+    elif layout == 3:
+        paras = [
+            weave,
+            f"{count} {mix} {orgs}",
+            deadline,
+            guide,
+        ]
+    else:
+        paras = [
+            f"{count} {titled} {mix}".strip(),
+            f"{region_note} {orgs}",
+            f"{weave} {deadline}",
+            guide,
+        ]
+
+    # 빈 문단·중복 공백만 걷어낸다. 얇은 목록은 문단을 줄인다.
+    cleaned = []
+    seen = set()
+    for p in paras:
+        p = re.sub(r"\s+", " ", p).strip()
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        cleaned.append(p)
+    if n <= 2:
+        cleaned = cleaned[:3]
+    return cleaned[:4]
+
+
+def _combo_faqs(region, category, cat, facts, label=None):
+    n = facts["n"]
+    cat_desc = (cat or {}).get("desc") or f"{category} 지원"
+    style = _layout_id(f"{region}|{category}|faq")
+    who_label = label or region
+    count_qs = [
+        f"{who_label} {category} 지원사업은 지금 몇 건인가요?",
+        f"이 페이지의 {who_label} {category} 공고는 몇 건인가요?",
+        f"{who_label}에서 {category} 지원사업은 지금 얼마나 열려 있나요?",
+        f"{who_label} {category} 목록에는 지금 무엇이 올라가 있나요?",
+    ]
+    who_qs = [
+        f"{who_label}에서 {category} 지원사업은 누가 신청할 수 있나요?",
+        f"{who_label} {category} 공고의 신청 대상은 어떻게 보나요?",
+        f"{who_label} {category} 목록은 누구를 위한 건가요?",
+        f"{who_label} 사업장이면 {category} 공고를 넣을 수 있나요?",
+    ]
+    apply_qs = [
+        "신청은 어디서 하나요?",
+        "접수는 어느 기관으로 하나요?",
+        "이 목록의 공고는 어디에서 신청하나요?",
+        "신청 방법은 공고마다 다른가요?",
+    ]
+    faqs = [
+        {
+            "q": count_qs[style % 4],
+            "a": (
+                f"이 페이지에는 {n}건이 있습니다. "
+                f"이번 주 마감 {len(facts['urgent'])}건, 상시 접수 {len(facts['always'])}건입니다. "
+                f"새 공고는 매일 아침 목록에 반영됩니다."
+            ),
+        },
+        {
+            "q": who_qs[style % 4],
+            "a": _who_answer(region, category, cat_desc, facts),
+        },
+        {
+            "q": "마감일과 상시 접수는 어떻게 보나요?",
+            "a": _deadline_answer(
+                facts["urgent"], facts["open_dated"], facts["always"],
+                len(facts["always"]), len(facts["urgent"]),
+            ),
+        },
+        {
+            "q": apply_qs[style % 4],
+            "a": _apply_answer(facts["orgs"]),
+        },
+    ]
+    if facts["always"]:
+        raw0 = _always_raws(facts["always"])[0] if _always_raws(facts["always"]) else "상시 접수"
+        faqs.append({
+            "q": "상시 접수면 천천히 신청해도 되나요?",
+            "a": (
+                f"그렇지 않습니다. 이 목록의 상시 공고 {len(facts['always'])}건은 날짜 대신 "
+                f"'{raw0}'처럼 적혀 있고, 예산이 소진되면 조기 마감되는 경우가 많습니다. "
+                f"조건을 확인하는 대로 접수하는 편이 안전합니다."
+            ),
+        })
+    return faqs
+
+
 def build(region, category, cat, items):
     """
     region×category 페이지용 소개 문단(2~4)과 화면용 FAQ.
     반환: (paragraphs_html, faqs)  faqs는 [{"q","a"}, ...]
     """
-    items = items or []
-    n = len(items)
-    cat_desc = (cat or {}).get("desc") or f"{category} 지원"
-    dated = [a for a in items if a.get("period_type") != "always"]
-    always = [a for a in items if a.get("period_type") == "always"]
-    open_dated = [a for a in dated if a.get("dday", -1) >= 0]
-    urgent = [a for a in open_dated if a.get("dday", 99) <= 7]
-    orgs = _orgs(items)
-
-    p1 = (
-        f"{_where(region)} {h(category)} 지원사업은 {n}건입니다. "
-        f"{h(cat_desc)}에 해당하는 공고를 마감이 가까운 순으로 모아 두었습니다."
-    )
-
-    region_note = _blurb_variant(category, region, REGION_BLURB, REGION_BLURB_ALT) or (
-        f"{h(region)} 소재 사업장 기준 공고입니다. 공고문 대상 지역을 원문에서 확인하세요."
-    )
-    p2 = f"{region_note} {h(_org_sentence(orgs))}"
-
-    p3 = _deadline_para(urgent, open_dated, always)
-
-    cat_note = _blurb_variant(region, category, CATEGORY_BLURB, CATEGORY_BLURB_ALT) or (
-        f"{h(category)}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
-    )
-    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
-    p4 = (
-        f"{cat_note} 신청이 처음이면 "
-        f'<a href="{h(href)}">{h(gname)}</a>{_josa(gname, "을", "를")} 먼저 보시면 됩니다.'
-    )
-
-    paras = [p1, p2, p3, p4]
-    if n <= 2:
-        paras = [p1, p2, p3]
-
-    faqs = [
-        {
-            "q": f"{region} {category} 지원사업은 지금 몇 건인가요?",
-            "a": (
-                f"이 페이지에는 {n}건이 있습니다. "
-                f"이번 주 마감 {len(urgent)}건, 상시 접수 {len(always)}건입니다. "
-                f"새 공고는 매일 아침 목록에 반영됩니다."
-            ),
-        },
-        {
-            "q": f"{region}에서 {category} 지원사업은 누가 신청할 수 있나요?",
-            "a": _who_answer(region, category, cat_desc),
-        },
-        {
-            "q": "마감일과 상시 접수는 어떻게 보나요?",
-            "a": _deadline_answer(urgent, open_dated, always, len(always), len(urgent)),
-        },
-        {
-            "q": "신청은 어디서 하나요?",
-            "a": _apply_answer(orgs),
-        },
-    ]
-    if always:
-        raw0 = _always_raws(always)[0] if _always_raws(always) else "상시 접수"
-        faqs.append({
-            "q": "상시 접수면 천천히 신청해도 되나요?",
-            "a": (
-                f"그렇지 않습니다. 이 목록의 상시 공고 {len(always)}건은 날짜 대신 "
-                f"'{raw0}'처럼 적혀 있고, 예산이 소진되면 조기 마감되는 경우가 많습니다. "
-                f"조건을 확인하는 대로 접수하는 편이 안전합니다."
-            ),
-        })
-
+    facts = _item_facts(items)
+    paras = _combo_paras(region, category, cat, facts)
+    faqs = _combo_faqs(region, category, cat, facts)
     return paras, faqs
 
 
@@ -357,14 +841,14 @@ HOME_GUIDES = [
         "desc": "오늘 마감·이번 주 마감부터 보는 순서",
     },
     {
-        "href": "/guide/pre-vs-early/",
-        "name": "예비·초기창업패키지 차이",
-        "desc": "사업자등록 전과 업력 제한",
+        "href": "/guide/workplace-region/",
+        "name": "지역 제한 공고 보는 법",
+        "desc": "거주지 말고 사업장 소재지",
     },
     {
-        "href": "/guide/grant-vs-loan/",
-        "name": "지원금과 융자 차이",
-        "desc": "갚지 않는 돈과 갚는 정책자금",
+        "href": "/guide/deadline-alert/",
+        "name": "마감일 놓치지 않는 법",
+        "desc": "캘린더 구독과 상시 접수",
     },
 ]
 
@@ -409,7 +893,8 @@ def category_hub_intro(n):
 
 def region_page_intro(region, items):
     """지역 단독 페이지 소개 문단. 없는 공고를 지어내지 않는다."""
-    n = len(items or [])
+    facts = _item_facts(items)
+    n = facts["n"]
     p1 = (
         f"{_where(region)} 지원사업은 {n}건입니다. "
         "분야를 가리지 않고 마감이 가까운 순으로 두었습니다."
@@ -417,7 +902,17 @@ def region_page_intro(region, items):
     p2 = REGION_BLURB.get(region) or (
         f"{h(region)} 소재 사업장 기준 공고입니다. 공고문 대상 지역을 원문에서 확인하세요."
     )
-    return [p1, p2]
+    p2 = f"{p2} {h(_org_lead(facts))}"
+    p3 = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
+    if facts["cats"]:
+        shown = ", ".join(h(c) for c in facts["cats"][:5])
+        p4 = (
+            f"이 목록에 올라온 분야는 {shown}입니다. "
+            f"분야를 좁히려면 아래 칩을 누르면 됩니다. "
+            f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
+        )
+        return [p1, p2, p3, p4]
+    return [p1, p2, p3]
 
 
 def _district_scope(sido, district):
@@ -435,106 +930,126 @@ def _district_scope(sido, district):
 
 def district_page_intro(sido, district, items):
     """시군구 허브 소개. 건수·소관기관만 쓰고 지원금·자격을 지어내지 않는다."""
-    n = len(items or [])
+    facts = _item_facts(items)
+    n = facts["n"]
     d, s = h(district), h(sido)
-    p1 = (
-        f"{s} {d} 관련 지원사업은 {n}건입니다. "
-        f"{_district_scope(sido, district)} 마감이 가까운 순입니다."
-    )
-    p2 = h(_org_sentence(_orgs(items)))
-    dated = [a for a in items if a.get("period_type") != "always"]
-    always = [a for a in items if a.get("period_type") == "always"]
-    open_dated = [a for a in dated if a.get("dday", -1) >= 0]
-    urgent = [a for a in open_dated if a.get("dday", 99) <= 7]
-    p3 = _deadline_para(urgent, open_dated, always)
-    return [p1, p2, p3]
+    layout = _layout_id(f"{sido}|{district}")
+    scope = _district_scope(sido, district)
+    sido_note = REGION_BLURB.get(sido) or _scope_short(sido)
+    mix = _mix_sentence(facts)
+    orgs = h(_org_lead(facts))
+    deadline = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
+    titled = _title_lead(facts)
+    cats = ""
+    if facts["cats"]:
+        cats = f"이 목록에 보이는 분야는 {', '.join(h(c) for c in facts['cats'][:5])}입니다."
+    if layout == 0:
+        paras = [
+            f"{s} {d} 관련 지원사업은 {n}건입니다. {scope} 마감이 가까운 순입니다.",
+            f"{sido_note} {orgs}",
+            deadline,
+        ]
+    elif layout == 1:
+        paras = [
+            f"{mix} {s} {d} 해시태그로 묶으면 {n}건입니다.",
+            f"{scope} {orgs}",
+            f"{titled} {deadline}".strip(),
+        ]
+    elif layout == 2:
+        paras = [
+            f"{s} {d}만 보면 지금 {n}건입니다. {scope}",
+            f"{orgs} {mix}",
+            deadline,
+        ]
+    else:
+        paras = [
+            f"{titled or mix} {s} {d} 관련 공고는 {n}건입니다.",
+            f"{scope} {sido_note}",
+            f"{orgs} {deadline}",
+        ]
+    if cats:
+        paras.append(
+            f"{cats} 분야를 더 좁히려면 아래 칩을 누르면 됩니다. "
+            f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
+        )
+    return [re.sub(r"\s+", " ", p).strip() for p in paras if p and p.strip()]
 
 
 def district_combo_intro(sido, district, category, cat, items):
     """시군구×분야 소개·FAQ. 화면에 보이는 건수·기관·마감만 쓴다."""
-    n = len(items or [])
+    facts = _item_facts(items)
+    n = facts["n"]
     d, s, cname = h(district), h(sido), h(category)
     cat_desc = (cat or {}).get("desc") or f"{category} 지원"
-    dated = [a for a in items if a.get("period_type") != "always"]
-    always = [a for a in items if a.get("period_type") == "always"]
-    open_dated = [a for a in dated if a.get("dday", -1) >= 0]
-    urgent = [a for a in open_dated if a.get("dday", 99) <= 7]
-    orgs = _orgs(items)
-
-    p1 = (
-        f"{s} {d}의 {cname} 지원사업은 {n}건입니다. "
-        f"{h(cat_desc)}에 해당하며, {_district_scope(sido, district)}"
+    layout = _layout_id(f"{sido}|{district}|{category}")
+    weave = _combo_weave(sido, category)
+    scope = _district_scope(sido, district)
+    deadline = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
+    orgs = h(_org_lead(facts))
+    mix = _mix_sentence(facts)
+    titled = _title_lead(facts)
+    guide = (
+        f"신청이 처음이면 {_guide_html(category)} 먼저 보시면 됩니다. "
+        f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
     )
-    p2 = h(_org_sentence(orgs))
-    p3 = _deadline_para(urgent, open_dated, always)
-    cat_note = _blurb_variant(sido, category, CATEGORY_BLURB, CATEGORY_BLURB_ALT) or (
-        f"{cname}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
-    )
-    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
-    p4 = (
-        f"{cat_note} 신청이 처음이면 "
-        f'<a href="{h(href)}">{h(gname)}</a>{_josa(gname, "을", "를")} 먼저 보시면 됩니다.'
-    )
-    paras = [p1, p2, p3, p4]
+    if layout == 0:
+        paras = [
+            f"{s} {d}의 {cname} 지원사업은 {n}건입니다. {h(cat_desc)}에 해당하며, {scope}",
+            f"{weave} {orgs}",
+            deadline,
+            guide,
+        ]
+    elif layout == 1:
+        paras = [
+            f"{mix} {s} {d} {cname}만 보면 {n}건입니다.",
+            f"{scope} {orgs}",
+            f"{weave} {deadline}",
+            guide,
+        ]
+    else:
+        paras = [
+            f"{titled or mix} {s} {d} {cname} 공고는 {n}건입니다. {scope}",
+            f"{weave} {orgs}",
+            deadline,
+            guide,
+        ]
     if n <= 2:
-        paras = [p1, p2, p3]
+        paras = paras[:3]
+    paras = [re.sub(r"\s+", " ", p).strip() for p in paras if p and p.strip()]
 
-    faqs = [
-        {
-            "q": f"{district} {category} 지원사업은 지금 몇 건인가요?",
-            "a": (
-                f"이 페이지에는 {n}건이 있습니다. "
-                f"이번 주 마감 {len(urgent)}건, 상시 접수 {len(always)}건입니다. "
-                f"새 공고는 매일 아침 목록에 반영됩니다."
-            ),
-        },
-        {
-            "q": f"{district} {category} 목록에는 어떤 공고가 들어가나요?",
-            "a": (
-                f"{_district_scope(sido, district)} "
-                f"{cat_desc} 성격의 공고입니다. "
-                "업력·매출·체납·중복지원 요건은 공고마다 다르니, 각 공고 상세와 원문을 확인하세요."
-            ),
-        },
-        {
-            "q": "마감일과 상시 접수는 어떻게 보나요?",
-            "a": _deadline_answer(urgent, open_dated, always, len(always), len(urgent)),
-        },
-        {
-            "q": "신청은 어디서 하나요?",
-            "a": _apply_answer(orgs),
-        },
-    ]
-    if always:
-        raw0 = _always_raws(always)[0] if _always_raws(always) else "상시 접수"
-        faqs.append({
-            "q": "상시 접수면 천천히 신청해도 되나요?",
-            "a": (
-                f"그렇지 않습니다. 이 목록의 상시 공고 {len(always)}건은 날짜 대신 "
-                f"'{raw0}'처럼 적혀 있고, 예산이 소진되면 조기 마감되는 경우가 많습니다. "
-                f"조건을 확인하는 대로 접수하는 편이 안전합니다."
-            ),
-        })
+    faqs = _combo_faqs(sido, category, cat, facts, label=district)
+    faqs[1] = {
+        "q": f"{district} {category} 목록에는 어떤 공고가 들어가나요?",
+        "a": (
+            f"{scope} {cat_desc} 성격의 공고입니다. "
+            "업력·매출·체납·중복지원 요건은 공고마다 다르니, 각 공고 상세와 원문을 확인하세요."
+        ),
+    }
     return paras, faqs
 
 
 def category_page_intro(category, cat, items):
     """분야 단독 페이지 소개 문단."""
-    n = len(items or [])
+    facts = _item_facts(items)
+    n = facts["n"]
     cat_desc = (cat or {}).get("desc") or f"{category} 지원"
     cat_note = CATEGORY_BLURB.get(category) or (
         f"{h(category)}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
     )
-    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
     p1 = (
         f"{h(category)} 분야 지원사업은 {n}건입니다. "
-        f"{h(cat_desc)}에 해당하는 공고를 마감이 가까운 순으로 두었습니다."
+        f"{h(cat_desc)}에 해당하는 공고를 마감이 가까운 순으로 두었습니다. "
+        f"{_mix_sentence(facts)}"
     )
     p2 = (
-        f"{cat_note} 신청이 처음이면 "
-        f'<a href="{h(href)}">{h(gname)}</a>{_josa(gname, "을", "를")} 먼저 보시면 됩니다.'
+        f"{cat_note} 신청이 처음이면 {_guide_html(category)} 먼저 보시면 됩니다."
     )
-    return [p1, p2]
+    p3 = (
+        f"{h(_org_lead(facts))} 지역을 좁히려면 "
+        f'<a href="/region/">지역별 목록</a>과 '
+        f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>을 보시면 됩니다.'
+    )
+    return [p1, p2, p3]
 
 
 def faq_jsonld(faqs):
@@ -550,16 +1065,18 @@ def faq_jsonld(faqs):
 
 
 def blurb_of(row):
-    """카드용 한 줄. 캐시된 해설이 있고, 규칙기반 상투구가 아닐 때만 쓴다."""
+    """카드용 한 줄. 상투구·조사 오류면 실필드 한 줄로 대체한다."""
     s = ((row.get("ai") or {}).get("summary") or "").strip()
-    if not s:
-        return ""
-    if _GENERIC_BLURB.search(s):
+    if s and ("이(가)" in s or "을(를)" in s):
+        s = ""
+    if s and _GENERIC_BLURB.search(s):
         rest = _GENERIC_BLURB.sub("", s)
         rest = re.sub(r"지원규모는 .+ 수준입니다\.?\s*", "", rest).strip()
-        if len(rest) < 24:
-            return ""
-        s = rest
+        s = rest if len(rest) >= 24 else ""
+    if not s:
+        s = (card_line(row) or "").strip()
+    if not s:
+        return ""
     cut = s.find("다.")
     if cut >= 8:
         s = s[: cut + 2]

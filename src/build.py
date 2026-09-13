@@ -711,6 +711,10 @@ def main():
         "sme-grant-checklist": ("서류", "tag-docs"),
         "cert-guide": ("서류", "tag-docs"),
         "rejected-retry": ("전략", "tag-strategy"),
+        "sme-apply": ("시작하기", "tag-start"),
+        "sme-types": ("기초", "tag-basic"),
+        "deadline-alert": ("전략", "tag-strategy"),
+        "workplace-region": ("기초", "tag-basic"),
     }
     def _guide_card(slug, h1, desc):
         tag_name, tag_cls = GUIDE_TAGS.get(slug, ("가이드", "tag-basic"))
@@ -724,7 +728,10 @@ def main():
         desc="정부지원사업 신청 자격, 서류, 바우처·선정사업 차이 등 기본기를 정리했습니다.",
         h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'))
     for slug, h1, desc, content in guide_list:
-        jsonld = howto_jsonld(h1, desc, content) if slug in ("start", "find-by-deadline") else None
+        jsonld = howto_jsonld(h1, desc, content) if slug in (
+            "start", "find-by-deadline", "sme-apply", "deadline-alert",
+            "workplace-region",
+        ) else None
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",
             desc=desc, h1=h1, content=content, jsonld=jsonld))
