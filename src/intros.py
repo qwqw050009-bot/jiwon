@@ -484,7 +484,7 @@ def _always_cta(always, style, short=False, label=""):
             f"{cat}상시 {n}건은 예산이 끝나면 닫힙니다.",
             f"{cat}날짜 없는 접수가 {n}건입니다.",
             f"{cat}상시 {n}건 원문은 {raw0}입니다.",
-            f"{cat}목록 하단 상시 {n}건은 마감일이 없습니다.",
+            f"{cat}상시 {n}건은 목록 하단에 있고 마감일이 없습니다.",
             f"{cat}상시 {n}건은 {shown}{_iro(last)} 적혀 있습니다.",
         )
         return variants[style]
