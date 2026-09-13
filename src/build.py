@@ -698,22 +698,8 @@ def main():
 
     # 가이드 (검색 유입용 상시 콘텐츠 — 공고와 달리 매일 안 바뀐다)
     guide_list = guides.build()
-    GUIDE_TAGS = {
-        "start": ("시작하기", "tag-start"),
-        "find-by-deadline": ("시작하기", "tag-start"),
-        "aply-trgt-check": ("기초", "tag-basic"),
-        "voucher-vs-selection": ("전략", "tag-strategy"),
-        "docs-checklist": ("서류", "tag-docs"),
-        "biz-plan-structure": ("전략", "tag-strategy"),
-        "grant-vs-loan": ("기초", "tag-basic"),
-        "always-deadline": ("전략", "tag-strategy"),
-        "pre-vs-early": ("전략", "tag-strategy"),
-        "sme-grant-checklist": ("서류", "tag-docs"),
-        "cert-guide": ("서류", "tag-docs"),
-        "rejected-retry": ("전략", "tag-strategy"),
-    }
     def _guide_card(slug, h1, desc):
-        tag_name, tag_cls = GUIDE_TAGS.get(slug, ("가이드", "tag-basic"))
+        tag_name, tag_cls = guides.tag_of(slug)
         return (f'<a class="guide-card" href="/guide/{slug}/">'
                 f'<span class="guide-tag {tag_cls}">{tag_name}</span>'
                 f'<b>{h1}</b><span class="guide-desc">{desc}</span></a>')
@@ -724,7 +710,10 @@ def main():
         desc="정부지원사업 신청 자격, 서류, 바우처·선정사업 차이 등 기본기를 정리했습니다.",
         h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'))
     for slug, h1, desc, content in guide_list:
-        jsonld = howto_jsonld(h1, desc, content) if slug in ("start", "find-by-deadline") else None
+        jsonld = howto_jsonld(h1, desc, content) if slug in (
+            "start", "find-by-deadline", "sme-apply", "deadline-alert",
+            "workplace-region",
+        ) else None
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",
             desc=desc, h1=h1, content=content, jsonld=jsonld))
