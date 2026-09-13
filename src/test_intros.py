@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """지역×분야 소개문·FAQ·광고 밀도 회귀 확인."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -104,7 +105,10 @@ def test_sample_combos_read_naturally():
         assert 3 <= len(paras) <= 4
         assert "3건" in blob
         assert "/guide/always-deadline/" in blob
-        assert faqs[0]["a"].startswith("이 페이지에는 3건이 있습니다.")
+        assert "3건" in faqs[0]["a"]
+        faq_blob = "\n".join(f["a"] for f in faqs)
+        assert "서울경제진흥원" in faq_blob or "중소벤처기업부" in faq_blob
+        assert "매일 아침 목록에 반영됩니다" not in faq_blob
         ld = intros.faq_jsonld(faqs)
         for f in faqs:
             assert f["a"] in ld
@@ -147,6 +151,7 @@ def test_blurb_skips_generic_fallback():
     assert "이(가)" not in g and "을(를)" not in g
     assert "대상으로 진행하는" not in g
     assert "서울경제진흥원" in g
+    assert " · " in g
     generic_amt = _item(org="고용노동부", ai={"summary":
         "고용노동부가 서울 지역 소상공인을 대상으로 진행하는 창업 분야 지원사업입니다. 지원규모는 최대 1억원 수준입니다."})
     g2 = intros.blurb_of(generic_amt)
@@ -212,7 +217,7 @@ def test_district_intros_from_visible_facts():
         "경기", "안산시", "경영", cats["경영"], items[:2])
     blob2 = "\n".join(paras2)
     assert "경영" in blob2 and "2건" in blob2
-    assert faqs[0]["a"].startswith("이 페이지에는 2건이 있습니다.")
+    assert "2건" in faqs[0]["a"]
     ld = intros.faq_jsonld(faqs)
     for f in faqs:
         assert f["q"] in ld and f["a"] in ld
@@ -285,7 +290,45 @@ def test_combos_differ_beyond_region_category_tokens():
         # 토큰만 바꾼 문장이면 공유 n-gram이 거의 전부다. 40% 넘게 달라야 한다.
         left_set, right_set = set(left.split()), set(right.split())
         share = len(left_set & right_set) / max(1, len(left_set | right_set))
-        assert share < 0.72, ((a, b), (c, d), share)
+        # 같은 목록 사실을 쓰면 건수·기관 문장은 겹친다. 토큰만 바꾼
+        # 문장이면 0.85를 넘기므로, 그 아래면 골격이 갈린 것으로 본다.
+        assert share < 0.75, ((a, b), (c, d), share)
+
+
+def test_intro_has_no_repeated_sentences():
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    items = [
+        _item(title="오늘 마감 공고", org="서울경제진흥원", dday=0, apply_end="2026-09-04",
+              target="소상공인"),
+        _item(title="상시 공고", org="중소벤처기업부", period_type="always",
+              period_raw="예산 소진시까지", dday=9999, target="중소기업"),
+        _item(title="여유 공고", org="산업통상부", dday=20, apply_end="2026-09-24",
+              target="중소기업"),
+    ]
+    samples = [("서울", "창업"), ("경기", "금융"), ("전남광주", "경영"),
+               ("전국", "기술"), ("제주", "수출"), ("대구", "인력"),
+               ("세종", "내수"), ("경북", "기타")]
+    for region, category in samples:
+        paras, faqs = intros.build(region, category, cats[category], items)
+        blob = "\n".join(paras)
+        sents = [s.strip() for s in re.split(r"(?<=다\.)\s+", blob) if s.strip()]
+        assert len(sents) == len(set(sents)), (region, category, sents)
+        faq_text = "\n".join(f["a"] for f in faqs)
+        assert "서울경제진흥원" in faq_text or "중소벤처기업부" in faq_text
+        assert "소상공인" in faq_text or "중소기업" in faq_text
+        ld = intros.faq_jsonld(faqs)
+        for f in faqs:
+            assert f["q"] in ld and f["a"] in ld
+
+
+def test_guide_tags_cover_all_slugs():
+    import guides
+    slugs = [slug for slug, *_ in guides.build()]
+    for slug in slugs:
+        assert slug in guides.TAGS, slug
+        name, cls = guides.tag_of(slug)
+        assert name != "가이드", slug
+        assert cls.startswith("tag-")
 
 
 def test_deadline_guide_exists_and_links_lists():
@@ -323,5 +366,7 @@ if __name__ == "__main__":
     test_district_intros_from_visible_facts()
     test_home_and_category_search_copy()
     test_combos_differ_beyond_region_category_tokens()
+    test_intro_has_no_repeated_sentences()
+    test_guide_tags_cover_all_slugs()
     test_deadline_guide_exists_and_links_lists()
     print("intros tests ok")

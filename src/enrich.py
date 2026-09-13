@@ -130,94 +130,76 @@ def _place_of(region):
     return region
 
 
-# 제목에 이미 보이는 지원 성격만 고른다. 공고명을 새로 지어내지 않는다.
-_SUPPORT_KEYS = (
-    "특례보증", "이차보전", "신용보증", "기술보증", "융자", "보증",
-    "수출바우처", "바우처", "R&D", "연구개발", "기술개발", "특허",
-    "인건비", "채용", "교육훈련", "교육", "수출", "전시회", "전시",
-    "마케팅", "판로", "컨설팅", "시설개선", "시설", "사업화", "입주",
-    "예비창업", "초기창업", "창업", "전통시장", "스마트상점", "착한가격",
-)
+def title_gist(title):
+    """
+    카드에 이미 보이는 제목에서 연도·공고·모집 껍질만 벗긴 요지.
+    없는 프로그램명을 지어내지 않는다.
+    """
+    t = (title or "").replace("\xa0", " ").replace("ㆍ", "·")
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t:
+        return ""
+    prev = None
+    while t != prev:
+        prev = t
+        t = re.sub(r"^\[[^\]]+\]\s*", "", t)
+        t = re.sub(r"20\d{2}년\s*", "", t)
+        t = re.sub(r"(?:상반기|하반기)\s*", "", t)
+        t = re.sub(r"\d+\s*차\s*", "", t)
+    t = re.sub(r"(?:\s*(?:추가\s*)?(?:재)?공고)+$", "", t)
+    t = re.sub(
+        r"\s*(?:참가(?:기업|자|업체)|참여자|수혜기업|신청기업)?"
+        r"\s*(?:추가\s*)?모집(?:\s*연장)?$",
+        "",
+        t,
+    )
+    t = re.sub(r"\s*(?:신청|접수)$", "", t)
+    t = re.sub(r"\s*참가(?:기업|자|업체)$", "", t)
+    t = re.sub(r"\s*\([^)]*$", "", t)
+    t = t.strip(" -·,./()")
+    if len(t) > 32:
+        t = t[:31].rstrip(" ·,") + "…"
+    return t
 
 
-def _support_cue(title, category):
-    title = title or ""
-    found = [k for k in _SUPPORT_KEYS if k in title]
-    if found:
-        # 긴 키를 먼저 매칭한 순서 유지. 같은 계열은 하나만.
-        picked = []
-        for k in found:
-            if any(k in p or p in k for p in picked):
-                continue
-            picked.append(k)
-            if len(picked) == 2:
-                break
-        return "·".join(picked) + " 지원"
-    if category:
-        return f"{category} 지원"
-    return "지원"
-
-
-def _urgency_cue(row):
+def _urgency_chip(row):
     if row.get("period_type") == "always":
-        raw = (row.get("period_raw") or "상시 접수").strip()
-        return f"원문 접수기간은 '{raw}'입니다."
+        raw = (row.get("period_raw") or "상시").strip()
+        return raw if 0 < len(raw) <= 10 else "상시"
     dday = row.get("dday")
     end = (row.get("apply_end") or "").strip()
     if dday == 0:
-        return "오늘 마감입니다."
+        return "오늘 마감"
     if isinstance(dday, int) and 0 < dday <= 7:
-        return f"{end}까지 접수합니다." if end else "이번 주 안에 접수가 끝납니다."
-    if isinstance(dday, int) and dday < 0:
-        return "접수가 끝난 공고입니다."
-    if end:
-        return f"접수 마감은 {end}입니다."
+        if len(end) >= 10:
+            return f"{end[5:7]}/{end[8:10]} 마감"
+        return "이번 주 마감"
     return ""
 
 
 def card_line(row):
     """
-    목록 카드용 한 줄. 소관기관·대상·지원 성격·마감 힌트만 쓰고
-    금액·자격·프로그램명을 지어내지 않는다. 조사는 받침으로 고른다.
+    목록 카드용 한 줄. '기관 · 지원요지 · 대상'만 쓰고 조사를 붙이지 않는다.
+    요지는 제목에서 껍질을 벗긴 것이고, 금액·자격을 지어내지 않는다.
     """
     row = row or {}
     org = (row.get("org") or "").strip()
-    region = (row.get("region") or "").strip()
     target = (row.get("target") or "").strip()
     category = (row.get("category") or "").strip()
     title = (row.get("title") or "").strip()
-    if not (org or region or target or category or title):
+    if not (org or target or category or title):
         return ""
-    org = org or "소관기관"
-    support = _support_cue(title, category)
-    place = _place_of(region)
-    og = _josa(org, "이", "가")
-    sg = _josa(support, "을", "를")
-    seed = f"{org}|{row.get('title') or ''}|{category}"
-    variant = sum(ord(c) for c in seed) % 3
-    urgency = _urgency_cue(row)
-
-    if variant == 0 and target and place:
-        head = (
-            f"{org}{og} {place} 소재 {target}{_josa(target, '을', '를')} "
-            f"대상으로 {support}합니다."
-        )
-    elif variant == 1 and target:
-        head = f"{org}{og} {target}에게 {support}합니다."
-        if place:
-            head += f" 대상 지역은 {place}입니다."
+    gist = title_gist(title) or category
+    if target and gist and target in gist:
+        who = ""
     else:
-        head = f"{org}{og} {support}{sg} 진행합니다."
-        bits = []
-        if place:
-            bits.append(f"대상 지역은 {place}")
-        if target:
-            bits.append(f"대상은 {target}")
-        if bits:
-            head += " " + ", ".join(bits) + "입니다."
-    if urgency:
-        head += " " + urgency
-    return head
+        who = target
+    parts = [p for p in (org, gist, who) if p]
+    chip = _urgency_chip(row)
+    if chip and chip not in parts:
+        parts.append(chip)
+    line = " · ".join(parts)
+    return line[:90]
 
 
 def _fallback(row):
@@ -232,7 +214,7 @@ def _fallback(row):
 
     head = card_line(row)
     if amount:
-        head += f" 공고문에는 지원규모가 {amount}로 적혀 있습니다."
+        head += f" 공고문 지원규모 표기는 {amount}입니다."
 
     who = target or "신청 대상은 공고문 참조"
     fit = [

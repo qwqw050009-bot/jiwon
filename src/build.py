@@ -698,26 +698,8 @@ def main():
 
     # 가이드 (검색 유입용 상시 콘텐츠 — 공고와 달리 매일 안 바뀐다)
     guide_list = guides.build()
-    GUIDE_TAGS = {
-        "start": ("시작하기", "tag-start"),
-        "find-by-deadline": ("시작하기", "tag-start"),
-        "aply-trgt-check": ("기초", "tag-basic"),
-        "voucher-vs-selection": ("전략", "tag-strategy"),
-        "docs-checklist": ("서류", "tag-docs"),
-        "biz-plan-structure": ("전략", "tag-strategy"),
-        "grant-vs-loan": ("기초", "tag-basic"),
-        "always-deadline": ("전략", "tag-strategy"),
-        "pre-vs-early": ("전략", "tag-strategy"),
-        "sme-grant-checklist": ("서류", "tag-docs"),
-        "cert-guide": ("서류", "tag-docs"),
-        "rejected-retry": ("전략", "tag-strategy"),
-        "sme-apply": ("시작하기", "tag-start"),
-        "sme-types": ("기초", "tag-basic"),
-        "deadline-alert": ("전략", "tag-strategy"),
-        "workplace-region": ("기초", "tag-basic"),
-    }
     def _guide_card(slug, h1, desc):
-        tag_name, tag_cls = GUIDE_TAGS.get(slug, ("가이드", "tag-basic"))
+        tag_name, tag_cls = guides.tag_of(slug)
         return (f'<a class="guide-card" href="/guide/{slug}/">'
                 f'<span class="guide-tag {tag_cls}">{tag_name}</span>'
                 f'<b>{h1}</b><span class="guide-desc">{desc}</span></a>')

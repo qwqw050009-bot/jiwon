@@ -34,9 +34,10 @@ def test_card_line_uses_real_fields_and_josa():
     assert "충청남도" in s
     assert "소상공인" in s
     assert "특례보증" in s
+    assert " · " in s
     assert "이(가)" not in s and "을(를)" not in s
     assert "대상으로 진행하는" not in s
-    assert "2026-09-20" in s or "이번 주" in s
+    assert "09/20" in s or "이번 주" in s
 
 
 def test_card_line_always_and_jeonnam():
@@ -103,10 +104,24 @@ def test_heal_broken_josa_and_generic():
     assert enrich.heal_broken_josa(good, row) is good
 
 
+def test_card_line_differs_when_titles_differ():
+    base = {
+        "org": "경상북도", "region": "경북", "target": "중소기업",
+        "category": "경영", "period_type": "dated", "dday": 10,
+    }
+    a = enrich.card_line({**base, "title": "2026년 6차 농촌융복합산업 경영체 경쟁력 강화 지원 사업 신청 공고"})
+    b = enrich.card_line({**base, "title": "경산시 2026년 여성ㆍ가족친화기업 지원사업 참여기업 모집 공고"})
+    assert a != b
+    assert "농촌융복합" in a
+    assert "가족친화" in b
+    assert "이(가)" not in a + b
+
+
 if __name__ == "__main__":
     test_josa_batchim()
     test_card_line_uses_real_fields_and_josa()
     test_card_line_always_and_jeonnam()
     test_fallback_no_invented_target()
     test_heal_broken_josa_and_generic()
+    test_card_line_differs_when_titles_differ()
     print("enrich tests ok")

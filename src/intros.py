@@ -447,22 +447,25 @@ def _always_guide_html():
     return f'<a href="{h(href)}">{h(name)}</a>'
 
 
-def _deadline_para(urgent, open_dated, always):
+def _deadline_para(urgent, open_dated, always, skip_nearest=False, skip_always=False):
     bits = []
     if urgent:
         today_n = sum(1 for a in urgent if a.get("dday") == 0)
         nearest = min(urgent, key=lambda a: (a.get("dday"), a.get("apply_end") or ""))
-        qtitle = _quote_title(nearest.get("title"))
-        end = h(nearest.get("apply_end") or "")
+        qtitle = "" if skip_nearest else _quote_title(nearest.get("title"))
+        end = "" if skip_nearest else h(nearest.get("apply_end") or "")
         if today_n:
             if qtitle and today_n == 1:
                 bits.append(f"오늘 마감은 {qtitle}입니다.")
-            elif qtitle:
-                bits.append(f"오늘 마감되는 공고가 {today_n}건 있습니다. 그중 하나는 {qtitle}입니다.")
-            else:
-                bits.append(f"오늘 마감되는 공고가 {today_n}건 있습니다.")
+            elif today_n:
+                extra = f" 그중 하나는 {qtitle}입니다." if qtitle else ""
+                bits.append(f"오늘 마감되는 공고가 {today_n}건 있습니다.{extra}")
             if len(urgent) > today_n:
                 bits.append(f"이번 주 마감은 모두 {len(urgent)}건입니다.")
+            elif skip_nearest and not today_n:
+                bits.append(f"이번 주 안에 접수가 끝나는 공고는 {len(urgent)}건입니다.")
+        elif skip_nearest:
+            bits.append(f"이번 주 안에 접수가 끝나는 공고는 {len(urgent)}건입니다.")
         elif qtitle and end:
             bits.append(
                 f"가장 가까운 마감은 {end}의 {qtitle}입니다. "
@@ -473,12 +476,19 @@ def _deadline_para(urgent, open_dated, always):
     elif open_dated:
         nearest = min(open_dated, key=lambda a: (a.get("dday"), a.get("apply_end") or ""))
         end = h(nearest.get("apply_end") or "")
-        qtitle = _quote_title(nearest.get("title"))
-        if end and qtitle:
+        qtitle = "" if skip_nearest else _quote_title(nearest.get("title"))
+        if skip_nearest:
+            bits.append(f"일주일 안 마감은 없고, 날짜가 남은 공고는 {len(open_dated)}건입니다.")
+        elif end and qtitle:
             bits.append(f"일주일 안 마감은 없고, 가장 가까운 마감일은 {end}의 {qtitle}입니다.")
         elif end:
             bits.append(f"일주일 안 마감은 없고, 가장 가까운 마감일은 {end}입니다.")
-    if always:
+    if always and skip_always:
+        bits.append(
+            f"상시 공고는 예산이 끝나면 날짜 전에 닫히는 경우가 많아 "
+            f"{_always_guide_html()}{_josa(ALWAYS_GUIDE[1], '을', '를')} 함께 보시면 됩니다."
+        )
+    elif always:
         raws = _always_raws(always)
         shown = ", ".join(f"'{h(x)}'" for x in raws[:2])
         bits.append(
@@ -502,12 +512,17 @@ def _item_facts(items):
     open_dated = [a for a in dated if a.get("dday", -1) >= 0]
     urgent = [a for a in open_dated if a.get("dday", 99) <= 7]
     today = [a for a in urgent if a.get("dday") == 0]
-    cats, seen = [], set()
+    cats, seen_c = [], set()
+    targets, seen_t = [], set()
     for a in items:
         c = (a.get("category") or "").strip()
-        if c and c not in seen:
-            seen.add(c)
+        if c and c not in seen_c:
+            seen_c.add(c)
             cats.append(c)
+        t = (a.get("target") or "").strip()
+        if t and t not in seen_t:
+            seen_t.add(t)
+            targets.append(t)
     nearest = None
     pool = urgent or open_dated
     if pool:
@@ -521,6 +536,7 @@ def _item_facts(items):
         "today": today,
         "orgs": _orgs(items),
         "cats": cats,
+        "targets": targets,
         "nearest": nearest,
     }
 
@@ -533,30 +549,47 @@ def _region_label(region):
 
 def _scope_short(region):
     if region == "전국":
-        return "사업장 소재지 제한이 없는 공고입니다."
+        return "전국에서 신청할 수 있는, 사업장 소재지 제한이 없는 공고입니다."
     if region == "전남광주":
         return "전남광주통합특별시 단위이며, 광주와 전남을 따로 나누지 않습니다."
     return f"{h(region)} 사업장 소재지 기준입니다."
+
+
+# 지역명만 바꿔 끼운 문장이 되지 않게, 행정 습관을 지역마다 다르게 적는다.
+REGION_HOOK = {
+    "서울": "구청 이름이 소관기관에 있으면 서울시 전체가 아니라 그 자치구 사업장 기준입니다.",
+    "부산": "구·군청이 올린 공고와 시 공고를 소관기관 이름으로 먼저 나누면 됩니다.",
+    "대구": "구청 공고는 광역시 전역이 아니라 해당 구로 읽으면 됩니다.",
+    "인천": "구·군 이름이 기관명에 있으면 원문의 대상 지역이 그 구·군인지 맞춰 보세요.",
+    "대전": "광역시와 구청을 소관기관에서 구별하면 시 전체인지 구 단위인지 바로 보입니다.",
+    "울산": "목록의 기관명이 시인지 구·군인지만 봐도 신청 범위가 갈립니다.",
+    "세종": "시 단위 공고가 중심이라, 소재지 제한이 없으면 전국 목록도 같이 보면 됩니다.",
+    "경기": "시·군 이름이 소관기관에 붙은 공고가 많아, 도 전체로 읽으면 범위를 넓히게 됩니다.",
+    "강원": "시·군청 공고는 도 전체가 아니라 그 시·군 사업장 요건을 원문에서 보면 됩니다.",
+    "충북": "대상 지역이 도인지 특정 시·군인지는 공고문 한 줄이 소관기관보다 정확합니다.",
+    "충남": "도 공고와 시·군 공고가 섞여 있어 기관명으로 범위를 가르는 편이 빠릅니다.",
+    "전북": "소관기관과 원문 대상 지역이 같은지만 보면 시·군 제한을 놓치지 않습니다.",
+    "전남광주": "광주와 전남을 나누지 않는 통합 단위라, 예전에 광역시·도로 찾던 공고도 여기 있습니다.",
+    "경북": "짧게 적힌 대상 지역도 원문에는 특정 시·군 조건이 있는 경우가 있습니다.",
+    "경남": "소관기관이 시·군이면 도 전체가 아니라 그 지역 사업장 기준입니다.",
+    "제주": "도 단위 공고가 많고, 소재지 제한이 없는 사업은 전국 페이지에 따로 있습니다.",
+    "전국": "전국 단위로, 시·도 제한이 없는 공고만 있습니다. 지역 한정 사업은 각 시·도 페이지로 가세요.",
+}
 
 
 def _combo_weave(region, category):
     group = _REGION_GROUP.get(region, "do")
     tmpl = _COMBO_WEAVE.get((group, category))
     if tmpl:
-        body = tmpl.format(r=h(_region_label(region)))
-    else:
-        body = (
-            f"{_scope_short(region)} {h(category)} 공고만 이 페이지에 있습니다. "
-            "업력·매출·체납 요건은 공고마다 다르니 원문을 확인하세요."
-        )
-    # 같은 행정구조(예: 서울·대구)여도 지역 고유 문장을 한 문단에 붙여
-    # 토큰만 바꾼 문장이 되지 않게 한다.
-    region_note = _blurb_variant(category, region, REGION_BLURB, REGION_BLURB_ALT)
-    if region_note and region_note not in body:
-        if _layout_id(f"{region}{category}weave") % 2 == 0:
-            return f"{body} {region_note}"
-        return f"{region_note} {body}"
-    return body
+        return tmpl.format(r=h(_region_label(region)))
+    return (
+        f"{_scope_short(region)} {h(category)} 공고만 이 페이지에 있습니다. "
+        "업력·매출·체납 요건은 공고마다 다르니 원문을 확인하세요."
+    )
+
+
+def _region_hook(region):
+    return REGION_HOOK.get(region) or _scope_short(region)
 
 
 def _guide_html(category):
@@ -620,23 +653,32 @@ def _title_lead(facts):
     return ""
 
 
-def _who_answer(region, category, cat_desc, facts=None):
-    facts = facts or {"orgs": [], "cats": []}
+def _scope_who(region):
     if region == "전국":
-        who = "사업장 소재지 제한이 없는 공고입니다. 전국 어디서나 요건만 맞으면 신청을 검토할 수 있습니다."
-    elif region == "전남광주":
-        who = (
-            "전남광주통합특별시에 사업장을 둔 기업이 신청 대상인 공고입니다. "
-            "광주와 전남을 따로 나누지 않습니다."
-        )
-    else:
-        who = f"{region}에 사업장을 둔 기업이 신청 대상인 공고입니다."
-    extra = ""
-    if facts.get("orgs"):
-        extra = " " + _org_sentence(facts["orgs"])
+        return "사업장 소재지 제한이 없는 공고입니다."
+    if region == "전남광주":
+        return "전남광주통합특별시 사업장 기준이며, 광주와 전남을 따로 나누지 않습니다."
+    return f"{region} 사업장 소재지 기준 공고입니다."
+
+
+def _target_sentence(facts):
+    targets = facts.get("targets") or []
+    if not targets:
+        return "지원대상 표기는 공고마다 다르니 각 카드와 원문을 보세요."
+    if len(targets) == 1:
+        return f"이 목록의 지원대상 표기는 '{targets[0]}'입니다."
+    shown = ", ".join(f"'{x}'" for x in targets[:4])
+    extra = f" 등 {len(targets)}종" if len(targets) > 4 else ""
+    return f"이 목록의 지원대상 표기는 {shown}{extra}입니다."
+
+
+def _who_answer(region, category, cat_desc, facts=None):
+    facts = facts or {"orgs": [], "cats": [], "targets": []}
     return (
-        f"{who} {cat_desc} 성격의 공고입니다.{extra} "
-        f"업력·매출·체납·중복지원 요건은 공고마다 다르니, 각 공고 상세와 원문을 확인하세요."
+        f"{_scope_who(region)} {_target_sentence(facts)} "
+        f"{cat_desc} 성격의 공고입니다. "
+        f"{_org_sentence(facts.get('orgs') or [])} "
+        "업력·매출·체납·중복지원은 공고마다 다르니 원문을 확인하세요."
     )
 
 
@@ -663,9 +705,18 @@ def _deadline_answer(urgent, open_dated, always, always_n, urgent_n):
 
 
 def _apply_answer(orgs):
+    if not orgs:
+        return "소관기관은 공고마다 다릅니다. 각 상세페이지의 원문 링크로 접수하세요."
+    if len(orgs) == 1:
+        return (
+            f"이 목록의 소관기관은 {orgs[0]}입니다. "
+            f"접수는 각 공고 상세의 신청방법과 원문 링크로 {orgs[0]}에 하면 됩니다."
+        )
+    names = ", ".join(orgs[:3])
+    tail = f" 등 {len(orgs)}곳" if len(orgs) > 3 else ""
     return (
-        f"{_org_sentence(orgs)} 신청 방법(온라인·방문·우편)은 공고마다 다르며, "
-        f"각 상세페이지의 신청방법과 원문 링크로 접수하면 됩니다."
+        f"소관기관은 {names}{tail}입니다. "
+        "신청 창구가 기관마다 다르니 해당 공고 상세의 원문으로 들어가세요."
     )
 
 
@@ -677,83 +728,168 @@ def _where(region):
     return f"{h(region)}에서 지금 접수 중이거나 최근 마감된"
 
 
+def _shape(facts):
+    n = max(facts["n"], 1)
+    if facts["today"]:
+        return "today"
+    if facts["always"] and len(facts["always"]) * 2 >= n and len(facts["always"]) > len(facts["urgent"]):
+        return "always"
+    if len(facts["urgent"]) >= 3:
+        return "urgent"
+    if len(facts["orgs"]) == 1:
+        return "one_org"
+    return "balanced"
+
+
+def _split_sents(text):
+    text = re.sub(r"\s+", " ", text or "").strip()
+    if not text:
+        return []
+    return [p.strip() for p in re.split(r"(?<=다\.)\s+", text) if p.strip()]
+
+
+def _pack_paras(sentences, max_paras=4):
+    """문장을 중복 없이 2~4문단으로 묶는다. 통합 단위 안내가 두 번 나오지 않게 한다."""
+    seen, uniq = set(), []
+    united_used = False
+    for s in sentences:
+        for part in _split_sents(s):
+            key = re.sub(r"\s+", " ", part)
+            if key in seen or len(key) < 8:
+                continue
+            if "광주와 전남" in key:
+                if united_used:
+                    continue
+                united_used = True
+            seen.add(key)
+            uniq.append(part)
+    if not uniq:
+        return []
+    if len(uniq) <= 3:
+        return [" ".join(uniq)] if len(uniq) == 1 else [
+            uniq[0], " ".join(uniq[1:])
+        ][:max_paras]
+    # 앞·중간·마감·다음 행동으로 나눈다.
+    n = len(uniq)
+    cuts = [1, max(2, n // 2), max(3, n - 1), n]
+    paras, start = [], 0
+    for cut in cuts:
+        chunk = uniq[start:cut]
+        if chunk:
+            paras.append(" ".join(chunk))
+        start = cut
+        if len(paras) >= max_paras:
+            break
+    if start < n and paras:
+        paras[-1] = paras[-1] + " " + " ".join(uniq[start:])
+    return paras[:max_paras]
+
+
+def _next_step(category, facts):
+    href, gname = CATEGORY_GUIDE.get(category, ("/guide/aply-trgt-check/", "신청 자격 확인"))
+    link = f'<a href="{h(href)}">{h(gname)}</a>'
+    if category == "금융":
+        return f"제목에 융자·보증·이차보전이 있으면 갚는 돈이니 {link}부터 보시면 됩니다."
+    if category == "기술":
+        return f"선정형 R&D면 사업계획서 완성도가 결과를 가르니 {link}를 보면 됩니다."
+    if category == "인력":
+        return f"인건비·채용 공고는 4대보험 서류를 먼저 챙기고, 발급처는 {link}에 있습니다."
+    if category == "수출":
+        return f"바우처형이면 예산이 날짜보다 먼저 끊기니 {link}를 함께 보세요."
+    if category in ("내수", "경영"):
+        return f"이미 운영 중인 사업장이면 {link} 순서로 걸러 보세요."
+    if category == "창업":
+        return f"예비와 기창업은 업력 산정이 다르니 {link}에서 트랙을 가리세요."
+    return f"제목과 지원대상이 맞는지 가린 뒤 {link}를 보시면 됩니다."
+
+
 def _combo_paras(region, category, cat, facts):
     """
-    조합마다 문단 순서와 첫 문장을 다르게 짠다. 쓰는 숫자는 이 페이지
-    목록에 보이는 건수·기관·마감·제목뿐이다.
+    페이지에 보이는 건수·기관·마감·대상만 쓰고, 조합마다 문장 순서를 바꾼다.
+    같은 문장을 두 문단에 반복하지 않는다.
     """
     n = facts["n"]
-    cat_desc = (cat or {}).get("desc") or f"{category} 지원"
     layout = _layout_id(f"{region}|{category}")
+    shape = _shape(facts)
+    desc = h((cat or {}).get("desc") or f"{category} 지원")
     weave = _combo_weave(region, category)
-    region_note = _blurb_variant(category, region, REGION_BLURB, REGION_BLURB_ALT) or _scope_short(region)
-    cat_note = _blurb_variant(region, category, CATEGORY_BLURB, CATEGORY_BLURB_ALT) or (
-        f"{h(category)}{_josa(category, '을', '를')} 공고 제목과 지원대상을 보고 해당 여부를 가리시면 됩니다."
-    )
-    deadline = _deadline_para(facts["urgent"], facts["open_dated"], facts["always"])
-    guide = (
-        f"{cat_note} 신청이 처음이면 {_guide_html(category)} 먼저 보시면 됩니다. "
-        f'<a href="/guide/workplace-region/">지역 제한 공고 보는 법</a>도 함께 보세요.'
-    )
-    count = _count_lead(region, category, facts, layout)
-    mix = _mix_sentence(facts)
-    orgs = h(_org_lead(facts))
+    hook = _region_hook(region)
     titled = _title_lead(facts)
-    desc = h(cat_desc)
+    used_title = bool(titled)
+    orgs = _org_sentence(facts["orgs"])
+    mix = _mix_sentence(facts)
+    count = _count_lead(region, category, facts, layout)
+    deadline = _deadline_para(
+        facts["urgent"], facts["open_dated"], facts["always"],
+        skip_nearest=used_title,
+        skip_always=used_title and not facts.get("nearest"),
+    )
+    nxt = _next_step(category, facts)
+    tgt = _target_sentence(facts)
+
+    if shape == "today" or (layout == 1 and titled):
+        open_s = f"{titled or count} {mix}"
+    elif shape == "always":
+        open_s = f"{titled or mix} {count}"
+    elif shape == "one_org" or layout == 2:
+        open_s = f"{orgs} {h(category)}만 보면 {n}건입니다. {_scope_short(region)}"
+        orgs = ""
+    elif layout == 3:
+        open_s = f"{weave} {count}"
+        weave = ""
+    else:
+        open_s = f"{count} {desc}입니다. {mix}"
 
     if layout == 0:
-        paras = [
-            f"{count} {desc}에 해당하는 공고를 마감이 가까운 순으로 모아 두었습니다.",
-            f"{weave} {orgs}",
-            deadline,
-            guide,
-        ]
+        mid = [hook, weave, tgt]
+        tail = [deadline, orgs, nxt]
     elif layout == 1:
-        lead = titled or mix
-        paras = [
-            f"{lead} {count}",
-            f"{orgs} {weave}",
-            deadline,
-            guide,
-        ]
+        mid = [weave, orgs, hook]
+        tail = [deadline, nxt]
     elif layout == 2:
-        paras = [
-            f"{orgs} {h(category)} 공고만 보면 {n}건입니다. {_scope_short(region)}",
-            f"{weave} {mix}",
-            deadline if facts["always"] or facts["urgent"] else f"{region_note} {titled}".strip(),
-            guide,
-        ]
+        mid = [weave, hook, mix if mix not in open_s else ""]
+        tail = [deadline, tgt, nxt]
     elif layout == 3:
-        paras = [
-            weave,
-            f"{count} {mix} {orgs}",
-            deadline,
-            guide,
-        ]
+        mid = [hook, orgs, tgt]
+        tail = [deadline, nxt]
     else:
-        paras = [
-            f"{count} {titled} {mix}".strip(),
-            f"{region_note} {orgs}",
-            f"{weave} {deadline}",
-            guide,
-        ]
+        mid = [hook, titled if not used_title else "", orgs]
+        tail = [weave, deadline, nxt]
 
-    # 빈 문단·중복 공백만 걷어낸다. 얇은 목록은 문단을 줄인다.
-    cleaned = []
-    seen = set()
-    for p in paras:
-        p = re.sub(r"\s+", " ", p).strip()
-        if not p or p in seen:
-            continue
-        seen.add(p)
-        cleaned.append(p)
+    sentences = [open_s] + mid + tail
+    paras = _pack_paras(sentences, max_paras=4)
     if n <= 2:
-        cleaned = cleaned[:3]
-    return cleaned[:4]
+        paras = paras[:3]
+    blob = " ".join(paras)
+    if region not in blob and _region_label(region) not in blob:
+        if paras:
+            paras[0] = f"{_scope_short(region)} {paras[0]}"
+        else:
+            paras = [_scope_short(region)]
+        blob = " ".join(paras)
+    if f"{n}건" not in blob:
+        lead = f"{h(category)} 목록은 {n}건입니다."
+        if paras:
+            paras[0] = f"{lead} {paras[0]}"
+        else:
+            paras = [lead]
+    return paras
+
+
+def _count_answer(region, category, facts):
+    n = facts["n"]
+    bits = [f"{region} {category} 목록은 지금 {n}건입니다."]
+    if facts["today"]:
+        q = _quote_title(facts["today"][0].get("title"))
+        extra = f" 그중 {q}가 있습니다." if q else ""
+        bits.append(f"오늘 마감은 {len(facts['today'])}건입니다.{extra}")
+    bits.append(f"이번 주 마감 {len(facts['urgent'])}건, 상시 접수 {len(facts['always'])}건입니다.")
+    if facts["nearest"] and facts["nearest"].get("apply_end") and facts["nearest"].get("dday") != 0:
+        bits.append(f"가장 가까운 날짜형 마감은 {facts['nearest'].get('apply_end')}입니다.")
+    return " ".join(bits)
 
 
 def _combo_faqs(region, category, cat, facts, label=None):
-    n = facts["n"]
     cat_desc = (cat or {}).get("desc") or f"{category} 지원"
     style = _layout_id(f"{region}|{category}|faq")
     who_label = label or region
@@ -776,18 +912,8 @@ def _combo_faqs(region, category, cat, facts, label=None):
         "신청 방법은 공고마다 다른가요?",
     ]
     faqs = [
-        {
-            "q": count_qs[style % 4],
-            "a": (
-                f"이 페이지에는 {n}건이 있습니다. "
-                f"이번 주 마감 {len(facts['urgent'])}건, 상시 접수 {len(facts['always'])}건입니다. "
-                f"새 공고는 매일 아침 목록에 반영됩니다."
-            ),
-        },
-        {
-            "q": who_qs[style % 4],
-            "a": _who_answer(region, category, cat_desc, facts),
-        },
+        {"q": count_qs[style % 4], "a": _count_answer(region, category, facts)},
+        {"q": who_qs[style % 4], "a": _who_answer(region, category, cat_desc, facts)},
         {
             "q": "마감일과 상시 접수는 어떻게 보나요?",
             "a": _deadline_answer(
@@ -795,10 +921,7 @@ def _combo_faqs(region, category, cat, facts, label=None):
                 len(facts["always"]), len(facts["urgent"]),
             ),
         },
-        {
-            "q": apply_qs[style % 4],
-            "a": _apply_answer(facts["orgs"]),
-        },
+        {"q": apply_qs[style % 4], "a": _apply_answer(facts["orgs"])},
     ]
     if facts["always"]:
         raw0 = _always_raws(facts["always"])[0] if _always_raws(facts["always"]) else "상시 접수"
@@ -1065,7 +1188,7 @@ def faq_jsonld(faqs):
 
 
 def blurb_of(row):
-    """카드용 한 줄. 상투구·조사 오류면 실필드 한 줄로 대체한다."""
+    """카드용 한 줄. 상투구·조사 오류면 기관·요지·대상 한 줄로 대체한다."""
     s = ((row.get("ai") or {}).get("summary") or "").strip()
     if s and ("이(가)" in s or "을(를)" in s):
         s = ""
@@ -1073,10 +1196,14 @@ def blurb_of(row):
         rest = _GENERIC_BLURB.sub("", s)
         rest = re.sub(r"지원규모는 .+ 수준입니다\.?\s*", "", rest).strip()
         s = rest if len(rest) >= 24 else ""
+    if s and " · " in s[:50]:
+        return s.split(" 공고문")[0].strip()[:90]
     if not s:
         s = (card_line(row) or "").strip()
     if not s:
         return ""
+    if " · " in s:
+        return s[:90]
     cut = s.find("다.")
     if cut >= 8:
         s = s[: cut + 2]
