@@ -1779,6 +1779,7 @@ def _overview_clause(row):
     ov = re.sub(r"공고하오니.+$", "", ov)
     ov = re.sub(r"많은 (?:신청|참여|관심).+$", "", ov)
     ov = ov.replace("「", "").replace("」", "").strip(" .,")
+    ov = re.sub(r"(?:을|를)?\s*(?:위하여|위해|위한|및|등)$", "", ov).strip(" .,")
     if len(ov) < 20:
         return ""
     if "이(가)" in ov or "을(를)" in ov or _GENERIC_BLURB.search(ov):
