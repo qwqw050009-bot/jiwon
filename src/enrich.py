@@ -46,10 +46,13 @@ JSON만 답해. 다른 말 금지.
  "checklist": ["서류/조건 4개. 본문에 없으면 '공고문 양식 확인'처럼 표시."]
 }}"""
 
-# 본문에서 지원금액처럼 보이는 표현을 뽑는다.
+# 본문에서 지원금액처럼 보이는 표현을 뽑는다. 없는 숫자는 만들지 않는다.
 UNIT = r"(?:억|천만|백만|십만|만|천)?"
 MONEY = re.compile(
-    r"(?:최대\s*)?[\d,]+\s*" + UNIT + r"\s*원(?:\s*(?:이내|한도|이하|까지))?"
+    r"(?:기업당|업체당|점포당|인당|1인당|개소당)?"
+    r"(?:\s*(?:최대|한도))?\s*"
+    r"[\d,]+\s*" + UNIT + r"\s*원(?:\s*(?:이내|한도|이하|까지))?"
+    r"|최대\s*(?:억|천만|백만|십만|만)\s*원"
     r"|총\s*사업비의?\s*\d+\s*%[^\s,]*"
     r"|사업비의?\s*\d+~?\d*\s*%"
 )
@@ -92,15 +95,25 @@ def _save(c):
 def amount_of(row):
     """
     지원규모 추출. 실데이터에는 금액 필드가 없고 본문에만 들어있다.
+    '공고문 참조'는 값이 아니라 자리표시이므로 본문을 다시 본다.
     지원내용은 보통 마지막 ☞ 항목이므로 뒤에서부터 훑는다.
     """
-    if row.get("amount"):
-        return row["amount"]
+    raw = (row.get("amount") or "").strip()
+    if raw and raw != "공고문 참조":
+        return raw
     for p in reversed(row.get("points") or []):
         got = _pick_amount(p)
         if got:
             return got
     return _pick_amount(row.get("overview")) or ""
+
+
+def amount_card(row):
+    """카드용 금액. 본문에서 뽑힌 표기만. 자리표시 '공고문 참조'는 비운다."""
+    got = amount_of(row)
+    if not got or got == "공고문 참조":
+        return ""
+    return got.strip()[:28]
 
 
 def _period_text(row):

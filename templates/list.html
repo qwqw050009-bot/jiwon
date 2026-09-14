@@ -34,6 +34,17 @@
 </a>
 {% endif %}
 
+{% if list_guides %}
+<nav class="list-guides" aria-label="이 목록과 같이 볼 가이드">
+  <p>이 목록과 같이 보면 좋은 글입니다.</p>
+  <ul>
+    {% for g in list_guides %}
+    <li><a href="{{ g.href }}">{{ g.name }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+
 {% if home_guides %}
 <nav class="home-guides" aria-label="가이드">
   <p>지원사업을 찾기 전에 읽어 두면 좋은 글입니다.</p>

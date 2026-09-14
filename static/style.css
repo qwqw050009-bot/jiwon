@@ -133,9 +133,17 @@ a{color:inherit}
 .signals .sig-voucher{color:var(--soon);border-color:#E8D7B0;background:#FDF8EC}
 .signals .sig-queue{color:var(--urgent);border-color:#E8C4BE;background:#FDF6F5}
 .blurb{
-  margin:5px 0 0;font-size:13px;line-height:1.45;color:var(--muted);
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  margin:5px 0 0;font-size:13px;line-height:1.5;color:#3A4740;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
 }
+.list-guides{
+  margin:14px 0 0;padding:12px 16px;
+  background:var(--sheet);border:1px solid var(--line);border-radius:10px;
+}
+.list-guides p{margin:0 0 6px;font-size:13px;font-weight:700;color:var(--ink)}
+.list-guides ul{margin:0;padding:0 0 0 18px}
+.list-guides li{margin:0 0 3px;font-size:14px}
+.list-guides a{color:var(--open);text-underline-offset:3px}
 .dlegend{
   margin:12px 0 0;font-size:13px;line-height:1.55;color:var(--muted);
 }

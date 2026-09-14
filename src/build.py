@@ -86,8 +86,10 @@ def write(path, html):
 def fill_defaults(a):
     """실데이터에 없는 필드를 채운다. 목업/실데이터 스키마 차이를 흡수."""
     a.setdefault("amount", "")
-    if not a["amount"]:
-        a["amount"] = enrich.amount_of(a) or "공고문 참조"
+    parsed = enrich.amount_of(a)
+    if not a["amount"] or a["amount"] == "공고문 참조":
+        a["amount"] = parsed or "공고문 참조"
+    a["amount_card"] = enrich.amount_card(a)
     a.setdefault("target", "")
     a.setdefault("org", "")
     a.setdefault("overview", "")
@@ -309,7 +311,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 sel_region=None, sel_category=None, today=0,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
                 sections=None, tally_items=None, beginner_cta=False,
-                crumbs=None, website_jsonld="", home_guides=None):
+                crumbs=None, website_jsonld="", home_guides=None,
+                list_guides=None):
     n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
@@ -327,6 +330,7 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         limit=limit or 0, more_href=more_href or "", sections=sections or [],
         beginner_cta=beginner_cta, crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
         website_jsonld=website_jsonld or "", home_guides=home_guides or [],
+        list_guides=list_guides or [],
     )
     write(path, html)
 
@@ -435,12 +439,13 @@ def main():
                 rows, limit=20,
                 title=f"정부지원사업 전체 공고 목록 | {SITE['name']}",
                 desc="중소기업·소상공인 정부지원사업 전체 목록. 지역·분야로 좁혀서 확인하세요.",
-                blocks=hub)
+                blocks=hub, list_guides=intros.list_guides())
 
     # 신규
     if new_rows:
         render_list("/new/", "새로 올라온 공고",
-                    "최근 새로 등록된 공고입니다.", new_rows, limit=20, blocks=hub)
+                    "최근 새로 등록된 공고입니다.", new_rows, limit=20, blocks=hub,
+                    list_guides=intros.list_guides())
 
     # 스크랩 페이지 (색인 제외)
     write("/scrap/", env.get_template("scrap.html").render(
@@ -451,7 +456,8 @@ def main():
     # 마감임박
     urgent = [a for a in rows if 0 <= a["dday"] <= 7]
     render_list("/urgent/", "이번 주에 닫히는 공고",
-                "7일 안에 접수가 끝나는 공고만 모았습니다.", urgent, limit=20, blocks=hub)
+                "7일 안에 접수가 끝나는 공고만 모았습니다.", urgent, limit=20, blocks=hub,
+                list_guides=intros.list_guides())
 
     # 허브
     # 예전엔 items=[] 로 넘겨서 상단 통계는 실제 숫자가 뜨는데 본문은
@@ -465,6 +471,9 @@ def main():
         "금융부터 창업·경영까지 8종. 마감이 가까운 순으로 둡니다.",
         rows, limit=20, blocks=[hub[0]],
         intro=intros.category_hub_intro(len(rows)),
+        faqs=intros.hub_faqs("category", len(rows)),
+        faq_jsonld=intros.faq_jsonld(intros.hub_faqs("category", len(rows))),
+        list_guides=intros.list_guides(),
         crumbs=[{"name": "홈", "url": "/"}, {"name": "분야", "url": "/category/"}],
         title=f"분야별 정부지원사업 | {SITE['name']}",
         desc="금융·기술·인력·수출·내수·창업·경영 분야 정부지원사업을 마감일 순으로 정리합니다.",
@@ -474,6 +483,9 @@ def main():
         "사업장 소재지 기준, 마감일 순. 전남광주는 통합 단위입니다.",
         rows, limit=20, blocks=[hub[1]],
         intro=intros.region_hub_intro(len(rows), len(regs)),
+        faqs=intros.hub_faqs("region", len(rows), len(regs)),
+        faq_jsonld=intros.faq_jsonld(intros.hub_faqs("region", len(rows), len(regs))),
+        list_guides=intros.list_guides(),
         crumbs=[{"name": "홈", "url": "/"}, {"name": "지역", "url": "/region/"}],
         title=f"지역별 정부지원사업 | {SITE['name']}",
         desc="시·도 사업장 소재지 기준으로 신청 가능한 정부지원사업을 마감일 순으로 정리합니다.",
@@ -495,6 +507,9 @@ def main():
             title=intros.category_title(name),
             desc=intros.category_desc(name, c),
             intro_paras=intros.category_page_intro(name, c, items),
+            faqs=intros.category_page_faqs(name, c, items),
+            faq_jsonld=intros.faq_jsonld(intros.category_page_faqs(name, c, items)),
+            list_guides=intros.list_guides(category=name),
             blocks=[{"title": "다른 분야", "items": other_cats},
                     {"title": "지역으로 좁히기", "items": sub}],
             sel_category=name, ics_url=f"/calendar/{c['slug']}.ics", limit=20,
@@ -529,6 +544,9 @@ def main():
             title=f"{rname} 정부지원사업 · 보조금 공고 모음 | {SITE['name']}",
             desc=f"{rname} 지역 중소기업·소상공인 지원사업 {len(items)}건을 마감일 순으로 정리했습니다.",
             intro_paras=intros.region_page_intro(rname, items),
+            faqs=intros.region_page_faqs(rname, items),
+            faq_jsonld=intros.faq_jsonld(intros.region_page_faqs(rname, items)),
+            list_guides=intros.list_guides(region=rname),
             blocks=sido_blocks,
             sel_region=rname, ics_url=f"/calendar/{r['slug']}.ics", limit=20,
             crumbs=[{"name": "홈", "url": "/"},
@@ -552,6 +570,7 @@ def main():
                 title=f"{rname} {cn} 지원사업 {len(cross)}건 — 마감일 순 | {SITE['name']}",
                 desc=f"{rname} {cn} 분야 정부지원사업 {len(cross)}건. 지원대상, 지원규모, 마감일을 정리했습니다.",
                 intro_paras=intro_paras, faqs=faqs, faq_jsonld=intros.faq_jsonld(faqs),
+                list_guides=intros.list_guides(category=cn, region=rname),
                 blocks=[{"title": f"{rname} 다른 분야", "items": sub},
                         {"title": f"다른 지역의 {cn}", "items": other_regs_same_cat}],
                 sel_region=rname, sel_category=cn, limit=20,
@@ -592,6 +611,7 @@ def main():
                 {"name": f"{rname} 전체", "url": f"/region/{r['slug']}/", "count": len(items)},
             ]})
             intro_paras = intros.district_page_intro(rname, dname, ditems)
+            d_faqs = intros.district_page_faqs(rname, dname, ditems)
             render_list(
                 dpath, f"{rname} {dname} 지원사업",
                 f"{rname} {dname} 관련 공고를 마감일 순으로 정리했습니다.",
@@ -599,6 +619,8 @@ def main():
                 title=f"{rname} {dname} 지원사업 {len(ditems)}건 — 마감일 순 | {SITE['name']}",
                 desc=f"{rname} {dname} 정부지원사업 {len(ditems)}건. 해시태그 '{dname}'가 붙은 공고를 마감일 순으로 정리했습니다.",
                 intro_paras=intro_paras,
+                faqs=d_faqs, faq_jsonld=intros.faq_jsonld(d_faqs),
+                list_guides=intros.list_guides(region=rname),
                 blocks=d_blocks,
                 sel_region=rname, limit=20,
                 crumbs=[{"name": "홈", "url": "/"},
@@ -622,6 +644,7 @@ def main():
                     title=f"{rname} {dname} {cn} 지원사업 {len(cross)}건 — 마감일 순 | {SITE['name']}",
                     desc=f"{rname} {dname} {cn} 분야 정부지원사업 {len(cross)}건. 마감일과 지원대상을 정리했습니다.",
                     intro_paras=intro_paras, faqs=faqs, faq_jsonld=intros.faq_jsonld(faqs),
+                    list_guides=intros.list_guides(category=cn, region=rname),
                     blocks=combo_blocks,
                     sel_region=rname, sel_category=cn, limit=20,
                     crumbs=[{"name": "홈", "url": "/"},
@@ -719,7 +742,8 @@ def main():
         jsonld = howto_jsonld(h1, desc, content) if slug in (
             "start", "find-by-deadline", "sme-apply", "deadline-alert",
             "workplace-region", "policy-fund", "tax-insurance-check",
-            "calendar-howto",
+            "calendar-howto", "sme-cert", "export-voucher", "rd-first",
+            "hire-grant",
         ) else None
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",

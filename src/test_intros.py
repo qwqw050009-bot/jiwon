@@ -143,7 +143,7 @@ def test_blurb_skips_generic_fallback():
     b = intros.blurb_of(_item())
     assert "초기창업" in b
     assert "두 번째" not in b
-    assert len(b) <= 90
+    assert len(b) <= 200
     generic = _item(ai={"summary":
         "서울경제진흥원이 서울 지역 중소기업을 대상으로 진행하는 창업 분야 지원사업입니다."})
     g = intros.blurb_of(generic)
@@ -151,7 +151,7 @@ def test_blurb_skips_generic_fallback():
     assert "이(가)" not in g and "을(를)" not in g
     assert "대상으로 진행하는" not in g
     assert "서울경제진흥원" in g
-    assert " · " in g
+    assert len(g) <= 200
     generic_amt = _item(org="고용노동부", ai={"summary":
         "고용노동부가 서울 지역 소상공인을 대상으로 진행하는 창업 분야 지원사업입니다. 지원규모는 최대 1억원 수준입니다."})
     g2 = intros.blurb_of(generic_amt)
@@ -249,6 +249,38 @@ def test_home_and_category_search_copy():
     assert desc.startswith("금융 분야 정부지원사업을 마감일 순으로")
     assert "회원가입 없이" in desc
     assert "지역별로" in desc
+
+
+def test_blurb_is_richer_and_lists_have_faq():
+    rich = _item(
+        title="소상공인 특례보증 지원사업",
+        org="안산시", target="소상공인", category="금융",
+        dday=3, apply_end="2026-09-17",
+        points=["기업당 최대 2,000만원 이내 특례보증"],
+        amount="", ai={},
+    )
+    b = intros.blurb_of(rich)
+    assert 80 <= len(b) <= 200, (len(b), b)
+    assert "소상공인" in b
+    assert "다만" in b
+    assert "이(가)" not in b and "을(를)" not in b
+    assert "2,000" in b or "2000" in b or "만원" in b
+    faqs_r = intros.region_page_faqs("경기", [rich, _item(region="경기")])
+    assert 3 <= len(faqs_r) <= 5
+    assert "경기" in faqs_r[0]["a"] or "2건" in faqs_r[0]["a"]
+    ld = intros.faq_jsonld(faqs_r)
+    for f in faqs_r:
+        assert f["q"] in ld and f["a"] in ld
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    faqs_c = intros.category_page_faqs("금융", cats["금융"], [rich])
+    assert 3 <= len(faqs_c) <= 5
+    assert "금융" in faqs_c[0]["a"]
+    hub = intros.hub_faqs("region", 40, 17)
+    assert "사업장" in hub[0]["a"] and "17" in hub[0]["a"]
+    guides = intros.list_guides(category="금융")
+    assert len(guides) == 3
+    assert any("policy-fund" in g["href"] for g in guides)
+    assert any(g["href"] == "/guide/start/" for g in guides)
 
 
 def _strip_tokens(text, *tokens):
@@ -473,6 +505,9 @@ def test_start_guide_is_full_howto_and_cta():
         assert slug in guides.TAGS
         body = rows[slug][2]
         assert "/urgent/" in body or "/region/" in body or "/category/" in body
+    for slug in ("sme-cert", "export-voucher", "rd-first", "hire-grant"):
+        assert slug in rows, slug
+        assert "/category/" in rows[slug][2] or "/urgent/" in rows[slug][2]
     assert intros.BEGINNER_CTA["href"] == "/guide/start/"
     assert "자격" in intros.BEGINNER_CTA["sub"]
     with open(os.path.join(os.path.dirname(__file__), "..", "templates", "list.html"),
@@ -516,6 +551,7 @@ if __name__ == "__main__":
     test_hub_and_page_intros()
     test_district_intros_from_visible_facts()
     test_home_and_category_search_copy()
+    test_blurb_is_richer_and_lists_have_faq()
     test_etc_combo_guide_josa()
     test_deadline_para_varies_and_skips_always_cta_when_zero()
     test_combos_differ_beyond_region_category_tokens()

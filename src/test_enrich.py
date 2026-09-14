@@ -161,6 +161,20 @@ def test_heal_bullet_and_wrong_euro():
     assert healed2 is not euro
 
 
+def test_amount_of_skips_placeholder_and_parses_body():
+    row = {
+        "amount": "공고문 참조",
+        "title": "특례보증",
+        "points": ["기업당 최대 2,000만원 이내 특례보증을 지원합니다."],
+    }
+    assert "2,000" in enrich.amount_of(row)
+    assert enrich.amount_card(row)
+    assert "공고문 참조" not in enrich.amount_card(row)
+    empty = {"amount": "공고문 참조", "points": ["대상은 소상공인입니다."], "overview": ""}
+    assert enrich.amount_of(empty) == ""
+    assert enrich.amount_card(empty) == ""
+
+
 def test_card_line_differs_when_titles_differ():
     base = {
         "org": "경상북도", "region": "경북", "target": "중소기업",
@@ -183,5 +197,6 @@ if __name__ == "__main__":
     test_fallback_uses_title_shape_and_euro_josa()
     test_notice_signals_from_visible_title()
     test_heal_bullet_and_wrong_euro()
+    test_amount_of_skips_placeholder_and_parses_body()
     test_card_line_differs_when_titles_differ()
     print("enrich tests ok")
