@@ -396,6 +396,92 @@ def test_guide_tags_cover_all_slugs():
         assert cls.startswith("tag-")
 
 
+def test_same_counts_different_shapes_diverge():
+    """건수가 같아도 제목·대상·기관 모양이 다르면 패턴과 문장이 갈린다."""
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    loan_items = [
+        _item(title="소상공인 특례보증 지원", org="안산시", target="소상공인",
+              dday=3, apply_end="2026-09-07"),
+        _item(title="정책자금 융자 안내", org="수원시", target="소상공인",
+              dday=5, apply_end="2026-09-09"),
+        _item(title="이차보전 지원", org="화성시", target="소상공인",
+              dday=20, apply_end="2026-09-24"),
+    ]
+    voucher_items = [
+        _item(title="수출바우처 지원", org="중소벤처기업부", target="중소기업",
+              dday=3, apply_end="2026-09-07"),
+        _item(title="마케팅 바우처 선착순", org="창업진흥원", target="중소기업",
+              dday=5, apply_end="2026-09-09"),
+        _item(title="컨설팅 바우처", org="중소벤처기업진흥공단", target="중소기업",
+              dday=20, apply_end="2026-09-24"),
+    ]
+    p_loan = intros.pattern_of(intros._item_facts(loan_items))
+    p_voucher = intros.pattern_of(intros._item_facts(voucher_items))
+    assert p_loan != p_voucher, (p_loan, p_voucher)
+    assert p_loan.split("|")[1:] == ["loan", "sme", "district"], p_loan
+    assert p_voucher.split("|")[1] == "voucher" and p_voucher.split("|")[2] == "corp", p_voucher
+    blob_loan = "\n".join(intros.build("경기", "금융", cats["금융"], loan_items)[0])
+    blob_voucher = "\n".join(intros.build("경기", "금융", cats["금융"], voucher_items)[0])
+    assert "갚" in blob_loan or "융자" in blob_loan
+    assert "바우처" in blob_voucher
+    share = _token_jaccard(
+        _strip_tokens(blob_loan, "경기", "금융"),
+        _strip_tokens(blob_voucher, "경기", "금융"),
+    )
+    assert share < 0.62, share
+    dparas = intros.district_page_intro("경기", "안산시", loan_items)
+    assert any("융자" in p or "갚" in p for p in dparas)
+
+
+def test_intros_have_no_broken_josa():
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    items = [
+        _item(title="기타 공고 오늘", org="경상북도", category="기타",
+              dday=0, apply_end="2026-09-04", target="소상공인"),
+        _item(title="기타 상시", org="안동시", category="기타",
+              period_type="always", period_raw="예산 소진시까지",
+              dday=9999, target="중소기업"),
+    ]
+    for r in config.REGIONS:
+        for c in config.CATEGORIES:
+            paras, faqs = intros.build(r["name"], c["name"], cats[c["name"]], [
+                {**a, "category": c["name"], "region": r["name"]} for a in items
+            ])
+            blob = "\n".join(paras) + "\n".join(f["q"] + f["a"] for f in faqs)
+            assert "법를" not in blob, (r["name"], c["name"])
+            assert "이(가)" not in blob and "을(를)" not in blob
+
+
+def test_start_guide_is_full_howto_and_cta():
+    import guides
+    rows = {slug: (h1, desc, content) for slug, h1, desc, content in guides.build()}
+    assert "start" in rows
+    content = rows["start"][2]
+    assert "체납" in content or "서류" in content
+    assert "사업장" in content
+    assert "바우처" in content or "융자" in content
+    assert "/urgent/" in content
+    assert "/region/" in content
+    assert "/guide/grant-vs-loan/" in content
+    assert "1단계 —" in content and "9단계 —" in content
+    assert len(content) > 6000
+    for slug in (
+        "policy-fund", "reject-reasons", "grant-settlement",
+        "tax-insurance-check", "mgmt-stability", "calendar-howto",
+    ):
+        assert slug in rows, slug
+        assert slug in guides.TAGS
+        body = rows[slug][2]
+        assert "/urgent/" in body or "/region/" in body or "/category/" in body
+    assert intros.BEGINNER_CTA["href"] == "/guide/start/"
+    assert "자격" in intros.BEGINNER_CTA["sub"]
+    with open(os.path.join(os.path.dirname(__file__), "..", "templates", "list.html"),
+              encoding="utf-8") as f:
+        html = f.read()
+    assert 'href="/guide/start/"' in html
+    assert "자격·용어·찾는 순서·서류까지 한 번에" in html
+
+
 def test_deadline_guide_exists_and_links_lists():
     import guides
     rows = {slug: (h1, desc, content) for slug, h1, desc, content in guides.build()}
@@ -435,5 +521,8 @@ if __name__ == "__main__":
     test_combos_differ_beyond_region_category_tokens()
     test_intro_has_no_repeated_sentences()
     test_guide_tags_cover_all_slugs()
+    test_same_counts_different_shapes_diverge()
+    test_intros_have_no_broken_josa()
+    test_start_guide_is_full_howto_and_cta()
     test_deadline_guide_exists_and_links_lists()
     print("intros tests ok")

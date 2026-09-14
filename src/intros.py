@@ -115,6 +115,19 @@ CATEGORY_GUIDE = {
 
 ALWAYS_GUIDE = ("/guide/always-deadline/", "상시 접수 공고, 지금 신청해야 하는 이유")
 
+# 홈 초보 CTA. 템플릿과 문구를 같게 둔다.
+BEGINNER_CTA = {
+    "href": "/guide/start/",
+    "title": "지원사업, 처음이신가요?",
+    "sub": "자격·용어·찾는 순서·서류까지 한 번에 보는 처음 안내입니다 →",
+}
+
+# 제목·기관에 이미 보이는 말만 센다. 지역을 제목에서 추측하지 않는다.
+_TITLE_VOUCHER = re.compile(r"바우처|선착순|예산\s*소진")
+_TITLE_LOAN = re.compile(r"융자|보증|이차보전|정책자금")
+_TITLE_RD = re.compile(r"R\s*[&＆]\s*D|기술개발|연구개발|특허")
+_TITLE_HIRE = re.compile(r"채용|인건비|일자리|고용장려")
+
 # 지역을 행정 구조로만 묶는다. 특정 공고·예산을 지어내지 않는다.
 # 전남광주는 통합 단위 그대로 둔다 (분리 금지).
 _REGION_GROUP = {
@@ -416,6 +429,60 @@ def _orgs(items):
     return out
 
 
+def _title_flag_counts(items):
+    voucher = loan = rd = hire = 0
+    for a in items or []:
+        t = a.get("title") or ""
+        if _TITLE_VOUCHER.search(t):
+            voucher += 1
+        if _TITLE_LOAN.search(t):
+            loan += 1
+        if _TITLE_RD.search(t):
+            rd += 1
+        if _TITLE_HIRE.search(t):
+            hire += 1
+    return {"voucher": voucher, "loan": loan, "rd": rd, "hire": hire}
+
+
+def _is_district_org(org):
+    """소관기관 이름에 구·시·군 단위가 보이는지만 본다. 지역을 추측하지 않는다."""
+    o = (org or "").strip()
+    if not o:
+        return False
+    if any(k in o for k in ("구청", "군청", "시청")):
+        return True
+    if any(k in o for k in ("특별시", "광역시", "통합")):
+        return False
+    return bool(re.search(r".+[시군구]$", o))
+
+
+def _is_ministry_org(org):
+    o = org or ""
+    return any(k in o for k in (
+        "중소벤처기업부", "고용노동부", "산업통상", "행정안전부",
+        "농림축산", "과학기술정보통신부", "문화체육관광부",
+    ))
+
+
+def _who_mix(targets):
+    text = " ".join(targets or [])
+    sme = "소상공인" in text
+    startup = "예비창업" in text or "예비 창업" in text
+    corp = "중소기업" in text
+    n = sum((sme, startup, corp))
+    if n >= 2:
+        return "mixed_who"
+    if sme:
+        return "sme"
+    if startup:
+        return "startup"
+    if corp:
+        return "corp"
+    if targets:
+        return "other_who"
+    return "unknown_who"
+
+
 def _org_sentence(orgs):
     if not orgs:
         return "소관기관은 공고마다 다르니 목록의 기관명을 확인하세요."
@@ -668,18 +735,169 @@ def _item_facts(items):
     pool = urgent or open_dated
     if pool:
         nearest = min(pool, key=lambda a: (a.get("dday"), a.get("apply_end") or ""))
-    return {
+    orgs = _orgs(items)
+    flags = _title_flag_counts(items)
+    facts = {
         "n": len(items),
         "dated": dated,
         "always": always,
         "open_dated": open_dated,
         "urgent": urgent,
         "today": today,
-        "orgs": _orgs(items),
+        "orgs": orgs,
         "cats": cats,
         "targets": targets,
         "nearest": nearest,
+        "flags": flags,
+        "district_orgs": sum(1 for o in orgs if _is_district_org(o)),
+        "ministry_orgs": sum(1 for o in orgs if _is_ministry_org(o)),
+        "who_mix": _who_mix(targets),
     }
+    facts["pattern"] = pattern_of(facts)
+    return facts
+
+
+def pattern_of(facts):
+    """
+    화면에 보이는 필드만으로 목록 모양을 네 축으로 분류한다.
+    반환 예: 'today|loan|sme|district'
+    건수가 같아도 제목·대상·기관 모양이 다르면 라벨이 갈린다.
+    """
+    facts = facts or {}
+    n = max(facts.get("n") or 0, 1)
+    flags = facts.get("flags") or {}
+    voucher_n = flags.get("voucher") or 0
+    loan_n = flags.get("loan") or 0
+    rd_n = flags.get("rd") or 0
+    hire_n = flags.get("hire") or 0
+    org_n = len(facts.get("orgs") or [])
+    district_n = facts.get("district_orgs") or 0
+    ministry_n = facts.get("ministry_orgs") or 0
+    always_n = len(facts.get("always") or [])
+    urgent_n = len(facts.get("urgent") or [])
+    today = facts.get("today") or []
+
+    if today:
+        clock = "today"
+    elif always_n and always_n * 2 >= n and always_n > urgent_n:
+        clock = "always"
+    elif urgent_n >= 3:
+        clock = "urgent"
+    elif org_n == 1:
+        clock = "one_org"
+    elif facts.get("open_dated") and not urgent_n:
+        clock = "quiet"
+    else:
+        clock = "mixed"
+
+    if loan_n > voucher_n and loan_n > 0:
+        money = "loan"
+    elif voucher_n > 0:
+        money = "voucher"
+    elif rd_n > hire_n and rd_n > 0:
+        money = "rd"
+    elif hire_n > 0:
+        money = "hire"
+    else:
+        money = "plain"
+
+    who = facts.get("who_mix") or "unknown_who"
+
+    if org_n == 1:
+        place = "one_org"
+    elif district_n and district_n * 2 >= max(org_n, 1):
+        place = "district"
+    elif ministry_n and ministry_n * 2 >= max(org_n, 1):
+        place = "ministry"
+    else:
+        place = "mixed_org"
+
+    return f"{clock}|{money}|{who}|{place}"
+
+
+def _href_guide(href, name, has_batchim="을", no_batchim="를"):
+    return _guide_pair_html(href, name, has_batchim, no_batchim)
+
+
+def _strategy_sents(facts):
+    """
+    건수 나열이 아니라 이 목록의 제목·대상·기관 모양에 맞춰 문장을 고른다.
+    마감/상시 시계열과 부·청 일반론은 다른 문단이 이미 말하므로 여기 넣지 않는다.
+    그래야 같은 목업 목록을 쓰는 조합 페이지의 토큰 겹침이 커지지 않는다.
+    """
+    facts = facts or {}
+    label = facts.get("pattern") or pattern_of(facts)
+    parts = label.split("|")
+    _clock, money, who, place = (parts + ["mixed", "plain", "unknown_who", "mixed_org"])[:4]
+    sents = []
+
+    if money == "loan":
+        sents.append(
+            "이 목록 제목에는 융자·보증·이차보전·정책자금처럼 갚는 돈 표현이 있습니다. "
+            "보조금과 한 줄에 있어도 원금은 남으니 "
+            + _href_guide("/guide/grant-vs-loan/", "지원금과 융자의 차이")
+            + " 먼저 보세요."
+        )
+    elif money == "voucher":
+        sents.append(
+            "이 목록 제목에는 바우처·선착순처럼 예산이 끝나는 쪽 표현이 있습니다. "
+            "날짜보다 잔여 예산이 먼저 끊길 수 있어 "
+            + _href_guide("/guide/voucher-vs-selection/", "바우처와 선정 사업 차이")
+            + " 함께 보세요."
+        )
+    elif money == "rd":
+        sents.append(
+            "이 목록 제목에는 R&amp;D·기술개발처럼 선정형으로 읽히는 표현이 있습니다. "
+            "서류·발표가 붙는 공고면 "
+            + _href_guide("/guide/biz-plan-structure/", "사업계획서 기본 구조")
+            + " 먼저 보세요."
+        )
+    elif money == "hire":
+        sents.append(
+            "이 목록 제목에는 채용·인건비처럼 고용 지원으로 읽히는 표현이 있습니다. "
+            "4대보험 가입 현황을 원문 조건과 맞춰 보세요."
+        )
+
+    if who == "sme":
+        sents.append(
+            "지원대상 표기가 소상공인 쪽입니다. 업종별 상시 근로자 수 한도는 공고 조문을 따르고, "
+            + _href_guide("/guide/sme-apply/", "소상공인 지원금 신청 방법")
+            + " 보면 접수 순서를 가릴 수 있습니다."
+        )
+    elif who == "startup":
+        sents.append(
+            "지원대상 표기에 예비창업이 있습니다. 사업자등록 전이면 업력 산정이 다르니 "
+            + _href_guide("/guide/pre-vs-early/", "예비·초기창업패키지 차이")
+            + " 보세요."
+        )
+    elif who == "corp":
+        sents.append(
+            "지원대상 표기가 중소기업입니다. 소상공인만 받는 공고와는 범위가 다르니 "
+            "카드의 대상 칸을 먼저 보세요."
+        )
+    elif who == "mixed_who":
+        shown = facts.get("targets") or []
+        if len(shown) >= 2:
+            sents.append(
+                f"같은 목록에 '{h(shown[0])}'{_josa(shown[0], '과', '와')} "
+                f"'{h(shown[1])}' 표기가 섞여 있습니다. "
+                "카드마다 대상이 다르니 제목만 보고 넣지 마세요."
+            )
+
+    if place == "district":
+        sents.append(
+            "소관기관 이름에 구·시·군이 보입니다. 그 지역 사업장 요건이 붙는 경우가 많아 "
+            + _workplace_guide_html("을", "를")
+            + " 보시면 됩니다."
+        )
+    elif place == "one_org" and facts.get("orgs"):
+        org0 = facts["orgs"][0]
+        sents.append(
+            f"이 목록의 소관기관은 {h(org0)} 한 곳입니다. "
+            "접수는 그 기관 원문 창구로 가면 됩니다."
+        )
+
+    return sents
 
 
 def _region_label(region):
@@ -988,6 +1206,7 @@ def _combo_paras(region, category, cat, facts):
     count = _count_lead(region, category, facts, layout)
     nxt = _next_step(category, facts)
     tgt = _target_sentence(facts)
+    strat = " ".join(_strategy_sents(facts))
 
     # 오늘 마감이 있어도 레이아웃마다 첫 문장을 다르게 둔다.
     if layout == 0:
@@ -1024,19 +1243,19 @@ def _combo_paras(region, category, cat, facts):
     )
 
     if layout == 0:
-        mid = [hook, weave, tgt]
+        mid = [strat, hook, weave, tgt]
         tail = [deadline, orgs, nxt]
     elif layout == 1:
-        mid = [weave, orgs, hook]
+        mid = [strat, weave, orgs, hook]
         tail = [deadline, nxt]
     elif layout == 2:
-        mid = [weave, hook, mix if mix not in open_s else ""]
+        mid = [weave, strat, hook, mix if mix not in open_s else ""]
         tail = [deadline, tgt, nxt]
     elif layout == 3:
-        mid = [hook, orgs, tgt]
+        mid = [hook, strat, orgs, tgt]
         tail = [deadline, nxt]
     else:
-        mid = [hook, titled if not used_title else "", orgs]
+        mid = [hook, strat, titled if not used_title else "", orgs]
         tail = [weave, deadline, nxt]
 
     sentences = [open_s] + mid + tail
@@ -1257,31 +1476,32 @@ def district_page_intro(sido, district, items):
         label=district,
     )
     titled = _title_lead(facts)
+    strat = " ".join(_strategy_sents(facts))
     cats = ""
     if facts["cats"]:
         cats = f"이 목록에 보이는 분야는 {', '.join(h(c) for c in facts['cats'][:5])}입니다."
     if layout == 0:
         paras = [
             f"{s} {d} 관련 지원사업은 {n}건입니다. {scope} 마감이 가까운 순입니다.",
-            f"{sido_note} {orgs}",
+            f"{sido_note} {orgs} {strat}".strip(),
             deadline,
         ]
     elif layout == 1:
         paras = [
             f"{mix} {s} {d} 해시태그로 묶으면 {n}건입니다.",
-            f"{scope} {orgs}",
+            f"{scope} {orgs} {strat}".strip(),
             f"{titled} {deadline}".strip(),
         ]
     elif layout == 2:
         paras = [
             f"{s} {d}만 보면 지금 {n}건입니다. {scope}",
-            f"{orgs} {mix}",
+            f"{orgs} {mix} {strat}".strip(),
             deadline,
         ]
     else:
         paras = [
             f"{titled or mix} {s} {d} 관련 공고는 {n}건입니다.",
-            f"{scope} {sido_note}",
+            f"{scope} {sido_note} {strat}".strip(),
             f"{orgs} {deadline}",
         ]
     if cats:
@@ -1310,6 +1530,7 @@ def district_combo_intro(sido, district, category, cat, items):
     orgs = h(_org_lead(facts))
     mix = _mix_sentence(facts)
     titled = _title_lead(facts)
+    strat = " ".join(_strategy_sents(facts))
     guide = (
         f"신청이 처음이면 {_guide_html(category)} 먼저 보시면 됩니다. "
         f"{_workplace_guide_link()}도 함께 보세요."
@@ -1317,21 +1538,21 @@ def district_combo_intro(sido, district, category, cat, items):
     if layout == 0:
         paras = [
             f"{s} {d}의 {cname} 지원사업은 {n}건입니다. {h(cat_desc)}에 해당하며, {scope}",
-            f"{weave} {orgs}",
+            f"{weave} {orgs} {strat}".strip(),
             deadline,
             guide,
         ]
     elif layout == 1:
         paras = [
             f"{mix} {s} {d} {cname}만 보면 {n}건입니다.",
-            f"{scope} {orgs}",
+            f"{scope} {orgs} {strat}".strip(),
             f"{weave} {deadline}",
             guide,
         ]
     else:
         paras = [
             f"{titled or mix} {s} {d} {cname} 공고는 {n}건입니다. {scope}",
-            f"{weave} {orgs}",
+            f"{weave} {orgs} {strat}".strip(),
             deadline,
             guide,
         ]

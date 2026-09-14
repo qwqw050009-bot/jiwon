@@ -108,6 +108,9 @@ def decorate(a):
         a["cls"], a["dlabel"] = "d-a", "상시"
         a["dsub"] = a.get("period_raw") or "상시 접수"
         a["blurb"] = intros.blurb_of(a)
+        a["signals"] = enrich.notice_signals(a)
+        who = ((a.get("target") or "").splitlines() or [""])[0].strip()
+        a["target_short"] = (who[:23].rstrip(" ·,/") + "…") if len(who) > 24 else who
         return a
     d = a["dday"]
     if d < 0:
@@ -124,6 +127,9 @@ def decorate(a):
         a["cls"], a["dlabel"] = "d-o", f"D-{d}"
         a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else ""
     a["blurb"] = intros.blurb_of(a)
+    a["signals"] = enrich.notice_signals(a)
+    who = ((a.get("target") or "").splitlines() or [""])[0].strip()
+    a["target_short"] = (who[:23].rstrip(" ·,/") + "…") if len(who) > 24 else who
     return a
 
 
@@ -712,7 +718,8 @@ def main():
     for slug, h1, desc, content in guide_list:
         jsonld = howto_jsonld(h1, desc, content) if slug in (
             "start", "find-by-deadline", "sme-apply", "deadline-alert",
-            "workplace-region",
+            "workplace-region", "policy-fund", "tax-insurance-check",
+            "calendar-howto",
         ) else None
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",

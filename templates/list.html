@@ -30,7 +30,7 @@
 {% if beginner_cta %}
 <a class="beginner-cta" href="/guide/start/">
   <b>지원사업, 처음이신가요?</b>
-  <span>시작 가이드에서 찾는 순서를 확인하세요 →</span>
+  <span>자격·용어·찾는 순서·서류까지 한 번에 보는 처음 안내입니다 →</span>
 </a>
 {% endif %}
 
@@ -66,6 +66,10 @@
   </div>
 </section>
 {% endfor %}
+{% endif %}
+
+{% if items or sections %}
+<p class="dlegend">왼쪽 숫자는 날짜형 마감입니다. <b>오늘</b>·<b>D-n</b>이 먼저 닫힙니다. <b>상시</b>는 마감일이 없고, 예산이 끝나면 목록 하단 공고가 먼저 사라집니다.</p>
 {% endif %}
 
 {% if ad_top %}{{ ad_slot('list_top') }}{% endif %}

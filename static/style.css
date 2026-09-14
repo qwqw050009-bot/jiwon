@@ -122,10 +122,30 @@ a{color:inherit}
 .meta i{font-style:normal}
 .meta i+i:before{content:"·";margin:0 6px;color:#C5CCC2}
 .amt{color:var(--ink);font-weight:600}
+.who{color:var(--ink)}
+.signals{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 0}
+.signals span{
+  font-size:11px;font-weight:700;line-height:1.2;padding:3px 7px;border-radius:999px;
+  border:1px solid var(--line);color:var(--muted);background:var(--paper);
+}
+.signals .sig-always{color:var(--open);border-color:#C9DDD2;background:#F4F8F5}
+.signals .sig-loan{color:var(--ink);border-color:#D5D0C4;background:#F7F5F0}
+.signals .sig-voucher{color:var(--soon);border-color:#E8D7B0;background:#FDF8EC}
+.signals .sig-queue{color:var(--urgent);border-color:#E8C4BE;background:#FDF6F5}
 .blurb{
   margin:5px 0 0;font-size:13px;line-height:1.45;color:var(--muted);
-  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
+.dlegend{
+  margin:12px 0 0;font-size:13px;line-height:1.55;color:var(--muted);
+}
+.dlegend b{color:var(--ink);font-weight:700}
+.amt-note{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:2px}
+.detail-guides{
+  display:flex;flex-wrap:wrap;gap:8px 14px;margin:16px 0 0;padding-top:14px;
+  border-top:1px solid var(--line);font-size:13px;
+}
+.detail-guides a{color:var(--open);text-decoration:underline;text-underline-offset:3px}
 
 /* ── 탐색 ── */
 .nav-block{margin:32px 0 8px;padding:18px 0 0;border-top:1px solid var(--line)}

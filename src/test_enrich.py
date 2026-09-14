@@ -104,6 +104,63 @@ def test_heal_broken_josa_and_generic():
     assert enrich.heal_broken_josa(good, row) is good
 
 
+def test_fallback_uses_title_shape_and_euro_josa():
+    row = {
+        "title": "소상공인 특례보증 지원사업",
+        "org": "충청남도",
+        "region": "충남",
+        "target": "소상공인",
+        "category": "금융",
+        "period_type": "always",
+        "period_raw": "예산 소진시까지",
+        "method": "이메일 접수",
+    }
+    ai = enrich._fallback(row)
+    assert "이(가)" not in ai["summary"]
+    assert "을(를)" not in ai["summary"]
+    assert "접수으로" not in " ".join(ai["caution"])
+    assert "접수로" in " ".join(ai["caution"])
+    assert any("갚" in x or "융자" in x for x in ai["fit"] + ai["caution"])
+    assert "원금" in " ".join(ai["caution"]) or "빚" in " ".join(ai["caution"])
+
+
+def test_notice_signals_from_visible_title():
+    always = enrich.notice_signals({
+        "title": "수출바우처 선착순 모집",
+        "period_type": "always",
+        "period_raw": "예산 소진시까지",
+    })
+    labels = [s["label"] for s in always]
+    assert "예산 소진시까지" in labels
+    assert "바우처" in labels
+    assert "선착순" in labels
+    loan = enrich.notice_signals({
+        "title": "소상공인 정책자금 융자",
+        "period_type": "dated",
+        "dday": 2,
+    })
+    assert any(s["cls"] == "loan" for s in loan)
+    assert not any(s["cls"] == "today" for s in loan)
+
+
+def test_heal_bullet_and_wrong_euro():
+    row = {
+        "title": "입주자 모집",
+        "org": "중앙대학교 산학협력단",
+        "region": "전국",
+        "target": "예비창업자",
+        "category": "창업",
+    }
+    leaked = {"summary": "중앙대학교 산학협력단이 전국 지역 ￭ 예비창업자를 대상으로"}
+    healed = enrich.heal_broken_josa(leaked, row)
+    assert "￭" not in healed["summary"]
+    assert "이(가)" not in healed["summary"]
+    euro = {"summary": "신청은 이메일 접수으로만 받습니다."}
+    healed2 = enrich.heal_broken_josa(euro, row)
+    assert "접수으로" not in healed2["summary"]
+    assert healed2 is not euro
+
+
 def test_card_line_differs_when_titles_differ():
     base = {
         "org": "경상북도", "region": "경북", "target": "중소기업",
@@ -123,5 +180,8 @@ if __name__ == "__main__":
     test_card_line_always_and_jeonnam()
     test_fallback_no_invented_target()
     test_heal_broken_josa_and_generic()
+    test_fallback_uses_title_shape_and_euro_josa()
+    test_notice_signals_from_visible_title()
+    test_heal_bullet_and_wrong_euro()
     test_card_line_differs_when_titles_differ()
     print("enrich tests ok")

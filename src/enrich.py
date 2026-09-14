@@ -18,11 +18,16 @@ import re
 
 CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "enrich_cache.json")
 
-PROMPT = """다음 정부지원사업 공고를 신청자 입장에서 냉정하게 분석해줘.
-공고문을 그대로 옮기거나 좋은 말만 나열하지 마라. "이게 실제로 뭘 해주는지 +
-누구한테 특히 유리한지 + 신청자 입장에서 아쉬운 점(현금지원 없음, 조건이
-까다로움, 세부조건 미공개 등)이 있다면 솔직하게 + 신청 전 뭘 준비해야
-하는지"를 판단할 수 있게 새로 써야 한다. 장점만 있는 것처럼 포장하지 마라.
+PROMPT = """다음 정부지원사업 공고를 신청자 입장에서 차갑게 분석해줘.
+홍보 문장·감탄·'좋은 기회' 같은 포장을 쓰지 마라. 공고문을 그대로 베끼지 마라.
+공고에 없는 금액·자격·프로그램 이름을 지어내지 마라.
+지원규모는 본문에 적힌 표현만 말하고, 없으면 규모를 추측하지 마라.
+
+판단 기준:
+1) 실제로 주는 것(현금, 바우처, 융자·보증, 교육, 공간, 컨설팅 등)을 제목·본문에서만 읽기
+2) 대상 문구를 '모든 기업'이 아니라 구체 상황으로 바꿔 쓰기
+3) 이 공고만의 제약(지역, 업력, 선착순, 자부담, 선정 인원 미공개, 상환, 예산 소진)
+4) 준비물 — 본문에 나온 서류 우선. 없으면 흔한 서류라고 밝히기
 
 공고명: {title}
 분야: {category} / 지역: {region}
@@ -33,13 +38,12 @@ PROMPT = """다음 정부지원사업 공고를 신청자 입장에서 냉정하
 공고 요약: {overview}
 주요 내용: {points}
 
-아래 JSON 형식으로만 답해. 다른 말 붙이지 마.
+JSON만 답해. 다른 말 금지.
 {{
- "summary": "이 사업이 실제로 뭘 지원하는지, 그리고 신청자 입장에서 가장
-   아쉽거나 확인이 필요한 점 하나를 포함해서 3문장 이내로",
- "fit": ["막연한 대상 말고 '~한 상황의 기업에 특히 유리하다' 식으로 구체적인 상황 3개"],
- "caution": ["체납여부 같은 뻔한 공통사항 말고, 이 공고 특유의 현실적인 제약이나 한계 3개"],
- "checklist": ["준비서류/조건 체크 4개"]
+ "summary": "무엇을 주는지 1문장 + 가장 큰 제약 1문장. 최대 3문장. '~해드립니다' 금지.",
+ "fit": ["대상 문구를 상황으로 바꾼 문장 3개. '모든 기업에 유리' 금지."],
+ "caution": ["이 공고 본문에서 읽히는 제약 3개. 체납 문장만 반복 금지."],
+ "checklist": ["서류/조건 4개. 본문에 없으면 '공고문 양식 확인'처럼 표시."]
 }}"""
 
 # 본문에서 지원금액처럼 보이는 표현을 뽑는다.
@@ -147,6 +151,7 @@ def title_gist(title):
         t = re.sub(r"(?:상반기|하반기)\s*", "", t)
         t = re.sub(r"\d+\s*차\s*", "", t)
     t = re.sub(r"(?:\s*(?:추가\s*)?(?:재)?공고)+$", "", t)
+    t = re.sub(r"\s*연장(?:\s*공고)?$", "", t)
     t = re.sub(
         r"\s*(?:참가(?:기업|자|업체)|참여자|수혜기업|신청기업)?"
         r"\s*(?:추가\s*)?모집(?:\s*연장)?$",
@@ -177,6 +182,27 @@ def _urgency_chip(row):
     return ""
 
 
+def notice_signals(row):
+    """
+    카드용 짧은 신호. 제목·기간 원문에 있는 말만 쓴다.
+    오늘/D-n은 왼쪽 D-day 칸과 겹치니 넣지 않고, 상시 원문과
+    융자·바우처·선착순처럼 성격이 갈리는 표기만 둔다.
+    """
+    row = row or {}
+    out = []
+    if row.get("period_type") == "always":
+        raw = (row.get("period_raw") or "상시 접수").strip()
+        out.append({"cls": "always", "label": raw if 0 < len(raw) <= 12 else "상시 접수"})
+    title = row.get("title") or ""
+    if re.search(r"융자|보증|이차보전|정책자금", title):
+        out.append({"cls": "loan", "label": "융자·보증"})
+    if "바우처" in title:
+        out.append({"cls": "voucher", "label": "바우처"})
+    if "선착순" in title:
+        out.append({"cls": "queue", "label": "선착순"})
+    return out[:4]
+
+
 def card_line(row):
     """
     목록 카드용 한 줄. '기관 · 지원요지 · 대상'만 쓰고 조사를 붙이지 않는다.
@@ -184,7 +210,9 @@ def card_line(row):
     """
     row = row or {}
     org = (row.get("org") or "").strip()
-    target = (row.get("target") or "").strip()
+    target = ((row.get("target") or "").strip().splitlines() or [""])[0].strip()
+    if len(target) > 18:
+        target = target[:17].rstrip(" ·,/") + "…"
     category = (row.get("category") or "").strip()
     title = (row.get("title") or "").strip()
     if not (org or target or category or title):
@@ -206,36 +234,62 @@ def _fallback(row):
     """LLM 없이 쓰는 규칙 기반 해설. 모든 필드는 방어적으로 접근한다."""
     org = (row.get("org") or "").strip() or "소관기관"
     region = (row.get("region") or "").strip() or "전국"
-    target = (row.get("target") or "").strip()
+    target = ((row.get("target") or "").strip().splitlines() or [""])[0].strip()
     category = (row.get("category") or "").strip() or "기타"
     method = (row.get("method") or "").strip() or "공고문 참조"
+    title = (row.get("title") or "").strip()
     amount = amount_of(row)
     place = _place_of(region)
+    gist = title_gist(title) or category
 
     head = card_line(row)
     if amount:
-        head += f" 공고문 지원규모 표기는 {amount}입니다."
+        head += f" 공고문 지원규모 표기는 {amount}입니다. 이 숫자가 아니면 원문을 따르세요."
+    else:
+        head += " 본문에서 지원규모 표기를 찾지 못했습니다. 금액은 원문을 보세요."
 
     who = target or "신청 대상은 공고문 참조"
-    fit = [
-        f"{place}에 사업장을 둔 {who}" if target else f"{place} 소재 사업장 기준 공고",
-        f"{category} 분야 지원이 필요한 곳",
-        "신청 시점에 국세·지방세 체납이 없는 사업자",
-    ]
+    fit = []
+    if target:
+        fit.append(f"{place}에 사업장을 두고 대상 표기가 '{target}'인 곳")
+    else:
+        fit.append(f"{place} 소재 사업장 기준 공고. 대상은 원문 확인")
+    if re.search(r"융자|보증|이차보전|정책자금", title):
+        fit.append(f"{gist}처럼 갚는 자금이 필요한 곳. 보조금과 구분해 보세요")
+    elif "바우처" in title or "선착순" in title:
+        fit.append(f"{gist}처럼 조건이 되면 빨리 접수하는 쪽이 유리한 곳")
+    else:
+        fit.append(f"{category} 성격이 제목·대상과 맞는 곳")
+    if row.get("period_type") == "always":
+        fit.append("날짜형 마감보다 예산 잔액을 먼저 봐야 하는 사업자")
+    else:
+        fit.append("접수 기간 안에 서류와 원문 창구를 맞출 수 있는 사업자")
 
     caution = []
     if row.get("period_type") == "always":
         raw = (row.get("period_raw") or "상시 접수").strip()
-        caution.append(f"접수기간이 '{raw}'로 명시되어 있어 예산이 끝나면 날짜 전에 닫힐 수 있습니다.")
+        caution.append(f"접수기간이 '{raw}'{_josa(raw, '으로', '로')} 적혀 있어 예산이 끝나면 날짜 전에 닫힐 수 있습니다.")
     else:
-        caution.append(f"접수기간은 {_period_text(row)}입니다. 마감 전 여유를 두고 신청하세요.")
-    caution.append("같은 연도에 유사 사업을 받았다면 중복 지원이 제한될 수 있습니다.")
+        caution.append(f"접수기간은 {_period_text(row)}입니다. 마감 당일 창구가 닫히면 끝입니다.")
+    if re.search(r"융자|보증|이차보전|정책자금", title):
+        caution.append("제목에 융자·보증·이차보전·정책자금이 있으면 원금은 남습니다. 이자만 봐도 빚입니다.")
+    elif "바우처" in title or "선착순" in title:
+        caution.append("바우처·선착순이면 완벽한 서류보다 잔여 예산이 먼저 끊깁니다.")
+    else:
+        caution.append("같은 연도에 유사 항목을 받았다면 중복 지원이 제한될 수 있습니다.")
     method0 = method.splitlines()[0].strip() if method else "공고문 참조"
-    caution.append(f"신청은 {method0} 방식으로 받습니다.")
+    euro = _josa(method0, "으로", "로")
+    caution.append(f"신청은 {method0}{euro} 받습니다. 이 사이트에서 대신 접수하지 않습니다.")
 
-    checklist = ["사업자등록증명원", "국세·지방세 완납증명서",
+    checklist = ["사업자등록증명원(예비창업이면 공고의 등록 시점 확인)",
+                 "국세·지방세 완납증명서",
                  "최근 연도 재무제표 또는 부가세과세표준증명"]
-    checklist.append("4대보험 가입자명부" if category == "인력" else "사업계획서 또는 신청서 양식")
+    if category == "인력":
+        checklist.append("4대보험 가입자명부")
+    elif re.search(r"융자|보증|이차보전|정책자금", title):
+        checklist.append("공고문 양식의 자금 사용·상환 계획")
+    else:
+        checklist.append("공고문 첨부 사업계획서 또는 신청서 양식")
 
     return {"summary": head, "fit": fit, "caution": caution, "checklist": checklist}
 
@@ -246,10 +300,13 @@ def _fallback(row):
 # 규칙기반으로만 무료로 재생성한다 (API 비용 0원). enrich_cache와
 # data/archive.json(마감 공고의 "ai" 스냅샷)에 둘 다 얼어붙어 있을 수
 # 있어서 양쪽에서 재사용할 수 있게 공용 함수로 뺐다.
-_BROKEN_JOSA = re.compile(r"이\(가\)|을\(를\)|은\(는\)")
+_BROKEN_JOSA = re.compile(r"이\(가\)|을\(를\)|은\(는\)|와\(과\)|과\(와\)")
 _GENERIC_FALLBACK = re.compile(
     r"(?:이|가) .+? 지역 .+?(?:을|를) 대상으로 진행하는 .+? 분야 지원사업입니다"
 )
+_STRAY_OLD_FALLBACK = re.compile(r"(?:이|가) \S+ 지역 \S+(?:을|를) 대상")
+_BULLET_LEAK = re.compile(r"[￭•▪]")
+_WRONG_EURO = re.compile(r"접수으로")
 
 
 def heal_broken_josa(ai, row):
@@ -258,7 +315,14 @@ def heal_broken_josa(ai, row):
     규칙기반으로 재생성해 돌려준다. 캐시를 우회해 LLM을 부르지 않는다.
     """
     s = (ai or {}).get("summary") or ""
-    if (not s) or _BROKEN_JOSA.search(s) or _GENERIC_FALLBACK.search(s):
+    if (
+        (not s)
+        or _BROKEN_JOSA.search(s)
+        or _GENERIC_FALLBACK.search(s)
+        or _STRAY_OLD_FALLBACK.search(s)
+        or _BULLET_LEAK.search(s)
+        or _WRONG_EURO.search(s)
+    ):
         return _fallback(row)
     return ai
 

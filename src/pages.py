@@ -27,7 +27,7 @@ def build(site, stats=None):
   <div class="pain-item"><span class="pain-q">마감일을 놓쳐서 좋은 기회를 날린다</span>
     <span class="pain-a">캘린더 구독으로 마감 하루 전 자동 알림을 받습니다</span></div>
   <div class="pain-item"><span class="pain-q">지원사업이 처음이라 뭐부터 할지 모르겠다</span>
-    <span class="pain-a"><a href="/guide/start/">시작 가이드</a>에서 첫걸음부터 안내합니다</span></div>
+    <span class="pain-a"><a href="/guide/start/">처음 안내</a>에서 자격·용어·찾는 순서·서류까지 한 번에 봅니다</span></div>
 </div>
 <h2>왜 마감일 순인가</h2>
 <p>지원사업 정보는 이미 여러 곳에 흩어져 있습니다. 문제는 양이 아니라 시점입니다.
