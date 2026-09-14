@@ -1769,6 +1769,38 @@ def _blurb_amount(row):
     return f"본문 규모 표기는 {got}입니다."
 
 
+def _overview_clause(row):
+    """본문 요약의 앞부분만. 홍보 꼬리와 상투구는 버린다. 없는 혜택을 만들지 않는다."""
+    ov = (row.get("overview") or "").replace("\xa0", " ")
+    ov = re.sub(r"\s+", " ", ov).strip()
+    if not ov:
+        return ""
+    ov = re.sub(r"(?:아래와|다음과) 같이.+$", "", ov)
+    ov = re.sub(r"공고하오니.+$", "", ov)
+    ov = re.sub(r"많은 (?:신청|참여|관심).+$", "", ov)
+    ov = ov.replace("「", "").replace("」", "").strip(" .,")
+    if len(ov) < 20:
+        return ""
+    if "이(가)" in ov or "을(를)" in ov or _GENERIC_BLURB.search(ov):
+        return ""
+    cut = ov.find("다.")
+    if 20 <= cut <= 88:
+        return ov[: cut + 2].rstrip()
+    if len(ov) > 80:
+        br = max(ov.rfind(" ", 0, 78), ov.rfind(",", 0, 78), ov.rfind("·", 0, 78))
+        ov = (ov[:br] if br >= 24 else ov[:78]).rstrip(" ·,") + "…"
+    return ov
+
+
+def _blurb_deadline(row):
+    if row.get("period_type") == "always":
+        return ""
+    end = (row.get("apply_end") or "").strip()
+    if len(end) >= 10 and row.get("dday") not in (0,):
+        return f"접수 마감은 {end}입니다."
+    return ""
+
+
 def _blurb_caution(row):
     row = row or {}
     title = row.get("title") or ""
@@ -1841,22 +1873,28 @@ def _compose_blurb(row):
     title = (row.get("title") or "").strip()
     gist = title_gist(title) or (row.get("category") or "").strip()
     who = ((row.get("target") or "").strip().splitlines() or [""])[0].strip()
-    if len(who) > 22:
-        who = who[:21].rstrip(" ·,/") + "…"
+    if len(who) > 28:
+        who = who[:27].rstrip(" ·,/") + "…"
     org = (row.get("org") or "").strip()
+    benefit = _overview_clause(row)
     bits = []
-    if gist:
+    if benefit:
+        bits.append(benefit)
+    elif gist:
         head = gist if gist.endswith(("다", "요", "음")) else f"{gist}입니다"
         if org and org not in head:
             head = f"{org} 소관 {head}"
         bits.append(head)
     elif org:
         bits.append(f"{org} 소관 공고입니다")
-    if who:
+    if who and (not benefit or who not in benefit):
         bits.append(f"{who}{_josa(who, '이', '가')} 대상입니다")
     amt = _blurb_amount(row)
     if amt:
         bits.append(amt)
+    due = _blurb_deadline(row)
+    if due:
+        bits.append(due)
     if not bits:
         return ""
     caution = _blurb_caution(row)
@@ -1873,7 +1911,10 @@ def blurb_of(row):
     leftover = _ai_leftover(row)
     if leftover and len(leftover) >= 24 and "지원사업입니다" not in leftover:
         bits = [leftover]
-        for x in (_blurb_amount(row), _blurb_caution(row)):
+        ov = _overview_clause(row)
+        if ov and ov not in leftover and len(leftover) < 90:
+            bits.append(ov)
+        for x in (_blurb_amount(row), _blurb_deadline(row), _blurb_caution(row)):
             if x and x not in leftover:
                 bits.append(x)
         return _join_blurb_bits(bits)

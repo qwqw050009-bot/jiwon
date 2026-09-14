@@ -265,6 +265,18 @@ def test_blurb_is_richer_and_lists_have_faq():
     assert "다만" in b
     assert "이(가)" not in b and "을(를)" not in b
     assert "2,000" in b or "2000" in b or "만원" in b
+    with_ov = _item(
+        title="소상공인 특례보증 지원사업",
+        org="안산시", target="소상공인", category="금융",
+        dday=3, apply_end="2026-09-17",
+        points=["기업당 최대 2,000만원 이내 특례보증"],
+        overview="특례보증으로 운전자금을 마련하려는 소상공인을 대상으로 보증 한도를 지원합니다.",
+        amount="", ai={},
+    )
+    b3 = intros.blurb_of(with_ov)
+    assert 120 <= len(b3) <= 200, (len(b3), b3)
+    assert "특례보증" in b3 and "소상공인" in b3
+    assert "이(가)" not in b3
     faqs_r = intros.region_page_faqs("경기", [rich, _item(region="경기")])
     assert 3 <= len(faqs_r) <= 5
     assert "경기" in faqs_r[0]["a"] or "2건" in faqs_r[0]["a"]
