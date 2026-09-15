@@ -186,6 +186,11 @@ def test_hub_copy_has_no_grant_vocab():
     assert "입찰" in text
     assert "지원사업" in text
     assert "오늘 마감 1건" in text
+    empty = bid_build.empty_hub_intro() + json.dumps(bid_build.empty_hub_faqs(), ensure_ascii=False)
+    assert "지원금" not in empty
+    assert "바우처" not in empty
+    assert "나라장터" in empty
+    assert "지원 탭" in empty
 
 
 def test_nav_split_templates():
@@ -220,6 +225,12 @@ def test_nav_split_templates():
     assert support.split("mode-switch", 1)[1].split("</nav>", 1)[0].count("is-on") == 1
     assert 'href="/" class="is-on"' in support.replace("\n", " ") or 'href="/" class="is-on"' in support
     assert 'href="/bid/" class="is-on"' in bid or 'class="is-on">입찰' in bid
+    assert "지원사업<b>마감판</b>" in support
+    assert "지원·입찰<b>마감판</b>" in bid
+    assert "지원·입찰<b>마감판</b>" not in support
+    assert "지원사업<b>마감판</b>" not in bid
+    assert 'class="brand-cluster"' in support and 'class="brand-cluster"' in bid
+    assert 'href="/bid/"' in bid.split('class="brand"', 1)[1][:80]
 
 
 def test_row_templates_do_not_cross_link():
@@ -245,6 +256,72 @@ def test_row_templates_do_not_cross_link():
     assert 'href="/notice/' not in row_b
 
 
+def test_gha_without_key_returns_empty_not_mock():
+    os.environ.pop("NARA_API_KEY", None)
+    os.environ.pop("DATA_GO_KR_SERVICE_KEY", None)
+    os.environ["GITHUB_ACTIONS"] = "true"
+    orig = bidinfo.load_cache
+    bidinfo.load_cache = lambda now=None: []
+    try:
+        rows = bidinfo.load(now=NOW)
+        assert rows == []
+    finally:
+        bidinfo.load_cache = orig
+        os.environ.pop("GITHUB_ACTIONS", None)
+
+
+def test_gha_live_fail_no_cache_returns_empty():
+    def boom(*args, **kwargs):
+        raise RuntimeError("network")
+    orig_live, orig_cache = bidinfo.fetch_live, bidinfo.load_cache
+    bidinfo.fetch_live = boom
+    bidinfo.load_cache = lambda now=None: []
+    os.environ["NARA_API_KEY"] = "invalid-test-key"
+    os.environ["GITHUB_ACTIONS"] = "true"
+    try:
+        assert bidinfo.load(now=NOW) == []
+    finally:
+        bidinfo.fetch_live = orig_live
+        bidinfo.load_cache = orig_cache
+        os.environ.pop("NARA_API_KEY", None)
+        os.environ.pop("GITHUB_ACTIONS", None)
+
+
+def test_empty_hub_looks_intentional():
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    root = os.path.join(os.path.dirname(__file__), "..")
+    env = Environment(loader=FileSystemLoader(os.path.join(root, "templates")),
+                      autoescape=select_autoescape(["html"]))
+    env.globals["asset_v"] = "test"
+    env.globals["bid_kinds"] = config.BID_KINDS
+    env.globals["bid_has_regions"] = False
+    html = env.get_template("bid_list.html").render(
+        site=config.SITE, path="/bid/", section="bid", title="t", desc="d",
+        h1="나라장터 입찰, 마감일시 순",
+        lede="지금은 표시할 진행 중 입찰이 없습니다.",
+        items=[], sections=[], blocks=[], tally=None, intro="", faqs=[],
+        beginner=False, empty="나라장터 연동이 꺼져 있거나, 오늘 기준 진행 중인 공고가 없습니다.",
+        bid_empty=True, today=0, ad_top=None, ad_mid_after=None, ad_bottom=None,
+        crumbs=[], crumb_jsonld="", faq_jsonld="",
+    )
+    assert "지금은 표시할 입찰공고가 없습니다" in html
+    assert "www.g2b.go.kr" in html
+    assert "지원 탭" in html
+    assert "empty-panel" in html
+    assert 'id="bid-q"' not in html
+    assert "진행중" not in html
+    assert "0</b>" not in html
+    assert "bid_filter.js" not in html
+    assert "지원·입찰<b>마감판</b>" in html
+
+
+def test_no_catchall_redirects_in_build():
+    src = open(os.path.join(os.path.dirname(__file__), "build.py"), encoding="utf-8").read()
+    assert "/404.html  404" not in src
+    assert 'os.path.join(DIST, "_redirects")' not in src
+    assert '404.html' in src
+
+
 if __name__ == "__main__":
     test_normalize_id_and_kind()
     test_kind_routing()
@@ -256,8 +333,12 @@ if __name__ == "__main__":
     test_mock_load_and_open_first()
     test_load_without_key_uses_mock()
     test_invalid_key_falls_back_to_mock()
+    test_gha_without_key_returns_empty_not_mock()
+    test_gha_live_fail_no_cache_returns_empty()
     test_no_cross_contamination()
     test_hub_copy_has_no_grant_vocab()
     test_nav_split_templates()
     test_row_templates_do_not_cross_link()
+    test_empty_hub_looks_intentional()
+    test_no_catchall_redirects_in_build()
     print("bid tests ok")

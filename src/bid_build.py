@@ -51,6 +51,29 @@ def hub_intro(t):
     )
 
 
+def empty_hub_intro():
+    return (
+        "<p>입찰은 공공기관이 물품·용역·공사·외자를 살 때 나라장터에 올리는 공고입니다. "
+        "기업이 신청해서 받는 지원사업과는 성격이 다릅니다. "
+        '<a href="/">지원사업 마감일</a>은 홈의 지원 탭에서 따로 봅니다.</p>'
+        "<p>지금은 이 사이트에 표시할 진행 중 입찰이 없습니다. "
+        "가짜 공고는 올리지 않습니다.</p>"
+    )
+
+
+def empty_hub_faqs():
+    return [
+        {"q": "왜 입찰 목록이 비어 있나요?",
+         "a": "나라장터 연동이 꺼져 있거나, 지금 표시할 진행 중 입찰이 없습니다. "
+              "가짜 공고를 올리지 않습니다. 원문은 나라장터에서 확인하세요."},
+        {"q": "지원사업은 어디서 보나요?",
+         "a": "상단의 지원 탭을 누르거나 홈으로 가면 보조금·융자 공고를 마감일 순으로 볼 수 있습니다."},
+        {"q": "원문은 어디서 보나요?",
+         "a": "나라장터(https://www.g2b.go.kr/)에서 확인합니다. "
+              "이 사이트에서 투찰하거나 대신 접수하지 않습니다."},
+    ]
+
+
 def hub_faqs(t):
     return [
         {"q": "입찰공고와 지원사업은 어떻게 다른가요?",
@@ -115,24 +138,33 @@ def build(env, write, site, urls, dist):
 
     def render_list(path, h1, lede, items, *, title=None, desc=None,
                     intro=None, faqs=None, blocks=None, sections=None,
-                    beginner=False, crumbs=None, empty=None):
+                    beginner=False, crumbs=None, empty=None, bid_empty=None):
         n = len(items)
+        sections = sections or []
+        blocks = blocks or []
+        if bid_empty is None:
+            bid_empty = not items and not sections
         ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
-            intros.ad_plan(n, has_sections=bool(sections)), site)
+            intros.ad_plan(0 if bid_empty else n, has_sections=bool(sections) and not bid_empty), site)
         crumbs = crumbs or []
         html = env.get_template("bid_list.html").render(
             site=site, path=path, section="bid",
             title=title or f"{h1} | {site['name']}",
             desc=desc or lede, h1=h1, lede=lede, items=items,
-            tally=tally(items) if not sections else t_all,
+            tally=None if bid_empty else (tally(items) if not sections else t_all),
             intro=intro or "", faqs=faqs or [],
             faq_jsonld=intros.faq_jsonld(faqs or []),
-            blocks=blocks or [], sections=sections or [],
-                beginner=beginner, empty=empty or empty_copy("입찰공고"),
+            blocks=[] if bid_empty else blocks, sections=[] if bid_empty else sections,
+            beginner=False if bid_empty else beginner,
+            empty=empty or empty_copy("입찰공고"),
+            bid_empty=bid_empty,
             crumbs=crumbs, crumb_jsonld=_crumb_ld(crumbs, site),
-            ad_top=ad_top, ad_mid_after=ad_mid_after, ad_bottom=ad_bottom,
-            bid_kinds=BID_KINDS, today=sum(1 for a in items if a.get("is_open") and a.get("dday") == 0)
-            if not sections else t_all.get("today", 0),
+            ad_top=None if bid_empty else ad_top,
+            ad_mid_after=None if bid_empty else ad_mid_after,
+            ad_bottom=None if bid_empty else ad_bottom,
+            bid_kinds=BID_KINDS, today=0 if bid_empty else (
+                sum(1 for a in items if a.get("is_open") and a.get("dday") == 0)
+                if not sections else t_all.get("today", 0)),
         )
         write(path, html)
 
@@ -151,19 +183,33 @@ def build(env, write, site, urls, dist):
         sections.append({"title": "진행 중인 입찰", "items": open_rows[:8],
                          "href": "/bid/urgent/", "total": len(open_rows)})
 
-    faqs = hub_faqs(t_all)
+    hub_empty = not open_rows
+    if hub_empty:
+        faqs = empty_hub_faqs()
+        intro = empty_hub_intro()
+        lede = "지금은 표시할 진행 중 입찰이 없습니다. 나라장터 원문과 지원사업은 아래에서 갈 수 있습니다."
+        hub_sections = []
+        hub_blocks = []
+    else:
+        faqs = hub_faqs(t_all)
+        intro = hub_intro(t_all)
+        lede = "오늘 마감되는 입찰부터 봅니다. 물품·용역·공사·외자로 나눕니다."
+        hub_sections = sections
+        hub_blocks = [{"title": "종류로 찾기", "items": kind_chips}]
+        if reg_chips:
+            hub_blocks.append({"title": "참가지역으로 찾기", "items": reg_chips})
     render_list(
         "/bid/", "나라장터 입찰, 마감일시 순",
-        "오늘 마감되는 입찰부터 봅니다. 물품·용역·공사·외자로 나눕니다.",
+        lede,
         [],
         title=f"나라장터 입찰공고 마감일시 | {site['name']}",
         desc="나라장터 입찰공고를 마감일시 순으로 정리합니다. 물품·용역·공사·외자, 수요기관, 추정가격을 확인할 수 있습니다.",
-        intro=hub_intro(t_all), faqs=faqs, beginner=True,
-        sections=sections,
-        blocks=[{"title": "종류로 찾기", "items": kind_chips}]
-               + ([{"title": "참가지역으로 찾기", "items": reg_chips}] if reg_chips else []),
+        intro=intro, faqs=faqs, beginner=not hub_empty,
+        sections=hub_sections, blocks=hub_blocks,
         crumbs=[{"name": "홈", "url": "/"}, {"name": "입찰", "url": "/bid/"}],
-        empty=empty_copy("입찰공고"),
+        empty=("나라장터 연동이 꺼져 있거나, 오늘 기준 진행 중인 공고가 없습니다."
+               if hub_empty else empty_copy("입찰공고")),
+        bid_empty=hub_empty,
     )
 
     render_list(

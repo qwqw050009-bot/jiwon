@@ -852,16 +852,14 @@ def main():
     # URL에 이 파일을 진짜 404 상태코드로 돌려준다 — 없으면(지금까지 없었음)
     # 홈페이지를 200으로 대신 돌려주는 소프트 404가 나서 SEO에 안 좋았다.
     # sitemap에 넣으면 안 되므로 write() 대신 직접 쓴다.
+    # /* /404.html 404 스플랫 _redirects 는 쓰지 않는다. Cloudflare는
+    # 정적 파일이 있어도 리다이렉트를 적용하고, 404 상태 재작성은 지원하지
+    # 않아 기존 지원 URL을 깨뜨릴 수 있다.
     html_404 = env.get_template("404.html").render(
         site=SITE, path="/404.html", title=f"페이지를 찾을 수 없습니다 | {SITE['name']}",
         desc="요청하신 페이지를 찾을 수 없습니다.", noindex=True,
     )
     open(os.path.join(DIST, "404.html"), "w", encoding="utf-8").write(html_404)
-    # 중첩 경로(/region/sejong/manpower/ 등)에서 상위 index.html 을 200으로
-    # 주던 소프트 404를 막는다. 실제 파일은 이 규칙보다 우선한다.
-    open(os.path.join(DIST, "_redirects"), "w", encoding="utf-8").write(
-        "/*    /404.html  404\n"
-    )
 
     # sitemap / robots
     today = date.today().isoformat()

@@ -17,9 +17,12 @@ body{
 a{color:inherit}
 .wrap{max-width:880px;margin:0 auto;padding:0 20px;min-width:0}
 
-/* ── 상단: 브랜드+검색 줄, 그 아래 아이콘 필 메뉴바 ── */
+/* ── 상단: 브랜드+모드 스위치 묶음, 검색, CTA ── */
 .top{background:var(--sheet);border-bottom:1px solid var(--line)}
-.top-row{display:flex;align-items:center;gap:22px;height:60px}
+.top-row{display:flex;align-items:center;gap:14px;height:60px}
+.brand-cluster{
+  display:flex;align-items:center;gap:10px;flex:0 0 auto;min-width:0;
+}
 .brand{
   display:flex;align-items:center;gap:9px;font-weight:800;font-size:19px;
   letter-spacing:-.02em;text-decoration:none;color:var(--ink);white-space:nowrap;flex:0 0 auto;
@@ -31,15 +34,20 @@ a{color:inherit}
 .brand b{color:var(--urgent);font-weight:800;margin-left:2px}
 
 .mode-switch{
-  display:inline-flex;flex:0 0 auto;align-items:center;gap:2px;
+  display:inline-flex;flex:0 0 auto;align-items:stretch;gap:0;
   padding:3px;background:var(--paper);border:1px solid var(--line);border-radius:999px;
 }
 .mode-switch a{
-  padding:5px 13px;border-radius:999px;font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  min-width:52px;padding:6px 14px;border-radius:999px;
+  font-size:13px;font-weight:700;line-height:1.2;text-align:center;
   text-decoration:none;color:var(--muted);letter-spacing:-.02em;
 }
 .mode-switch a:hover{color:var(--ink)}
-.mode-switch a.is-on{background:var(--ink);color:#fff}
+.mode-switch a.is-on{
+  background:var(--ink);color:#fff;font-weight:800;
+  box-shadow:0 1px 2px rgba(23,34,46,.2);
+}
 .mode-switch a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
 .sr-only{
@@ -87,10 +95,11 @@ a{color:inherit}
 .navbar a:hover{color:#fff;background:rgba(255,255,255,.1)}
 .navbar a.active{color:var(--ink);background:#fff}
 @media(max-width:700px){
-  .top-row{height:auto;flex-wrap:wrap;padding-top:12px;padding-bottom:10px;gap:10px}
+  .top-row{height:auto;flex-wrap:wrap;padding-top:12px;padding-bottom:10px;gap:12px}
+  .brand-cluster{flex:1 1 auto;gap:8px}
+  .brand{font-size:17px}
   .hsearch{max-width:none;flex-basis:100%;order:3}
   .hstart{margin-left:auto}
-  .mode-switch{margin-left:0}
   .navbar{border-radius:0;margin:0 -20px 14px;padding:6px 20px}
 }
 
@@ -234,6 +243,16 @@ a{color:inherit}
 .cta-star[aria-pressed="true"]{border-color:var(--soon);color:var(--soon)}
 .related{margin:8px 0 0}
 .note{font-size:13px;color:var(--muted);border-left:2px solid var(--line);padding-left:12px;margin:24px 0}
+.empty-panel{
+  margin:20px 0 28px;padding:28px 24px;background:var(--sheet);
+  border:1px solid var(--line);border-radius:16px;
+}
+.empty-panel h2{margin:0 0 10px;font-size:20px;letter-spacing:-.03em;line-height:1.35}
+.empty-panel p{margin:0 0 12px;color:var(--muted);max-width:56ch;line-height:1.65}
+.empty-actions{margin:16px 0 0;padding:0;list-style:none}
+.empty-actions li{margin:0 0 10px}
+.empty-actions a{color:var(--open);font-weight:700;text-decoration:none}
+.empty-actions a:hover{text-decoration:underline;text-underline-offset:2px}
 
 /* ── 광고: 슬롯 ID가 있을 때만 마크업이 나온다.
    채워지지 않은 유닛(data-ad-status=unfilled)은 접어서 빈 박스가 안 보이게. ── */

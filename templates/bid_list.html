@@ -9,7 +9,7 @@
   {% if path == '/bid/' %}<p class="kicker">나라장터 · 마감일시 순 · 물품·용역·공사·외자</p>{% endif %}
   <h1>{{ h1 }}</h1>
   <p>{{ lede }}</p>
-  {% if tally %}
+  {% if tally and not bid_empty %}
   <div class="tally">
     {% if tally.today %}<span class="u"><b>{{ tally.today }}</b>오늘 마감</span>{% endif %}
     <span {% if tally.urgent %}class="u"{% endif %}><b>{{ tally.urgent }}</b>이번 주 마감</span>
@@ -22,6 +22,17 @@
 <div class="prose intro">{{ intro|safe }}</div>
 {% endif %}
 
+{% if bid_empty %}
+<section class="empty-panel" role="status">
+  <h2>지금은 표시할 입찰공고가 없습니다</h2>
+  <p>{{ empty }}</p>
+  <p>가짜 공고를 채워 두지 않습니다. 입찰 원문은 나라장터에서, 보조금·융자 공고는 지원 탭에서 보면 됩니다.</p>
+  <ul class="empty-actions">
+    <li><a href="https://www.g2b.go.kr/" rel="noopener noreferrer" target="_blank">나라장터에서 원문 입찰 보기</a></li>
+    <li><a href="/">지원 탭으로 가 지원사업 마감일 보기</a></li>
+  </ul>
+</section>
+{% else %}
 {% if beginner %}
 <a class="beginner-cta" href="/">
   <b>지원사업을 찾으시나요?</b>
@@ -71,6 +82,7 @@
     {% endfor %}
   {% endif %}
 </div>
+{% endif %}
 
 {% if faqs %}
 <section class="faq" id="faq">
@@ -86,5 +98,7 @@
 
 {% if ad_bottom %}{{ ad_slot('list_bottom') }}{% endif %}
 
+{% if not bid_empty %}
 <script src="/static/bid_filter.js?v={{ asset_v }}" defer></script>
+{% endif %}
 {% endblock %}

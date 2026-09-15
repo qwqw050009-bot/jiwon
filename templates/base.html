@@ -29,11 +29,17 @@
 <body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}">
 <header class="top">
   <div class="wrap top-row">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
-    <nav class="mode-switch" aria-label="서비스 구분">
-      <a href="/"{% if (section|default('support')) != 'bid' %} class="is-on"{% endif %}>지원</a>
-      <a href="/bid/"{% if (section|default('support')) == 'bid' %} class="is-on"{% endif %}>입찰</a>
-    </nav>
+    <div class="brand-cluster">
+      {% if (section|default('support')) == 'bid' %}
+      <a class="brand" href="/bid/"><span class="brand-mark" aria-hidden="true"></span>지원·입찰<b>마감판</b></a>
+      {% else %}
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
+      {% endif %}
+      <nav class="mode-switch" aria-label="서비스 구분">
+        <a href="/"{% if (section|default('support')) != 'bid' %} class="is-on"{% endif %}>지원</a>
+        <a href="/bid/"{% if (section|default('support')) == 'bid' %} class="is-on"{% endif %}>입찰</a>
+      </nav>
+    </div>
     {% if (section|default('support')) == 'bid' %}
     <form class="hsearch" action="/bid/" method="get">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>

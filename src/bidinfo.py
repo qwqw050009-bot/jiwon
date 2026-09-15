@@ -541,36 +541,36 @@ def load_mock(now=None, path=None):
 def load(now=None):
     """
     빌드 진입점.
-      1) 키가 있으면 라이브. 실패 시 캐시, 캐시도 없으면 목업.
+      1) 키가 있으면 라이브. 실패 시 캐시.
       2) 키 없고 캐시가 있으면 캐시 (D-day만 다시 계산).
-      3) 둘 다 없으면 목업. CI·로컬이 죽지 않게.
+      3) GitHub Actions에서는 캐시도 없으면 빈 목록 — 목업을 배포하지 않는다.
+      4) 로컬에서만 캐시 없을 때 목업.
     """
     key = api_key()
+    gha = bool(os.environ.get("GITHUB_ACTIONS"))
+
+    def cache_or_empty_or_mock(reason):
+        cached = load_cache(now=now)
+        if cached:
+            print(f"입찰 캐시 {len(cached)}건")
+            return cached
+        if gha:
+            print(f"입찰: {reason}. GitHub Actions에서는 목업을 올리지 않고 빈 목록으로 둡니다.")
+            return []
+        rows = load_mock(now=now)
+        print(f"입찰 목업 {len(rows)}건")
+        return rows
+
     if key:
         try:
             rows = fetch_live(key, now=now)
             print(f"입찰 실데이터 {len(rows)}건 (나라장터)")
             return rows
         except Exception as e:
-            print(f"나라장터 API 호출 실패({e}). 캐시/목업으로 대체합니다.")
-            cached = load_cache(now=now)
-            if cached:
-                print(f"입찰 캐시 {len(cached)}건")
-                return cached
-            rows = load_mock(now=now)
-            print(f"입찰 목업 {len(rows)}건")
-            return rows
+            print(f"나라장터 API 호출 실패({e}). 캐시로 대체합니다.")
+            return cache_or_empty_or_mock("라이브 실패·캐시 없음")
     cached = load_cache(now=now)
-    if cached and os.environ.get("MAGAMPAN_USE_CACHE", "").strip():
-        print(f"입찰 캐시 모드 {len(cached)}건")
-        return cached
     if cached:
-        # 키가 없어도 직전 성공분이 있으면 그걸 쓴다 (GHA 시크릿 누락 시 가짜 공고를 올리지 않기 위함).
         print(f"입찰 캐시 {len(cached)}건 (NARA_API_KEY 없음)")
         return cached
-    if os.environ.get("GITHUB_ACTIONS") and not cached:
-        print("입찰: GitHub Actions에 NARA_API_KEY도 캐시도 없어 빈 목록으로 허브만 생성합니다.")
-        return []
-    rows = load_mock(now=now)
-    print(f"입찰 목업 {len(rows)}건 (NARA_API_KEY 없음)")
-    return rows
+    return cache_or_empty_or_mock("NARA_API_KEY 없음")
