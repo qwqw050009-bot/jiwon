@@ -11,8 +11,8 @@
   <p>{{ lede }}</p>
   {% if tally %}
   <div class="tally">
-    <span class="u"><b>{{ tally.today }}</b>오늘 마감</span>
-    <span class="u"><b>{{ tally.urgent }}</b>이번 주 마감</span>
+    {% if tally.today %}<span class="u"><b>{{ tally.today }}</b>오늘 마감</span>{% endif %}
+    <span {% if tally.urgent %}class="u"{% endif %}><b>{{ tally.urgent }}</b>이번 주 마감</span>
     <span><b>{{ tally.open }}</b>진행중</span>
   </div>
   {% endif %}
@@ -28,6 +28,8 @@
   <span>보조금·융자 공고는 홈에서 마감일 순으로 따로 봅니다 →</span>
 </a>
 {% endif %}
+
+{% if today %}<a class="today-bar" href="/bid/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
 <section class="bid-search">
   <label class="sr-only" for="bid-q">입찰 공고명·수요기관 검색</label>
@@ -55,7 +57,7 @@
     <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
     {% if s["items"] %}
       {% for a in s["items"] %}{{ row(a) }}{% endfor %}
-      {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
+      {% if s.href and s.total > (s["items"]|length) %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
     {% else %}
       <p class="note">{{ empty }}</p>
     {% endif %}

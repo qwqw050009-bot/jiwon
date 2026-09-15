@@ -4,7 +4,6 @@
   <div>
     <h3>{{ a.title }}</h3>
     <div class="meta"><i>{{ a.org }}</i><i>{{ a.kind }}</i>{% if a.region %}<i>{{ a.region }}</i>{% endif %}{% if a.budget_card %}<i class="amt">{{ a.budget_card }}</i>{% endif %}</div>
-    {% if a.blurb %}<p class="blurb">{{ a.blurb }}</p>{% endif %}
   </div>
 </a>
 {% endmacro %}

@@ -128,26 +128,28 @@ def build(env, write, site, urls, dist):
             intro=intro or "", faqs=faqs or [],
             faq_jsonld=intros.faq_jsonld(faqs or []),
             blocks=blocks or [], sections=sections or [],
-            beginner=beginner, empty=empty or empty_copy("입찰공고"),
+                beginner=beginner, empty=empty or empty_copy("입찰공고"),
             crumbs=crumbs, crumb_jsonld=_crumb_ld(crumbs, site),
             ad_top=ad_top, ad_mid_after=ad_mid_after, ad_bottom=ad_bottom,
-            bid_kinds=BID_KINDS,
+            bid_kinds=BID_KINDS, today=sum(1 for a in items if a.get("is_open") and a.get("dday") == 0)
+            if not sections else t_all.get("today", 0),
         )
         write(path, html)
 
     open_rows = [a for a in rows if a.get("is_open")]
     week = [a for a in open_rows if 0 <= a["dday"] <= 7]
     today_rows = [a for a in open_rows if a["dday"] == 0]
+    later = [a for a in open_rows if a["dday"] > 7]
     sections = []
-    if today_rows:
-        sections.append({"title": "오늘 마감", "items": today_rows[:5],
-                         "href": "/bid/urgent/", "total": len(today_rows)})
     if week:
-        sections.append({"title": "이번 주 마감", "items": week[:5],
+        sections.append({"title": "이번 주 마감", "items": week[:8],
                          "href": "/bid/urgent/", "total": len(week)})
-    sections.append({"title": "진행 중인 입찰", "items": open_rows[:5],
-                     "href": "/bid/urgent/" if week else "/bid/",
-                     "total": len(open_rows)})
+    if later:
+        sections.append({"title": "이후 마감", "items": later[:8],
+                         "href": "", "total": len(later)})
+    if not sections and open_rows:
+        sections.append({"title": "진행 중인 입찰", "items": open_rows[:8],
+                         "href": "/bid/urgent/", "total": len(open_rows)})
 
     faqs = hub_faqs(t_all)
     render_list(
