@@ -519,7 +519,14 @@ def test_start_guide_is_full_howto_and_cta():
         assert "/urgent/" in body or "/region/" in body or "/category/" in body
     for slug in ("sme-cert", "export-voucher", "rd-first", "hire-grant"):
         assert slug in rows, slug
-        assert "/category/" in rows[slug][2] or "/urgent/" in rows[slug][2]
+        body = rows[slug][2]
+        assert "/category/" in body or "/urgent/" in body
+        plain = re.sub(r"<[^>]+>", "", body)
+        plain = " ".join(plain.split())
+        assert len(plain) >= 1500, (slug, len(plain))
+    for slug in ("mgmt-stability", "policy-fund"):
+        plain = " ".join(re.sub(r"<[^>]+>", "", rows[slug][2]).split())
+        assert len(plain) >= 1200, (slug, len(plain))
     assert intros.BEGINNER_CTA["href"] == "/guide/start/"
     assert "자격" in intros.BEGINNER_CTA["sub"]
     with open(os.path.join(os.path.dirname(__file__), "..", "templates", "list.html"),
