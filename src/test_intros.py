@@ -143,7 +143,7 @@ def test_blurb_skips_generic_fallback():
     b = intros.blurb_of(_item())
     assert "초기창업" in b
     assert "두 번째" not in b
-    assert len(b) <= 90
+    assert len(b) <= 200
     generic = _item(ai={"summary":
         "서울경제진흥원이 서울 지역 중소기업을 대상으로 진행하는 창업 분야 지원사업입니다."})
     g = intros.blurb_of(generic)
@@ -151,7 +151,7 @@ def test_blurb_skips_generic_fallback():
     assert "이(가)" not in g and "을(를)" not in g
     assert "대상으로 진행하는" not in g
     assert "서울경제진흥원" in g
-    assert " · " in g
+    assert len(g) <= 200
     generic_amt = _item(org="고용노동부", ai={"summary":
         "고용노동부가 서울 지역 소상공인을 대상으로 진행하는 창업 분야 지원사업입니다. 지원규모는 최대 1억원 수준입니다."})
     g2 = intros.blurb_of(generic_amt)
@@ -249,6 +249,50 @@ def test_home_and_category_search_copy():
     assert desc.startswith("금융 분야 정부지원사업을 마감일 순으로")
     assert "회원가입 없이" in desc
     assert "지역별로" in desc
+
+
+def test_blurb_is_richer_and_lists_have_faq():
+    rich = _item(
+        title="소상공인 특례보증 지원사업",
+        org="안산시", target="소상공인", category="금융",
+        dday=3, apply_end="2026-09-17",
+        points=["기업당 최대 2,000만원 이내 특례보증"],
+        amount="", ai={},
+    )
+    b = intros.blurb_of(rich)
+    assert 80 <= len(b) <= 200, (len(b), b)
+    assert "소상공인" in b
+    assert "다만" in b
+    assert "이(가)" not in b and "을(를)" not in b
+    assert "2,000" in b or "2000" in b or "만원" in b
+    with_ov = _item(
+        title="소상공인 특례보증 지원사업",
+        org="안산시", target="소상공인", category="금융",
+        dday=3, apply_end="2026-09-17",
+        points=["기업당 최대 2,000만원 이내 특례보증"],
+        overview="특례보증으로 운전자금을 마련하려는 소상공인을 대상으로 보증 한도를 지원합니다.",
+        amount="", ai={},
+    )
+    b3 = intros.blurb_of(with_ov)
+    assert 120 <= len(b3) <= 200, (len(b3), b3)
+    assert "특례보증" in b3 and "소상공인" in b3
+    assert "이(가)" not in b3
+    faqs_r = intros.region_page_faqs("경기", [rich, _item(region="경기")])
+    assert 3 <= len(faqs_r) <= 5
+    assert "경기" in faqs_r[0]["a"] or "2건" in faqs_r[0]["a"]
+    ld = intros.faq_jsonld(faqs_r)
+    for f in faqs_r:
+        assert f["q"] in ld and f["a"] in ld
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    faqs_c = intros.category_page_faqs("금융", cats["금융"], [rich])
+    assert 3 <= len(faqs_c) <= 5
+    assert "금융" in faqs_c[0]["a"]
+    hub = intros.hub_faqs("region", 40, 17)
+    assert "사업장" in hub[0]["a"] and "17" in hub[0]["a"]
+    guides = intros.list_guides(category="금융")
+    assert len(guides) == 3
+    assert any("policy-fund" in g["href"] for g in guides)
+    assert any(g["href"] == "/guide/start/" for g in guides)
 
 
 def _strip_tokens(text, *tokens):
@@ -396,6 +440,102 @@ def test_guide_tags_cover_all_slugs():
         assert cls.startswith("tag-")
 
 
+def test_same_counts_different_shapes_diverge():
+    """건수가 같아도 제목·대상·기관 모양이 다르면 패턴과 문장이 갈린다."""
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    loan_items = [
+        _item(title="소상공인 특례보증 지원", org="안산시", target="소상공인",
+              dday=3, apply_end="2026-09-07"),
+        _item(title="정책자금 융자 안내", org="수원시", target="소상공인",
+              dday=5, apply_end="2026-09-09"),
+        _item(title="이차보전 지원", org="화성시", target="소상공인",
+              dday=20, apply_end="2026-09-24"),
+    ]
+    voucher_items = [
+        _item(title="수출바우처 지원", org="중소벤처기업부", target="중소기업",
+              dday=3, apply_end="2026-09-07"),
+        _item(title="마케팅 바우처 선착순", org="창업진흥원", target="중소기업",
+              dday=5, apply_end="2026-09-09"),
+        _item(title="컨설팅 바우처", org="중소벤처기업진흥공단", target="중소기업",
+              dday=20, apply_end="2026-09-24"),
+    ]
+    p_loan = intros.pattern_of(intros._item_facts(loan_items))
+    p_voucher = intros.pattern_of(intros._item_facts(voucher_items))
+    assert p_loan != p_voucher, (p_loan, p_voucher)
+    assert p_loan.split("|")[1:] == ["loan", "sme", "district"], p_loan
+    assert p_voucher.split("|")[1] == "voucher" and p_voucher.split("|")[2] == "corp", p_voucher
+    blob_loan = "\n".join(intros.build("경기", "금융", cats["금융"], loan_items)[0])
+    blob_voucher = "\n".join(intros.build("경기", "금융", cats["금융"], voucher_items)[0])
+    assert "갚" in blob_loan or "융자" in blob_loan
+    assert "바우처" in blob_voucher
+    share = _token_jaccard(
+        _strip_tokens(blob_loan, "경기", "금융"),
+        _strip_tokens(blob_voucher, "경기", "금융"),
+    )
+    assert share < 0.62, share
+    dparas = intros.district_page_intro("경기", "안산시", loan_items)
+    assert any("융자" in p or "갚" in p for p in dparas)
+
+
+def test_intros_have_no_broken_josa():
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    items = [
+        _item(title="기타 공고 오늘", org="경상북도", category="기타",
+              dday=0, apply_end="2026-09-04", target="소상공인"),
+        _item(title="기타 상시", org="안동시", category="기타",
+              period_type="always", period_raw="예산 소진시까지",
+              dday=9999, target="중소기업"),
+    ]
+    for r in config.REGIONS:
+        for c in config.CATEGORIES:
+            paras, faqs = intros.build(r["name"], c["name"], cats[c["name"]], [
+                {**a, "category": c["name"], "region": r["name"]} for a in items
+            ])
+            blob = "\n".join(paras) + "\n".join(f["q"] + f["a"] for f in faqs)
+            assert "법를" not in blob, (r["name"], c["name"])
+            assert "이(가)" not in blob and "을(를)" not in blob
+
+
+def test_start_guide_is_full_howto_and_cta():
+    import guides
+    rows = {slug: (h1, desc, content) for slug, h1, desc, content in guides.build()}
+    assert "start" in rows
+    content = rows["start"][2]
+    assert "체납" in content or "서류" in content
+    assert "사업장" in content
+    assert "바우처" in content or "융자" in content
+    assert "/urgent/" in content
+    assert "/region/" in content
+    assert "/guide/grant-vs-loan/" in content
+    assert "1단계 —" in content and "9단계 —" in content
+    assert len(content) > 6000
+    for slug in (
+        "policy-fund", "reject-reasons", "grant-settlement",
+        "tax-insurance-check", "mgmt-stability", "calendar-howto",
+    ):
+        assert slug in rows, slug
+        assert slug in guides.TAGS
+        body = rows[slug][2]
+        assert "/urgent/" in body or "/region/" in body or "/category/" in body
+    for slug in ("sme-cert", "export-voucher", "rd-first", "hire-grant"):
+        assert slug in rows, slug
+        body = rows[slug][2]
+        assert "/category/" in body or "/urgent/" in body
+        plain = re.sub(r"<[^>]+>", "", body)
+        plain = " ".join(plain.split())
+        assert len(plain) >= 1500, (slug, len(plain))
+    for slug in ("mgmt-stability", "policy-fund"):
+        plain = " ".join(re.sub(r"<[^>]+>", "", rows[slug][2]).split())
+        assert len(plain) >= 1200, (slug, len(plain))
+    assert intros.BEGINNER_CTA["href"] == "/guide/start/"
+    assert "자격" in intros.BEGINNER_CTA["sub"]
+    with open(os.path.join(os.path.dirname(__file__), "..", "templates", "list.html"),
+              encoding="utf-8") as f:
+        html = f.read()
+    assert 'href="/guide/start/"' in html
+    assert "자격·용어·찾는 순서·서류까지 한 번에" in html
+
+
 def test_deadline_guide_exists_and_links_lists():
     import guides
     rows = {slug: (h1, desc, content) for slug, h1, desc, content in guides.build()}
@@ -430,10 +570,14 @@ if __name__ == "__main__":
     test_hub_and_page_intros()
     test_district_intros_from_visible_facts()
     test_home_and_category_search_copy()
+    test_blurb_is_richer_and_lists_have_faq()
     test_etc_combo_guide_josa()
     test_deadline_para_varies_and_skips_always_cta_when_zero()
     test_combos_differ_beyond_region_category_tokens()
     test_intro_has_no_repeated_sentences()
     test_guide_tags_cover_all_slugs()
+    test_same_counts_different_shapes_diverge()
+    test_intros_have_no_broken_josa()
+    test_start_guide_is_full_howto_and_cta()
     test_deadline_guide_exists_and_links_lists()
     print("intros tests ok")
