@@ -1,0 +1,206 @@
+[
+  {
+    "kind": "물품",
+    "close_days": 0,
+    "close_hour": 23,
+    "item": {
+      "bidNtceNo": "20260915001",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "사무용 가구 및 집기 구매 입찰공고",
+      "dminsttNm": "서울특별시 중구청",
+      "ntceInsttNm": "서울특별시 중구청",
+      "presmptPrce": "85000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "일반경쟁",
+      "prtcptLmtRgnNm": "서울특별시"
+    }
+  },
+  {
+    "kind": "물품",
+    "close_days": 3,
+    "close_hour": 11,
+    "item": {
+      "bidNtceNo": "20260915002",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "컴퓨터 및 주변기기 구매",
+      "dminsttNm": "부산광역시교육청",
+      "ntceInsttNm": "부산광역시교육청",
+      "presmptPrce": "120000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "제한경쟁",
+      "prtcptLmtRgnNm": "부산광역시"
+    }
+  },
+  {
+    "kind": "물품",
+    "close_days": 12,
+    "close_hour": 18,
+    "item": {
+      "bidNtceNo": "20260915003",
+      "bidNtceOrd": "001",
+      "bidNtceNm": "복사용지 연간 단가계약 (재공고)",
+      "dminsttNm": "경기도청",
+      "ntceInsttNm": "경기도청",
+      "presmptPrce": "",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "일반경쟁",
+      "prtcptLmtRgnNm": "경기도"
+    }
+  },
+  {
+    "kind": "용역",
+    "close_days": 1,
+    "close_hour": 15,
+    "item": {
+      "bidNtceNo": "20260915011",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "정보시스템 유지관리 용역",
+      "dminsttNm": "인천광역시",
+      "ntceInsttNm": "인천광역시",
+      "presmptPrce": "240000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "협상에 의한 계약",
+      "prtcptLmtRgnNm": "인천광역시"
+    }
+  },
+  {
+    "kind": "용역",
+    "close_days": 5,
+    "close_hour": 18,
+    "item": {
+      "bidNtceNo": "20260915012",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "홈페이지 구축 및 운영 용역",
+      "dminsttNm": "대전광역시 서구",
+      "ntceInsttNm": "대전광역시 서구",
+      "presmptPrce": "67000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "일반경쟁",
+      "prtcptLmtRgnNm": "대전광역시"
+    }
+  },
+  {
+    "kind": "용역",
+    "close_days": 8,
+    "close_hour": 14,
+    "item": {
+      "bidNtceNo": "20260915013",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "정책 연구용역",
+      "dminsttNm": "조달청",
+      "ntceInsttNm": "조달청",
+      "presmptPrce": "45000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "일반경쟁",
+      "prtcptLmtRgnNm": ""
+    }
+  },
+  {
+    "kind": "용역",
+    "close_days": -1,
+    "close_hour": 18,
+    "item": {
+      "bidNtceNo": "20260915014",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "시설 경비 용역",
+      "dminsttNm": "광주광역시",
+      "ntceInsttNm": "광주광역시",
+      "presmptPrce": "180000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "제한경쟁",
+      "prtcptLmtRgnNm": "광주광역시"
+    }
+  },
+  {
+    "kind": "공사",
+    "close_days": 2,
+    "close_hour": 10,
+    "item": {
+      "bidNtceNo": "20260915021",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "청사 옥상 방수 공사",
+      "dminsttNm": "전라남도 여수시",
+      "ntceInsttNm": "전라남도 여수시",
+      "presmptPrce": "320000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "일반경쟁",
+      "prtcptLmtRgnNm": "전라남도"
+    }
+  },
+  {
+    "kind": "공사",
+    "close_days": 6,
+    "close_hour": 17,
+    "item": {
+      "bidNtceNo": "20260915022",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "도로 포장 정비 공사",
+      "dminsttNm": "강원특별자치도 춘천시",
+      "ntceInsttNm": "강원특별자치도 춘천시",
+      "presmptPrce": "1500000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "적격심사",
+      "prtcptLmtRgnNm": "강원특별자치도"
+    }
+  },
+  {
+    "kind": "공사",
+    "close_days": 20,
+    "close_hour": 11,
+    "item": {
+      "bidNtceNo": "20260915023",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "하수관로 보수 공사",
+      "dminsttNm": "제주특별자치도",
+      "ntceInsttNm": "제주특별자치도",
+      "presmptPrce": "890000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "일반경쟁",
+      "prtcptLmtRgnNm": "제주특별자치도"
+    }
+  },
+  {
+    "kind": "외자",
+    "close_days": 4,
+    "close_hour": 16,
+    "item": {
+      "bidNtceNo": "20260915031",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "실험 분석 장비 외자 구매",
+      "dminsttNm": "국립과학수사연구원",
+      "ntceInsttNm": "조달청",
+      "presmptPrce": "2100000000",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "일반경쟁",
+      "prtcptLmtRgnNm": "전국"
+    }
+  },
+  {
+    "kind": "외자",
+    "close_days": 9,
+    "close_hour": 18,
+    "item": {
+      "bidNtceNo": "20260915032",
+      "bidNtceOrd": "000",
+      "bidNtceNm": "의료 영상 장비 도입",
+      "dminsttNm": "서울대학교병원",
+      "ntceInsttNm": "조달청",
+      "presmptPrce": "",
+      "bidNtceDtlUrl": "https://www.g2b.go.kr/",
+      "bidMethdNm": "전자입찰",
+      "cntrctCnclsMthdNm": "협상에 의한 계약",
+      "prtcptLmtRgnNm": "서울특별시,경기도"
+    }
+  }
+]

@@ -17,7 +17,7 @@
 <meta property="og:image" content="{{ site.domain }}/static/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="{{ site.name }} — {{ site.tagline }}">
+<meta property="og:image:alt" content="{{ site.name }} — {% if (section|default('support')) == 'bid' %}나라장터 입찰, 마감일시 순{% else %}{{ site.tagline }}{% endif %}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="{{ site.domain }}/static/og.png">
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
@@ -26,17 +26,40 @@
 {% if crumb_jsonld %}<script type="application/ld+json">{{ crumb_jsonld|safe }}</script>{% endif %}
 {% block jsonld %}{% endblock %}
 </head>
-<body data-page="{{ page|default('') }}">
+<body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}">
 <header class="top">
   <div class="wrap top-row">
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
+    <nav class="mode-switch" aria-label="서비스 구분">
+      <a href="/"{% if (section|default('support')) != 'bid' %} class="is-on"{% endif %}>지원</a>
+      <a href="/bid/"{% if (section|default('support')) == 'bid' %} class="is-on"{% endif %}>입찰</a>
+    </nav>
+    {% if (section|default('support')) == 'bid' %}
+    <form class="hsearch" action="/bid/" method="get">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input type="search" name="q" placeholder="공고명·수요기관으로 검색">
+    </form>
+    <a class="hstart" href="/">지원사업 보기</a>
+    {% else %}
     <form class="hsearch" action="/all/" method="get">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
       <input type="search" name="q" placeholder="공고명·기관으로 검색">
     </form>
     <a class="hstart" href="/guide/start/">지원사업 처음이세요?</a>
+    {% endif %}
   </div>
   <nav class="wrap navbar">
+    {% if (section|default('support')) == 'bid' %}
+    <a href="/bid/urgent/" class="{{ 'active' if path.startswith('/bid/urgent/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>마감임박</a>
+    {% for k in bid_kinds|default([]) %}
+    <a href="/bid/kind/{{ k.slug }}/" class="{{ 'active' if path.startswith('/bid/kind/' + k.slug + '/') }}">{{ k.name }}</a>
+    {% endfor %}
+    {% if bid_has_regions %}
+    <a href="/bid/region/" class="{{ 'active' if path.startswith('/bid/region/') }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>지역</a>
+    {% endif %}
+    {% else %}
     <a href="/urgent/" class="{{ 'active' if path.startswith('/urgent/') }}">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>마감임박</a>
     <a href="/category/" class="{{ 'active' if path.startswith('/category/') }}">
@@ -49,6 +72,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H12v17H6.5A2.5 2.5 0 0 0 4 22.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H12v17h5.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>가이드</a>
     <a href="/scrap/" class="nav-scrap {{ 'active' if path.startswith('/scrap/') }}">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.9 6.2.9-4.5 4.5 1.1 6.2L12 17.5 6.4 20.5l1.1-6.2-4.5-4.5 6.2-.9z"/></svg>스크랩<b id="scrap-count" hidden></b></a>
+    {% endif %}
   </nav>
 </header>
 
@@ -69,14 +93,18 @@
 
 <footer><div class="wrap">
   <nav>
+    <a href="/">지원사업</a>
+    <a href="/bid/">입찰공고</a>
     <a href="/about/">사이트 소개</a>
     <a href="/privacy/">개인정보처리방침</a>
     <a href="/terms/">이용약관</a>
     <a href="/contact/">문의</a>
   </nav>
-  <p>공고 정보는 각 기관이 발표한 자료를 정리한 것입니다. 신청 전 반드시 원문 공고를 확인하세요.<br>
+  <p>지원사업은 기업마당, 입찰공고는 나라장터 자료를 정리한 것입니다. 신청·투찰 전 반드시 원문 공고를 확인하세요.<br>
   © {{ site.name }}</p>
 </div></footer>
+{% if (section|default('support')) != 'bid' %}
 <script src="/static/scrap.js?v={{ asset_v }}" defer></script>
+{% endif %}
 </body>
 </html>

@@ -58,3 +58,31 @@ REGIONS = [
 
 # 롱테일 페이지: 지역(18) x 분야(8) = 144개 조합 페이지 자동 생성
 # + 공고 상세페이지 N개 + 허브 26개
+
+# ── 입찰(나라장터) 전용. 지원 목록·지역·분야 페이지에 섞지 않는다. ──
+# 업무구분 4종. API 오퍼레이션은 종류마다 다르다 (한 오퍼레이션으로 전체를 받으면 안 됨).
+BID_KINDS = [
+    {"slug": "goods", "name": "물품", "api": "thng",
+     "op": "getBidPblancListInfoThng", "desc": "물품 구매 입찰공고"},
+    {"slug": "service", "name": "용역", "api": "servc",
+     "op": "getBidPblancListInfoServc", "desc": "용역 입찰공고"},
+    {"slug": "construction", "name": "공사", "api": "cnstwk",
+     "op": "getBidPblancListInfoCnstwk", "desc": "공사 입찰공고"},
+    {"slug": "foreign", "name": "외자", "api": "frgcpt",
+     "op": "getBidPblancListInfoFrgcpt", "desc": "외자 입찰공고"},
+]
+
+# 나라장터 참가제한·참가가능 지역 필드와 1:1 정확 일치만 인정한다.
+# 제목에서 정규식으로 추측하지 않는다. 광주·전남은 나라장터에서 따로 오므로
+# 지원사업 쪽 전남광주 통합 단위와 합치지 않는다.
+BID_REGIONS = [
+    {"slug": "seoul", "name": "서울"}, {"slug": "busan", "name": "부산"},
+    {"slug": "daegu", "name": "대구"}, {"slug": "incheon", "name": "인천"},
+    {"slug": "gwangju", "name": "광주"}, {"slug": "daejeon", "name": "대전"},
+    {"slug": "ulsan", "name": "울산"}, {"slug": "sejong", "name": "세종"},
+    {"slug": "gyeonggi", "name": "경기"}, {"slug": "gangwon", "name": "강원"},
+    {"slug": "chungbuk", "name": "충북"}, {"slug": "chungnam", "name": "충남"},
+    {"slug": "jeonbuk", "name": "전북"}, {"slug": "jeonnam", "name": "전남"},
+    {"slug": "gyeongbuk", "name": "경북"}, {"slug": "gyeongnam", "name": "경남"},
+    {"slug": "jeju", "name": "제주"}, {"slug": "nationwide", "name": "전국"},
+]

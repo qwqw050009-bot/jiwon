@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "_bid_row.html" import row %}
+{% from "_ad.html" import ad_slot with context %}
+{% block jsonld %}
+{% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
+{% endblock %}
+{% block body %}
+<div class="head{% if path == '/bid/' %} head-home{% endif %}">
+  {% if path == '/bid/' %}<p class="kicker">나라장터 · 마감일시 순 · 물품·용역·공사·외자</p>{% endif %}
+  <h1>{{ h1 }}</h1>
+  <p>{{ lede }}</p>
+  {% if tally %}
+  <div class="tally">
+    <span class="u"><b>{{ tally.today }}</b>오늘 마감</span>
+    <span class="u"><b>{{ tally.urgent }}</b>이번 주 마감</span>
+    <span><b>{{ tally.open }}</b>진행중</span>
+  </div>
+  {% endif %}
+</div>
+
+{% if intro %}
+<div class="prose intro">{{ intro|safe }}</div>
+{% endif %}
+
+{% if beginner %}
+<a class="beginner-cta" href="/">
+  <b>지원사업을 찾으시나요?</b>
+  <span>보조금·융자 공고는 홈에서 마감일 순으로 따로 봅니다 →</span>
+</a>
+{% endif %}
+
+<section class="bid-search">
+  <label class="sr-only" for="bid-q">입찰 공고명·수요기관 검색</label>
+  <input type="search" id="bid-q" placeholder="공고명·수요기관으로 검색" autocomplete="off">
+</section>
+
+{% for b in blocks %}
+<section class="nav-block nav-block-top">
+  <h2>{{ b.title }}</h2>
+  <div class="chips">
+    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+{% if items or sections %}
+<p class="dlegend">왼쪽 숫자는 마감일시 기준입니다. <b>오늘</b>·<b>D-n</b>이 먼저 닫힙니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다.</p>
+{% endif %}
+
+{% if ad_top %}{{ ad_slot('list_top') }}{% endif %}
+
+<div class="board" id="bid-board" data-page-size="20">
+  {% if sections %}
+    {% for s in sections %}
+    <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
+    {% if s["items"] %}
+      {% for a in s["items"] %}{{ row(a) }}{% endfor %}
+      {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
+    {% else %}
+      <p class="note">{{ empty }}</p>
+    {% endif %}
+    {% endfor %}
+  {% else %}
+    {% for a in items %}
+    {{ row(a) }}
+    {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
+    {% else %}
+    <p class="note">{{ empty }}</p>
+    {% endfor %}
+  {% endif %}
+</div>
+
+{% if faqs %}
+<section class="faq" id="faq">
+  <h2>자주 묻는 질문</h2>
+  <dl>
+    {% for f in faqs %}
+    <dt>{{ f.q }}</dt>
+    <dd>{{ f.a }}</dd>
+    {% endfor %}
+  </dl>
+</section>
+{% endif %}
+
+{% if ad_bottom %}{{ ad_slot('list_bottom') }}{% endif %}
+
+<script src="/static/bid_filter.js?v={{ asset_v }}" defer></script>
+{% endblock %}

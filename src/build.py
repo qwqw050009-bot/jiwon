@@ -14,6 +14,10 @@ python3 src/build.py  → dist/ 에 전체 사이트 생성.
   /region/{지역}/{시군구}/  시군구 허브 (해시태그 정확 일치, 3건 이상)
   /region/{지역}/{시군구}/{분야}/  시군구×분야 (3건 이상만)
   /notice/{id}/         공고 상세
+  /bid/                 나라장터 입찰 허브 (지원 목록과 분리)
+  /bid/urgent/          이번 주 마감 입찰
+  /bid/kind/{종류}/      물품·용역·공사·외자
+  /bid/notice/{id}/     입찰 상세
   /about /privacy /terms /contact   (애드센스 필수 페이지)
   sitemap.xml, robots.txt
 """
@@ -41,6 +45,7 @@ import pages as static_pages
 import guides
 import intros
 import districts as distmod
+import bid_build
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -60,7 +65,7 @@ def _static_version():
     URL도 바뀌게 해 캐시를 자연스럽게 무효화한다.
     """
     h = hashlib.md5()
-    for name in ("style.css", "filter.js", "scrap.js"):
+    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js"):
         p = os.path.join(ROOT, "static", name)
         if os.path.exists(p):
             with open(p, "rb") as f:
@@ -69,6 +74,8 @@ def _static_version():
 
 
 env.globals["asset_v"] = _static_version()
+env.globals["bid_kinds"] = config.BID_KINDS
+env.globals["bid_has_regions"] = False
 
 URLS = []
 
@@ -318,7 +325,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
     crumbs = crumbs or []
     html = env.get_template("list.html").render(
-        site=SITE, path=path, title=title or f"{h1} | {SITE['name']}",
+        site=SITE, path=path, section="support",
+        title=title or f"{h1} | {SITE['name']}",
         desc=desc or lede, h1=h1, lede=lede, items=items,
         tally=tally(tally_items if tally_items is not None else items),
         blocks=blocks or [], intro=intro, intro_paras=intro_paras or [],
@@ -449,7 +457,8 @@ def main():
 
     # 스크랩 페이지 (색인 제외)
     write("/scrap/", env.get_template("scrap.html").render(
-        site=SITE, path="/scrap/", page="scrap", title=f"스크랩한 공고 | {SITE['name']}",
+        site=SITE, path="/scrap/", page="scrap", section="support",
+        title=f"스크랩한 공고 | {SITE['name']}",
         desc="스크랩한 지원사업 공고를 마감일 순으로 모아봅니다."))
     URLS.pop()   # sitemap에서 제외 (개인화 페이지)
 
@@ -678,7 +687,7 @@ def main():
                            "url": f"/region/{rslug}/{cslug}/"})
         crumbs.append({"name": a.get("title") or "공고", "url": npath})
         html = env.get_template("detail.html").render(
-            site=SITE, path=npath, page="detail",
+            site=SITE, path=npath, page="detail", section="support",
             title=f"{a['title']} {title_suffix} | {SITE['name']}",
             desc=a["ai"]["summary"][:150], a=a, related=rel,
             jsonld=ld, faq_jsonld=faq_jsonld(a),
@@ -721,7 +730,8 @@ def main():
 <p class="note">캘린더에는 접수 중인 공고의 마감일만 담깁니다.
 지원 조건은 변경될 수 있으니 신청 전 원문 공고를 확인하세요.</p>"""
     write("/calendar/", env.get_template("page.html").render(
-        site=SITE, path="/calendar/", title=f"마감일 캘린더 구독 | {SITE['name']}",
+        site=SITE, path="/calendar/", section="support",
+        title=f"마감일 캘린더 구독 | {SITE['name']}",
         desc="관심 지역·분야 지원사업 마감일을 내 캘린더에 자동으로 받아보세요.",
         h1="마감일을 내 캘린더로", content=cal_html))
 
@@ -735,7 +745,8 @@ def main():
 
     guide_links = "".join(_guide_card(slug, h1, desc) for slug, h1, desc, _ in guide_list)
     write("/guide/", env.get_template("page.html").render(
-        site=SITE, path="/guide/", title=f"정부지원사업 가이드 | {SITE['name']}",
+        site=SITE, path="/guide/", section="support",
+        title=f"정부지원사업 가이드 | {SITE['name']}",
         desc="정부지원사업 신청 자격, 서류, 바우처·선정사업 차이 등 기본기를 정리했습니다.",
         h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'))
     for slug, h1, desc, content in guide_list:
@@ -746,7 +757,8 @@ def main():
             "hire-grant",
         ) else None
         write(f"/guide/{slug}/", env.get_template("page.html").render(
-            site=SITE, path=f"/guide/{slug}/", title=f"{h1} | {SITE['name']}",
+            site=SITE, path=f"/guide/{slug}/", section="support",
+            title=f"{h1} | {SITE['name']}",
             desc=desc, h1=h1, content=content, jsonld=jsonld))
 
     # 고정 페이지 (애드센스 심사 필수)
@@ -757,7 +769,8 @@ def main():
     }
     for slug, h1, content in static_pages.build(SITE, site_stats):
         html = env.get_template("page.html").render(
-            site=SITE, path=f"/{slug}/", title=f"{h1} | {SITE['name']}",
+            site=SITE, path=f"/{slug}/", section="support",
+            title=f"{h1} | {SITE['name']}",
             desc=h1, h1=h1, content=content,
         )
         write(f"/{slug}/", html)
@@ -830,6 +843,11 @@ def main():
     with open(os.path.join(DIST, "notices.json"), "w", encoding="utf-8") as f:
         json.dump(feed, f, ensure_ascii=False, separators=(",", ":"))
 
+    # 입찰 트리. 지원 목록·지역·분야 페이지와 데이터·URL을 섞지 않는다.
+    support_n = len(URLS)
+    bid_build.build(env, write, SITE, URLS, DIST)
+    bid_n = len(URLS) - support_n
+
     # 404 페이지. Cloudflare Pages는 dist/404.html이 있으면 존재하지 않는
     # URL에 이 파일을 진짜 404 상태코드로 돌려준다 — 없으면(지금까지 없었음)
     # 홈페이지를 200으로 대신 돌려주는 소프트 404가 나서 SEO에 안 좋았다.
@@ -839,13 +857,18 @@ def main():
         desc="요청하신 페이지를 찾을 수 없습니다.", noindex=True,
     )
     open(os.path.join(DIST, "404.html"), "w", encoding="utf-8").write(html_404)
+    # 중첩 경로(/region/sejong/manpower/ 등)에서 상위 index.html 을 200으로
+    # 주던 소프트 404를 막는다. 실제 파일은 이 규칙보다 우선한다.
+    open(os.path.join(DIST, "_redirects"), "w", encoding="utf-8").write(
+        "/*    /404.html  404\n"
+    )
 
     # sitemap / robots
     today = date.today().isoformat()
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for u in URLS:
-        pr = "1.0" if u == "/" else ("0.8" if u.count("/") <= 3 else "0.6")
+        pr = "1.0" if u in ("/", "/bid/") else ("0.8" if u.count("/") <= 3 else "0.6")
         sm.append(f"<url><loc>{SITE['domain']}{u}</loc><lastmod>{today}</lastmod>"
                   f"<changefreq>daily</changefreq><priority>{pr}</priority></url>")
     sm.append("</urlset>")
@@ -894,7 +917,8 @@ def main():
         except Exception as e:
             print(f"IndexNow 제출 실패(무시하고 진행): {e}")
 
-    print(f"공고 {len(rows)}건(신규 {new_cnt}건) → 페이지 {len(URLS)}개, "
+    print(f"지원 {len(rows)}건(신규 {new_cnt}건) → {support_n}페이지, "
+          f"입찰 +{bid_n}페이지, 합계 {len(URLS)}페이지, "
           f"캘린더 {len(os.listdir(os.path.join(DIST,'calendar')))}개 생성 완료 (dist/)")
 
 

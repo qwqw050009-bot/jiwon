@@ -1,20 +1,26 @@
 # 지원사업 마감판
 
 정부·지자체 지원사업 공고를 마감일 순으로 보여주는 정적 사이트.
+나라장터 입찰공고는 `/bid/` 트리에서 따로 본다. 지원 목록에 섞지 않는다.
 
 ## 구조
 - 데이터: 기업마당 오픈API (`src/bizinfo.py`)
+- 입찰: 나라장터 입찰공고정보서비스 (`src/bidinfo.py`) → `/bid/`
 - 빌드: Python + Jinja2 → `dist/` 정적 생성 (`src/build.py`)
 - 배포: GitHub Actions → Cloudflare Pages (매일 06:00 KST + push 시)
 - 사이트: https://magampan.com (도메인 연결 완료, 2026-09-04)
   구 배포 URL: https://jiwon-5i5.pages.dev (계속 살아있음, 커스텀 도메인의 별칭)
 
 ## 파일 역할
-- `src/config.py` — 사이트 설정, 분야 8종, 지역 17종
+- `src/config.py` — 사이트 설정, 분야 8종, 지역 17종, 입찰 종류 4종
 - `src/bizinfo.py` — 기업마당 API 어댑터. 응답을 내부 스키마로 정규화
 - `src/kstartup.py` — K-Startup(창업진흥원) API 어댑터. 창업 분야 데이터
   깊이 보강용 선택적 소스. `KSTARTUP_KEY` 없으면 완전히 건너뛰고
   기업마당만으로 기존과 동일하게 빌드된다
+- `src/bidinfo.py` — 나라장터 입찰 어댑터. `NARA_API_KEY`(또는
+  `DATA_GO_KR_SERVICE_KEY`, Decoding 키)가 없으면 캐시→목업.
+  지원 피드와 합치지 않는다
+- `src/bid_build.py` — `/bid/` 정적 페이지 생성
 - `src/sources.py` — 데이터 로더. D-day 계산, 정렬, 보강 소스 병합(`merge_extra`)
 - `src/enrich.py` — 공고별 해설 생성. 캐시 필수
 - `src/build.py` — 전체 페이지 생성, sitemap, robots
@@ -25,7 +31,8 @@
   검색 유입용 글. 새 가이드 추가 시 `build.py`의 `GUIDE_TAGS`에도
   태그 등록할 것
 - `templates/` — Jinja2 템플릿
-- `static/filter.js` — 지역·분야 클라이언트 필터
+- `static/filter.js` — 지역·분야 클라이언트 필터 (지원)
+- `static/bid_filter.js` — 입찰 목록 검색. notices.json을 읽지 않는다
 - `static/scrap.js` — 로그인 없는 스크랩 (localStorage)
 
 ## 반드시 지킬 것
@@ -64,7 +71,8 @@ JS가 꺼져도 서버 렌더 목록이 보여야 한다.
 같은 이유로 이유 없이 지우지 마라 — 지우면 서치콘솔 연결이 끊긴다.
 
 **7. 인증키를 코드에 쓰지 마라**
-`BIZINFO_KEY`, `KSTARTUP_KEY`, `ANTHROPIC_API_KEY`는 환경변수로만 읽는다.
+`BIZINFO_KEY`, `KSTARTUP_KEY`, `ANTHROPIC_API_KEY`, `NARA_API_KEY`,
+`DATA_GO_KR_SERVICE_KEY`는 환경변수로만 읽는다.
 
 **8. 보강 데이터소스는 항상 선택적으로(optional) 연결하라**
 K-Startup처럼 나중에 추가하는 소스는 해당 API 키 환경변수가 없으면
@@ -73,16 +81,21 @@ K-Startup처럼 나중에 추가하는 소스는 해당 API 키 환경변수가 
 같은 이유로 보강 소스가 실패해도(네트워크 오류 등) 빈 리스트로 대체하고
 전체 빌드를 죽이지 않는다.
 
+**9. 입찰과 지원을 한 목록에 섞지 마라**
+나라장터 입찰은 `/bid/` 트리에만 둔다. 지원 홈·urgent·지역·분야·notice
+페이지에 입찰 카드를 넣지 마라. 입찰 페이지에는 지원사업 공고를 넣지 마라.
+입찰 카피에 지원금·바우처를 쓰지 마라. 입찰 지역은 나라장터 참가제한/
+참가가능 지역 필드의 허용 목록 정확 일치만 — 제목 정규식 추측 금지.
+광주·전남은 나라장터에서 분리되어 있으면 그대로 두고, 지원사업의
+전남광주 통합 단위와 합치지 마라.
+
 ## 알려진 미해결 버그 (2026-09-04 기준)
 
 **1. 지역×분야 조합 페이지의 소프트 404**
 `/region/{지역}/{분야}/`처럼 실제로 생성 안 된 조합 URL에 접속하면
 Cloudflare Pages가 진짜 404 대신 홈페이지 내용을 그대로 200으로
-돌려준다. 예: `/region/sejong/manpower/` → 홈 화면 그대로 노출.
-sitemap에는 실제 생성된 페이지만 들어가 있어 직접적 피해는 적지만,
-외부에서 아무 URL이나 접근·크롤링하면 대량의 중복 콘텐츠 URL이
-열려있는 셈이라 SEO에 안 좋다. Cloudflare Pages의 404 처리(커스텀
-404.html 또는 `_redirects` 설정)를 점검해야 한다.
+돌려줄 수 있다. `dist/404.html`과 `dist/_redirects`의 `/* /404.html 404`
+로 막는 중. 배포 후 실제 404 상태코드는 한 번 더 확인할 것.
 
 **2. `enrich.py` 규칙기반 fallback의 조사(조사 이/가, 을/를) 오류**
 LLM 호출 없이 `_fallback()`이 쓰일 때(`ANTHROPIC_API_KEY` 없거나
