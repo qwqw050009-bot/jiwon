@@ -348,6 +348,11 @@ def test_region_and_combo_openings_differ():
     assert busan_r != busan_c
     assert busan_c.startswith("부산시 경영")
     assert "컨설팅" in busan_c
+    etc_c = serp.combo_desc("경기", "기타", {"desc": "그 외 지원사업"}, items)
+    assert "어려운입니다" not in etc_c
+    assert "넣기 어려운 지원입니다" in etc_c
+    fin_c = serp.combo_desc("경기", "금융", {"desc": "융자·보증·이차보전 등 자금 지원"}, items)
+    assert "금융 지원입니다" in fin_c
     nat_r = serp.region_desc("전국", items)
     nat_c = serp.combo_desc("전국", "경영", {"desc": "컨설팅·경영개선·시설 지원"}, items)
     assert nat_r.startswith("전국 어디서나")

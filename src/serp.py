@@ -72,7 +72,7 @@ _REGION_OPEN = {
     "대전": "광역시와 구 공고가 한 목록이며 소관기관으로 시 전체와 구 단위를 가릅니다",
     "울산": "시와 구·군 공고가 섞여 있어 기관명과 대상 지역을 함께 봅니다",
     "세종": "시 단위 공고가 중심이고, 소재지 제한이 없으면 전국 목록에 있습니다",
-    "경기": "도와 31개 시·군 공고가 한 목록에 모입니다",
+    "경기": "도와 시·군 공고가 한 목록에 모입니다",
     "강원": "도와 시·군 공고가 섞여 있고, 시·군 소관이면 그 지역 사업장 요건이 붙습니다",
     "충북": "도와 시·군 공고가 한 목록이며 특정 시·군으로 적혀 있는지 원문에서 봅니다",
     "충남": "도와 시·군 공고가 함께 올라오며 소관기관이 범위를 나눕니다",
@@ -279,9 +279,12 @@ def _cat_chip(name):
 
 
 def _cat_nature(name):
-    """설명용 분야 성격. 끝의 '공고'는 앞 문장과 겹치지 않게 뗀다."""
+    """설명용 분야 성격. '~입니다/이며'에 붙는 명사구. 끝의 '공고'는 뗀다."""
     raw = _CAT_OPEN.get(name) or f"{name} 지원 공고"
-    return re.sub(r"\s*공고$", "", raw).strip()
+    s = re.sub(r"\s*공고$", "", raw).strip()
+    if s and not s.endswith("지원"):
+        s = f"{s} 지원"
+    return s
 
 
 def _region_open(region):
@@ -635,7 +638,6 @@ def combo_title(region, category, items=None):
 
 def combo_desc(region, category, cat=None, items=None):
     c = counts_of(items)
-    extra = ((cat or {}).get("desc") or "").strip()
     nature = _cat_nature(category)
     y = year()
     kind = _REGION_KIND.get(region, "do")
@@ -652,8 +654,6 @@ def combo_desc(region, category, cat=None, items=None):
         else:
             head = f"{q} {category} 지원사업 공고를 마감일 순으로 둡니다."
         place = f"{nature}입니다. {_region_open(region)}."
-    if extra and extra not in head and extra not in place and extra not in nature:
-        place = f"{place} {extra}."
     mid = _snippet_clock(c, f"{head} {place}")
     if region == "전국":
         cta = f"{y}년 전국 단위만 보고 원문에서 신청하세요."
@@ -718,15 +718,12 @@ def district_combo_title(sido, district, category, items=None):
 def district_combo_desc(sido, district, category, cat=None, items=None):
     c = counts_of(items)
     label = _region_label(sido)
-    extra = ((cat or {}).get("desc") or "").strip()
     nature = _cat_nature(category)
     if c["n"]:
         head = f"{district} {category} 지원사업 {c['n']}건입니다."
     else:
         head = f"{district} {category} 지원사업만 모았습니다."
     place = f"{nature}입니다. {label} 목록에서 이 시군구만 골랐습니다."
-    if extra and extra not in head and extra not in place and extra not in nature:
-        place = f"{place} {extra}."
     mid = _snippet_clock(c, head)
     return clip_desc(
         f"{head} {place}{mid} 마감일 순으로 보고 원문에서 신청하세요."
