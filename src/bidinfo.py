@@ -52,13 +52,16 @@ API_BASES = [
     "http://apis.data.go.kr/1230000/BidPublicInfoService",
 ]
 
-# GitHub Actions(미국) → apis.data.go.kr 는 25초에 자주 끊긴다.
-# urllib.request.urlopen 은 connect/read 를 한 값으로만 받으므로 긴 쪽(read)을 쓴다.
-CONNECT_TIMEOUT = 30
+# 비-GHA 리눅스에서는 키 없이 ~0.4–1.3초에 HTTP 400이 온다 (API는 살아 있음).
+# GHA(미국)만 경로가 느리거나 필터되어 25초에 타임아웃 난다.
+# urllib.request.urlopen 은 connect/read 를 한 값으로만 받으므로 둘 다 ≥60초.
+CONNECT_TIMEOUT = 60
 READ_TIMEOUT = 60
-HTTP_ATTEMPTS = 3
+HTTP_ATTEMPTS = 5          # 재시도 4회 (3–5 범위)
 HTTP_BACKOFF = 5          # 라운드 사이 대기 = HTTP_BACKOFF * attempt 초
 RETRY_HTTP = {408, 429, 500, 502, 503, 504}
+AUTH_RESULT_CODES = {"01", "30", "31", "32"}
+AUTH_HTTP = {401, 403}
 
 CACHE_FIELDS = (
     "id", "bid_no", "seq", "title", "kind", "kind_slug", "org",
@@ -461,6 +464,18 @@ def _retryable(exc):
     return _http_code(exc) in RETRY_HTTP
 
 
+def _is_auth_failure(exc):
+    """키/권한 오류만. 타임아웃·5xx·HTTP 400 은 종류를 건너뛰지 않는다."""
+    if exc is None or _is_timeout(exc):
+        return False
+    if _http_code(exc) in AUTH_HTTP:
+        return True
+    msg = str(exc)
+    if any(f"resultCode={c}" in msg for c in AUTH_RESULT_CODES):
+        return True
+    return any(s in msg for s in ("HTTP 401", "HTTP 403", "HTTP Error 401", "HTTP Error 403"))
+
+
 def _urlopen(req, connect_timeout=None, read_timeout=None):
     """테스트에서 mock 하는 HTTP 진입점. urllib는 connect/read를 한 값만 받는다."""
     connect_timeout = CONNECT_TIMEOUT if connect_timeout is None else connect_timeout
@@ -513,7 +528,7 @@ def _get(key, op, page, bgn, end):
                 if code and code not in ("00", "0", "000", "200"):
                     err = RuntimeError(f"{op} resultCode={code}")
                     # 인증 실패는 다른 호스트를 갈아도 같으므로 바로 중단
-                    if str(code) in ("01", "30", "31", "32"):
+                    if str(code) in AUTH_RESULT_CODES:
                         raise err
                     last = err
                     print(f"  [입찰 HTTP] {op} {base} #{attempt}/{HTTP_ATTEMPTS} resultCode={code}")
@@ -525,9 +540,8 @@ def _get(key, op, page, bgn, end):
                 last = e
                 reason = _err_reason(e)
                 print(f"  [입찰 HTTP] {op} {base} #{attempt}/{HTTP_ATTEMPTS} {reason}")
-                http_code = _http_code(e)
-                if http_code in (400, 401, 403):
-                    raise RuntimeError(reason)
+                if _is_auth_failure(e):
+                    raise
                 if _is_timeout(e):
                     timed_out_origins.add(origin)
         if attempt < HTTP_ATTEMPTS and (last is None or _retryable(last)):
@@ -541,7 +555,14 @@ def _fetch_kind(key, kind, bgn, end, pages):
     out, page = [], 1
     op = kind["op"]
     while page <= pages:
-        items, total = _get(key, op, page, bgn, end)
+        try:
+            items, total = _get(key, op, page, bgn, end)
+        except Exception as e:
+            if out:
+                print(f"  [입찰 {kind['name']}] {page}페이지 실패"
+                      f"({_err_reason(e)}), 이미 받은 {len(out)}건 유지")
+                break
+            raise
         out.extend(items)
         print(f"  [입찰 {kind['name']}] {page}페이지 수신 ({len(out)}/{total})")
         if not items or page * NUM_OF_ROWS >= total:
@@ -572,12 +593,8 @@ def fetch_live(key=None, pages=None, now=None):
             reason = _err_reason(e)
             errors.append(f"{kind['name']}: {reason}")
             print(f"  [입찰 {kind['name']}] 호출 실패({reason})")
-            msg = str(e)
-            if any(x in msg for x in (
-                "resultCode=01", "resultCode=30", "resultCode=31", "resultCode=32",
-            )) or _http_code(e) in (400, 401, 403) or reason in (
-                "HTTP 400", "HTTP 401", "HTTP 403",
-            ):
+            # 타임아웃·5xx·HTTP 400 은 이 종류만 건너뛴다. 나머지를 버리지 않는다.
+            if _is_auth_failure(e):
                 auth_dead = True
             continue
         for item in raw:

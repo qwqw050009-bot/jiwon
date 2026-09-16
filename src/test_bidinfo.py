@@ -436,9 +436,12 @@ def test_timeout_retries_then_succeeds():
     assert items and total == 1
     assert len(calls) >= 3
     assert sleeps  # timeout/5xx 라운드 사이 backoff
-    assert all(c["timeout"] >= 30 for c in calls)
+    assert all(c["timeout"] >= 60 for c in calls)
     assert all(c["timeout"] == max(bidinfo.CONNECT_TIMEOUT, bidinfo.READ_TIMEOUT)
                for c in calls)
+    assert bidinfo.CONNECT_TIMEOUT >= 60
+    assert bidinfo.READ_TIMEOUT >= 60
+    assert 4 <= bidinfo.HTTP_ATTEMPTS <= 6
     log = buf.getvalue()
     assert secret not in log
     assert "serviceKey=" not in log
@@ -468,6 +471,68 @@ def test_http_5xx_retries():
         time.sleep = orig_sleep
     assert items and total == 1
     assert len(calls) >= 2
+
+
+def test_timeout_first_kind_still_fetches_others_and_writes_cache():
+    """한 종류 타임아웃이 나머지를 스킵하거나 캐시를 비우면 안 된다."""
+    td = tempfile.mkdtemp()
+    cache = os.path.join(td, "bid_cache.json")
+    orig_cache, orig_fetch = bidinfo.CACHE, bidinfo._fetch_kind
+    seen = []
+
+    def fake_kind(key, kind, bgn, end, pages):
+        seen.append(kind["name"])
+        if kind["name"] == "물품":
+            raise urllib.error.URLError(TimeoutError("timed out"))
+        if kind["name"] == "용역":
+            return [_item(bidNtceNo="20260915111", bidNtceNm="용역 공고")]
+        if kind["name"] == "공사":
+            raise urllib.error.HTTPError(
+                "https://apis.data.go.kr/x", 400, "Bad Request", None, io.BytesIO(b""))
+        return [_item(bidNtceNo="20260915112", bidNtceNm="외자 공고")]
+
+    bidinfo.CACHE = cache
+    bidinfo._fetch_kind = fake_kind
+    try:
+        rows = bidinfo.fetch_live(key="test-key", pages=1, now=NOW)
+        kinds = {r["kind"] for r in rows}
+        assert seen == ["물품", "용역", "공사", "외자"]
+        assert kinds == {"용역", "외자"}
+        assert "물품" not in kinds
+        assert os.path.exists(cache)
+        saved = json.load(open(cache, encoding="utf-8"))
+        assert {r["kind"] for r in saved} == {"용역", "외자"}
+    finally:
+        bidinfo.CACHE = orig_cache
+        bidinfo._fetch_kind = orig_fetch
+
+
+def test_auth_failure_skips_remaining_kinds_timeout_does_not():
+    assert bidinfo._is_auth_failure(urllib.error.URLError(TimeoutError("timed out"))) is False
+    assert bidinfo._is_auth_failure(urllib.error.HTTPError(
+        "https://apis.data.go.kr/x", 400, "Bad Request", None, io.BytesIO(b""))) is False
+    assert bidinfo._is_auth_failure(urllib.error.HTTPError(
+        "https://apis.data.go.kr/x", 401, "Unauthorized", None, io.BytesIO(b""))) is True
+    assert bidinfo._is_auth_failure(RuntimeError("getBidPblancListInfoThng resultCode=30")) is True
+    orig = bidinfo._fetch_kind
+    seen = []
+
+    def fake_kind(key, kind, bgn, end, pages):
+        seen.append(kind["name"])
+        raise urllib.error.HTTPError(
+            "https://apis.data.go.kr/x", 401, "Unauthorized", None, io.BytesIO(b""))
+
+    bidinfo._fetch_kind = fake_kind
+    try:
+        raised = False
+        try:
+            bidinfo.fetch_live(key="test-key", pages=1, now=NOW)
+        except RuntimeError:
+            raised = True
+        assert raised
+        assert seen == ["물품"]
+    finally:
+        bidinfo._fetch_kind = orig
 
 
 def test_partial_fetch_writes_cache_not_empty_on_total_fail():
@@ -566,6 +631,8 @@ if __name__ == "__main__":
     test_gha_live_fail_no_cache_returns_empty()
     test_timeout_retries_then_succeeds()
     test_http_5xx_retries()
+    test_timeout_first_kind_still_fetches_others_and_writes_cache()
+    test_auth_failure_skips_remaining_kinds_timeout_does_not()
     test_partial_fetch_writes_cache_not_empty_on_total_fail()
     test_no_cross_contamination()
     test_hub_copy_has_no_grant_vocab()
