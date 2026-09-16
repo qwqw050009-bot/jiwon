@@ -1,8 +1,15 @@
 # -*- coding: utf-8 -*-
 """입찰 정규화·D-day·종류 라우팅·지원/입찰 분리 회귀."""
+import io
 import json
 import os
 import sys
+import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -375,6 +382,136 @@ def test_gha_live_fail_no_cache_returns_empty():
         os.environ.pop("GITHUB_ACTIONS", None)
 
 
+class _FakeHTTPResp:
+    def __init__(self, payload):
+        if isinstance(payload, bytes):
+            self._raw = payload
+        else:
+            self._raw = json.dumps(payload).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return self._raw
+
+
+def _ok_payload(item=None):
+    return {
+        "response": {
+            "header": {"resultCode": "00"},
+            "body": {
+                "totalCount": 1,
+                "items": {"item": item or {"bidNtceNo": "1", "bidNtceNm": "x"}},
+            },
+        }
+    }
+
+
+def test_timeout_retries_then_succeeds():
+    """urlopen 타임아웃 후 backoff 재시도, 최종 성공. 키는 로그에 안 남긴다."""
+    calls, sleeps = [], []
+    secret = "SECRETKEY-DO-NOT-LOG"
+
+    def fake_urlopen(req, timeout=None):
+        calls.append({"url": req.full_url, "timeout": timeout})
+        if len(calls) < 3:
+            raise urllib.error.URLError(TimeoutError("timed out"))
+        return _FakeHTTPResp(_ok_payload())
+
+    orig_open, orig_sleep = urllib.request.urlopen, time.sleep
+    urllib.request.urlopen = fake_urlopen
+    time.sleep = lambda s: sleeps.append(s)
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            items, total = bidinfo._get(
+                secret, "getBidPblancListInfoThng", 1, "202609010000", "202609080000")
+    finally:
+        urllib.request.urlopen = orig_open
+        time.sleep = orig_sleep
+    assert items and total == 1
+    assert len(calls) >= 3
+    assert sleeps  # timeout/5xx 라운드 사이 backoff
+    assert all(c["timeout"] >= 30 for c in calls)
+    assert all(c["timeout"] == max(bidinfo.CONNECT_TIMEOUT, bidinfo.READ_TIMEOUT)
+               for c in calls)
+    log = buf.getvalue()
+    assert secret not in log
+    assert "serviceKey=" not in log
+    assert "timed out" in log
+    schemes = {urllib.parse.urlparse(c["url"]).scheme for c in calls}
+    assert "https" in schemes and "http" in schemes
+
+
+def test_http_5xx_retries():
+    calls, sleeps = [], []
+
+    def fake_urlopen(req, timeout=None):
+        calls.append(1)
+        if len(calls) == 1:
+            raise urllib.error.HTTPError(
+                req.full_url, 503, "Service Unavailable", None, io.BytesIO(b""))
+        return _FakeHTTPResp(_ok_payload())
+
+    orig_open, orig_sleep = urllib.request.urlopen, time.sleep
+    urllib.request.urlopen = fake_urlopen
+    time.sleep = lambda s: sleeps.append(s)
+    try:
+        items, total = bidinfo._get(
+            "k", "getBidPblancListInfoServc", 1, "202609010000", "202609080000")
+    finally:
+        urllib.request.urlopen = orig_open
+        time.sleep = orig_sleep
+    assert items and total == 1
+    assert len(calls) >= 2
+
+
+def test_partial_fetch_writes_cache_not_empty_on_total_fail():
+    td = tempfile.mkdtemp()
+    cache = os.path.join(td, "bid_cache.json")
+    orig_cache, orig_fetch = bidinfo.CACHE, bidinfo._fetch_kind
+
+    def fake_kind(key, kind, bgn, end, pages):
+        if kind["name"] == "물품":
+            return [_item()]
+        raise urllib.error.URLError(TimeoutError("timed out"))
+
+    bidinfo.CACHE = cache
+    bidinfo._fetch_kind = fake_kind
+    try:
+        rows = bidinfo.fetch_live(key="test-key", pages=1, now=NOW)
+        assert rows
+        assert all(r["kind"] == "물품" for r in rows)
+        assert os.path.exists(cache)
+        saved = json.load(open(cache, encoding="utf-8"))
+        assert saved and saved[0]["id"]
+        assert bidinfo._save_cache([]) is False
+        assert json.load(open(cache, encoding="utf-8"))[0]["id"] == saved[0]["id"]
+    finally:
+        bidinfo.CACHE = orig_cache
+        bidinfo._fetch_kind = orig_fetch
+
+    bidinfo.CACHE = cache
+    bidinfo._fetch_kind = lambda *a, **k: (_ for _ in ()).throw(
+        urllib.error.URLError(TimeoutError("timed out")))
+    try:
+        raised = False
+        try:
+            bidinfo.fetch_live(key="test-key", pages=1, now=NOW)
+        except RuntimeError:
+            raised = True
+        assert raised
+        # 전부 실패하면 빈 목록으로 덮지 않는다
+        assert json.load(open(cache, encoding="utf-8"))[0]["id"] == saved[0]["id"]
+    finally:
+        bidinfo.CACHE = orig_cache
+        bidinfo._fetch_kind = orig_fetch
+
+
 def test_empty_hub_looks_intentional():
     from jinja2 import Environment, FileSystemLoader, select_autoescape
     root = os.path.join(os.path.dirname(__file__), "..")
@@ -427,6 +564,9 @@ if __name__ == "__main__":
     test_invalid_key_falls_back_to_mock()
     test_gha_without_key_returns_empty_not_mock()
     test_gha_live_fail_no_cache_returns_empty()
+    test_timeout_retries_then_succeeds()
+    test_http_5xx_retries()
+    test_partial_fetch_writes_cache_not_empty_on_total_fail()
     test_no_cross_contamination()
     test_hub_copy_has_no_grant_vocab()
     test_nav_split_templates()

@@ -22,6 +22,10 @@
 import json
 import os
 import re
+import socket
+import time
+import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 
@@ -40,13 +44,27 @@ MAX_BIDS = 500                  # 정렬 후 최종 목록 상한
 KEEP_CLOSED_DAYS = 3            # 마감된 지 이 일수 이내만 목록 하단에 남김
 MAX_CLOSE_AHEAD_DAYS = 30       # 마감이 너무 먼 건은 마감판 성격에 안 맞아 제외
 
-# 2026년 현행 경로를 앞에, 구 경로를 뒤에.
+# 2026년 현행 경로를 앞에, 구 경로를 뒤에. https·http 둘 다 시도한다.
 API_BASES = [
     "https://apis.data.go.kr/1230000/ad/BidPublicInfoService",
     "http://apis.data.go.kr/1230000/ad/BidPublicInfoService",
     "https://apis.data.go.kr/1230000/BidPublicInfoService",
     "http://apis.data.go.kr/1230000/BidPublicInfoService",
 ]
+
+# GitHub Actions(미국) → apis.data.go.kr 는 25초에 자주 끊긴다.
+# urllib.request.urlopen 은 connect/read 를 한 값으로만 받으므로 긴 쪽(read)을 쓴다.
+CONNECT_TIMEOUT = 30
+READ_TIMEOUT = 60
+HTTP_ATTEMPTS = 3
+HTTP_BACKOFF = 5          # 라운드 사이 대기 = HTTP_BACKOFF * attempt 초
+RETRY_HTTP = {408, 429, 500, 502, 503, 504}
+
+CACHE_FIELDS = (
+    "id", "bid_no", "seq", "title", "kind", "kind_slug", "org",
+    "ntce_org", "budget", "budget_raw", "open_dt", "close_dt",
+    "region", "detail_url", "method", "contract",
+)
 
 KIND_BY_SLUG = {k["slug"]: k for k in config.BID_KINDS}
 KIND_BY_NAME = {k["name"]: k for k in config.BID_KINDS}
@@ -394,11 +412,79 @@ def _parse_payload(raw):
     return _parse_xml(raw)
 
 
-def _get(key, op, page, bgn, end):
-    import time
-    import urllib.parse
-    import urllib.request
+def _origin(base):
+    p = urllib.parse.urlparse(base)
+    return f"{p.scheme}://{p.netloc}".lower()
 
+
+def _is_timeout(exc):
+    cur, seen = exc, 0
+    while cur is not None and seen < 5:
+        if isinstance(cur, (TimeoutError, socket.timeout)):
+            return True
+        text = str(cur).lower()
+        if "timed out" in text or "timeout" in text:
+            return True
+        cur = getattr(cur, "reason", None)
+        if isinstance(cur, str):
+            t = cur.lower()
+            return "timed out" in t or "timeout" in t
+        seen += 1
+    return False
+
+
+def _http_code(exc):
+    code = getattr(exc, "code", None)
+    try:
+        return int(code)
+    except (TypeError, ValueError):
+        return None
+
+
+def _err_reason(exc):
+    """로그용 한 줄. URL·serviceKey 는 넣지 않는다."""
+    if _is_timeout(exc):
+        return "timed out"
+    code = _http_code(exc)
+    if code is not None:
+        return f"HTTP {code}"
+    reason = getattr(exc, "reason", None)
+    if reason is not None:
+        return f"urlopen error {reason}"[:160]
+    text = re.sub(r"(serviceKey=)[^&\s]+", r"\1***", str(exc), flags=re.I)
+    return f"{type(exc).__name__}: {text}"[:160]
+
+
+def _retryable(exc):
+    if _is_timeout(exc):
+        return True
+    return _http_code(exc) in RETRY_HTTP
+
+
+def _urlopen(req, connect_timeout=None, read_timeout=None):
+    """테스트에서 mock 하는 HTTP 진입점. urllib는 connect/read를 한 값만 받는다."""
+    connect_timeout = CONNECT_TIMEOUT if connect_timeout is None else connect_timeout
+    read_timeout = READ_TIMEOUT if read_timeout is None else read_timeout
+    return urllib.request.urlopen(req, timeout=max(connect_timeout, read_timeout))
+
+
+def _save_cache(rows):
+    """실데이터가 하나라도 있으면 저장. 빈 목록으로 기존 캐시를 덮지 않는다."""
+    if not rows:
+        return False
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(CACHE)), exist_ok=True)
+        serial = [{k: r.get(k) for k in CACHE_FIELDS} for r in rows]
+        with open(CACHE, "w", encoding="utf-8") as f:
+            json.dump(serial, f, ensure_ascii=False)
+        print(f"  [입찰] 캐시 {len(serial)}건 저장")
+        return True
+    except Exception as e:
+        print(f"  [입찰] 캐시 저장 실패({_err_reason(e)})")
+        return False
+
+
+def _get(key, op, page, bgn, end):
     q = urllib.parse.urlencode({
         "serviceKey": key,
         "pageNo": page,
@@ -409,14 +495,19 @@ def _get(key, op, page, bgn, end):
         "type": "json",
     }, safe="%")
     last = None
-    for attempt in range(2):
+    for attempt in range(1, HTTP_ATTEMPTS + 1):
+        timed_out_origins = set()
         for base in API_BASES:
+            origin = _origin(base)
+            if origin in timed_out_origins:
+                continue
             try:
                 req = urllib.request.Request(
                     f"{base}/{op}?{q}",
-                    headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json, application/xml"},
+                    headers={"User-Agent": "Mozilla/5.0",
+                             "Accept": "application/json, application/xml"},
                 )
-                with urllib.request.urlopen(req, timeout=25) as r:
+                with _urlopen(req) as r:
                     raw = r.read().decode("utf-8", errors="replace")
                 code, items, total = _parse_payload(raw)
                 if code and code not in ("00", "0", "000", "200"):
@@ -425,15 +516,24 @@ def _get(key, op, page, bgn, end):
                     if str(code) in ("01", "30", "31", "32"):
                         raise err
                     last = err
+                    print(f"  [입찰 HTTP] {op} {base} #{attempt}/{HTTP_ATTEMPTS} resultCode={code}")
                     continue
                 return items, total
             except RuntimeError:
                 raise
             except Exception as e:
                 last = e
-                if "HTTP Error 400" in str(e) or "HTTP Error 401" in str(e) or "HTTP Error 403" in str(e):
-                    raise RuntimeError(str(e))
-        time.sleep(2 * (attempt + 1))
+                reason = _err_reason(e)
+                print(f"  [입찰 HTTP] {op} {base} #{attempt}/{HTTP_ATTEMPTS} {reason}")
+                http_code = _http_code(e)
+                if http_code in (400, 401, 403):
+                    raise RuntimeError(reason)
+                if _is_timeout(e):
+                    timed_out_origins.add(origin)
+        if attempt < HTTP_ATTEMPTS and (last is None or _retryable(last)):
+            delay = HTTP_BACKOFF * attempt
+            print(f"  [입찰 HTTP] {op} {delay}s 후 재시도 ({attempt}/{HTTP_ATTEMPTS})")
+            time.sleep(delay)
     raise last
 
 
@@ -458,6 +558,8 @@ def fetch_live(key=None, pages=None, now=None):
     end = now.strftime("%Y%m%d%H%M")
     bgn = (now - timedelta(days=INQRY_DAYS)).strftime("%Y%m%d%H%M")
     pages = pages or MAX_PAGES_PER_KIND
+    print(f"  [입찰] HTTP timeout connect={CONNECT_TIMEOUT}s read={READ_TIMEOUT}s "
+          f"attempts={HTTP_ATTEMPTS}")
     rows, errors = [], []
     auth_dead = False
     for kind in config.BID_KINDS:
@@ -467,35 +569,30 @@ def fetch_live(key=None, pages=None, now=None):
         try:
             raw = _fetch_kind(key, kind, bgn, end, pages)
         except Exception as e:
+            reason = _err_reason(e)
+            errors.append(f"{kind['name']}: {reason}")
+            print(f"  [입찰 {kind['name']}] 호출 실패({reason})")
             msg = str(e)
-            errors.append(f"{kind['name']}: {e}")
-            print(f"  [입찰 {kind['name']}] 호출 실패({e})")
             if any(x in msg for x in (
                 "resultCode=01", "resultCode=30", "resultCode=31", "resultCode=32",
-                "HTTP Error 400", "HTTP Error 401", "HTTP Error 403",
-            )):
+            )) or _http_code(e) in (400, 401, 403) or reason in (
+                "HTTP 400", "HTTP 401", "HTTP 403",
+            ):
                 auth_dead = True
             continue
         for item in raw:
             row = normalize(item, kind["name"], now=now)
             if row:
                 rows.append(row)
-    if not rows and errors:
+    processed = process(rows, now=now)
+    if processed:
+        _save_cache(processed)
+        if errors:
+            print(f"  [입찰] 일부 종류 실패, {len(processed)}건은 유지")
+        return processed
+    if errors:
         raise RuntimeError("; ".join(errors))
-    rows = process(rows, now=now)
-    try:
-        serial = []
-        for r in rows:
-            serial.append({k: r.get(k) for k in (
-                "id", "bid_no", "seq", "title", "kind", "kind_slug", "org",
-                "ntce_org", "budget", "budget_raw", "open_dt", "close_dt",
-                "region", "detail_url", "method", "contract",
-            )})
-        with open(CACHE, "w", encoding="utf-8") as f:
-            json.dump(serial, f, ensure_ascii=False)
-    except Exception:
-        pass
-    return rows
+    return processed
 
 
 def load_cache(now=None):
