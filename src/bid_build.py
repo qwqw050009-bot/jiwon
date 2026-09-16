@@ -10,8 +10,10 @@ import os
 
 import config
 import bidinfo
+import filters as filt
 import intros
 import serp
+import deadline as dl
 
 BID_KINDS = config.BID_KINDS
 BID_REGIONS = config.BID_REGIONS
@@ -169,6 +171,8 @@ def build(env, write, site, urls, dist):
                 if not sections else t_all.get("today", 0)),
             sel_kind=sel_kind, sel_due=sel_due, sel_region=sel_region,
             limit=0 if bid_empty else limit,
+            collected_at=env.globals.get("collected_at") or "",
+            alert_email=site.get("email") or "",
         )
         write(path, html)
 
@@ -299,30 +303,52 @@ def build(env, write, site, urls, dist):
             crumbs.append({"name": a.get("kind") or "종류",
                            "url": f"/bid/kind/{kslug}/"})
         crumbs.append({"name": a.get("title") or "공고", "url": npath})
+        ld_obj = {
+            "@context": "https://schema.org",
+            "@type": "GovernmentService",
+            "name": a.get("title") or "",
+            "url": site["domain"] + npath,
+            "identifier": a.get("notice_no") or a.get("bid_no") or a.get("id") or "",
+            "provider": {"@type": "GovernmentOrganization",
+                         "name": a.get("org") or a.get("ntce_org") or ""},
+            "description": a.get("blurb") or a.get("title") or "",
+        }
+        if a.get("region"):
+            ld_obj["areaServed"] = a["region"]
+        if a.get("posted_at") or a.get("open_dt"):
+            ld_obj["datePublished"] = a.get("posted_at") or a.get("open_dt")
+        if a.get("detail_url"):
+            ld_obj["sameAs"] = a["detail_url"]
+        ld_obj["isBasedOn"] = "나라장터"
         html = env.get_template("bid_detail.html").render(
             site=site, path=npath, section="bid", page="bid-detail",
             title=serp.bid_notice_title(a),
             desc=serp.bid_notice_desc(a),
             a=a, related=rel,
             crumbs=crumbs, crumb_jsonld=_crumb_ld(crumbs, site),
+            jsonld=json.dumps(ld_obj, ensure_ascii=False),
             faq_jsonld=intros.faq_jsonld(notice_faqs(a)),
             faqs=notice_faqs(a),
             bid_kinds=BID_KINDS,
+            collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )
         write(npath, html)
 
     def slug_of(name):
         return bidinfo.slug_of_kind(name)
 
+    collected_at = env.globals.get("collected_at") or dl.collected_stamp()
+    for a in rows:
+        a["collected_at"] = collected_at
+        a["source"] = "g2b"
+        a["source_label"] = a.get("source_label") or "나라장터"
+        a["notice_no"] = a.get("notice_no") or a.get("bid_no") or a.get("id") or ""
+        a["amount_band"] = filt.bid_amount_band_id(a)
+
     for a in rows:
         render_notice(a)
 
-    feed = [{"i": a["id"], "t": a["title"], "k": a.get("kind") or "",
-             "ks": a.get("kind_slug") or "",
-             "o": a.get("org") or "", "m": a.get("budget_card") or a.get("budget") or "",
-             "e": a.get("close_dt") or "", "d": a["dday"],
-             "r": a.get("region") or ""}
-            for a in rows]
+    feed = [filt.compact_bid(a) for a in rows]
     # write() 는 index.html 전용이라 피드 파일은 직접 둔다.
     with open(os.path.join(dist, "bids.json"), "w", encoding="utf-8") as f:
         json.dump(feed, f, ensure_ascii=False, separators=(",", ":"))

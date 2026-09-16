@@ -14,22 +14,40 @@
   <header class="notice-head">
     <div class="notice-chips">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+      {% if a.status_label and a.dlabel != a.status_label %}<span class="pill pill-st">{{ a.status_label }}</span>{% endif %}
       {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
       {% if a.category %}<span class="pill">{{ a.category }}</span>{% endif %}
+      {% if a.source_label %}<span class="pill pill-src">{{ a.source_label }}</span>{% endif %}
       {% if a.amount_card %}<span class="pill pill-amt">{{ a.amount_card }}</span>{% endif %}
       {% if a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
       {% for s in a.signals %}<span class="pill sig-{{ s.cls }}">{{ s.label }}</span>{% endfor %}
     </div>
-    <p class="notice-kicker">{{ a.dsub }}</p>
+    <p class="notice-kicker">{{ a.deadline_line or a.dsub }}</p>
     <h1>{{ a.title }}</h1>
     <p class="notice-org">{{ a.org }}{% if a.target_short %} · {{ a.target_short }}{% endif %}</p>
     {% if a.ai and a.ai.summary %}
     <p class="lede">{{ a.ai.summary }}</p>
     {% endif %}
-    <div class="cta-bar cta-bar--lead">
-      <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문 공고 보기</a>
-      <button type="button" class="cta-star" id="scrap-btn" data-id="{{ a.id }}" aria-pressed="false"><span>스크랩</span></button>
-    </div>
+    <aside class="trust" aria-label="원문과 출처">
+      <div class="cta-bar cta-bar--lead">
+        {% if a.detail_url %}
+        <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문 공고 보기</a>
+        {% else %}
+        <span class="cta cta--disabled" title="원문 주소가 없습니다">원문 주소를 확인할 수 없습니다</span>
+        {% endif %}
+        <button type="button" class="cta-star" id="scrap-btn" data-id="{{ a.id }}" aria-pressed="false"><span>스크랩</span></button>
+      </div>
+      <dl class="trust-facts">
+        <div><dt>공고번호</dt><dd>{{ a.notice_no or a.id or '원문 확인' }}</dd></div>
+        <div><dt>게시일</dt><dd>{{ a.posted_at or a.created or '원문 확인' }}</dd></div>
+        <div><dt>마지막 수집</dt><dd>{% if a.collected_at or collected_at %}{{ a.collected_at or collected_at }} (KST){% else %}이 페이지를 만들 때{% endif %}</dd></div>
+        <div><dt>출처</dt><dd>{{ a.source_label or '기업마당' }}</dd></div>
+        <div><dt>기관</dt><dd>{{ a.org or '원문 확인' }}</dd></div>
+      </dl>
+      {% if not a.detail_url %}
+      <p class="trust-fallback">원문 링크가 없습니다. 기업마당·소관기관 사이트에서 공고명으로 찾아 보세요.</p>
+      {% endif %}
+    </aside>
   </header>
 
   <dl class="facts">

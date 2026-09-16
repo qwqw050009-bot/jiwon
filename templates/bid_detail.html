@@ -2,6 +2,7 @@
 {% from "_bid_row.html" import row %}
 {% from "_ad.html" import ad_slot with context %}
 {% block jsonld %}
+{% if jsonld %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endif %}
 {% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
 {% endblock %}
 {% block body %}
@@ -13,21 +14,37 @@
   <header class="notice-head">
     <div class="notice-chips">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+      {% if a.status_label and a.dlabel != a.status_label %}<span class="pill pill-st">{{ a.status_label }}</span>{% endif %}
       {% if a.kind %}<span class="pill">{{ a.kind }}</span>{% endif %}
       {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
+      <span class="pill pill-src">나라장터</span>
       {% if a.budget_card %}<span class="pill pill-amt">{{ a.budget_card }}</span>{% endif %}
     </div>
-    <p class="notice-kicker">{{ a.dsub }}</p>
+    <p class="notice-kicker">{{ a.deadline_line or a.dsub }}</p>
     <h1>{{ a.title }}</h1>
     <p class="notice-org">{{ a.org }}{% if a.kind %} · {{ a.kind }}{% endif %}</p>
     {% if a.blurb %}
     <p class="lede">{{ a.blurb }}</p>
     {% endif %}
-    {% if a.detail_url %}
-    <div class="cta-bar cta-bar--lead">
-      <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">나라장터 원문 보기</a>
-    </div>
-    {% endif %}
+    <aside class="trust" aria-label="원문과 출처">
+      <div class="cta-bar cta-bar--lead">
+        {% if a.detail_url %}
+        <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">나라장터 원문 보기</a>
+        {% else %}
+        <a class="cta" href="https://www.g2b.go.kr/" rel="noopener noreferrer" target="_blank">나라장터에서 찾기</a>
+        {% endif %}
+      </div>
+      <dl class="trust-facts">
+        <div><dt>공고번호</dt><dd>{{ a.notice_no or a.bid_no or a.id or '원문 확인' }}</dd></div>
+        <div><dt>게시일</dt><dd>{{ a.posted_at or a.open_dt or '원문 확인' }}</dd></div>
+        <div><dt>마지막 수집</dt><dd>{% if a.collected_at or collected_at %}{{ a.collected_at or collected_at }} (KST){% else %}이 페이지를 만들 때{% endif %}</dd></div>
+        <div><dt>출처</dt><dd>나라장터</dd></div>
+        <div><dt>수요기관</dt><dd>{{ a.org or '원문 확인' }}</dd></div>
+      </dl>
+      {% if not a.detail_url %}
+      <p class="trust-fallback">이 건의 원문 URL이 없습니다. 나라장터에서 공고번호로 찾아 보세요.</p>
+      {% endif %}
+    </aside>
   </header>
 
   <dl class="facts">
@@ -42,7 +59,7 @@
     {% if a.open_dt %}
     <div><dt>공고일시</dt><dd>{{ a.open_dt }}</dd></div>
     {% endif %}
-    <div><dt>마감일시</dt><dd>{{ a.close_dt }}</dd></div>
+    <div><dt>투찰 마감</dt><dd>{{ a.deadline_line or a.close_dt }}</dd></div>
     {% if a.region %}
     <div><dt>참가지역</dt><dd>{{ a.region }}</dd></div>
     {% endif %}

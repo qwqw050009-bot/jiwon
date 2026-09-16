@@ -31,6 +31,8 @@ import sys
 from datetime import date, datetime, timezone
 from email.utils import format_datetime
 
+import deadline as dl
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -171,7 +173,7 @@ def _static_version():
     URL도 바뀌게 해 캐시를 자연스럽게 무효화한다.
     """
     h = hashlib.md5()
-    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js", "card.js"):
+    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js", "card.js", "state.js"):
         p = os.path.join(ROOT, "static", name)
         if os.path.exists(p):
             with open(p, "rb") as f:
@@ -218,30 +220,20 @@ def fill_defaults(a):
     return a
 
 
-def decorate(a):
-    """D-day 표시용 값 계산. 상시 접수는 별도 표기."""
-    if a.get("period_type") == "always":
-        a["cls"], a["dlabel"] = "d-a", "상시"
-        a["dsub"] = a.get("period_raw") or "상시 접수"
-        a["blurb"] = intros.blurb_of(a)
-        a["signals"] = enrich.notice_signals(a)
-        who = ((a.get("target") or "").splitlines() or [""])[0].strip()
-        a["target_short"] = (who[:23].rstrip(" ·,/") + "…") if len(who) > 24 else who
-        return a
-    d = a["dday"]
-    if d < 0:
-        a["cls"], a["dlabel"], a["dsub"] = "d-c", "마감", f"{-d}일 전 종료"
-    elif d == 0:
-        a["cls"], a["dlabel"], a["dsub"] = "d-u", "오늘", "오늘 마감"
-    elif d <= 7:
-        a["cls"], a["dlabel"] = "d-u", f"D-{d}"
-        a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else "마감 임박"
-    elif d <= 14:
-        a["cls"], a["dlabel"] = "d-s", f"D-{d}"
-        a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else ""
-    else:
-        a["cls"], a["dlabel"] = "d-o", f"D-{d}"
-        a["dsub"] = f"{a['apply_end'][5:]} 마감" if a.get("apply_end") else ""
+def decorate(a, collected_at=None, today=None):
+    """D-day 표시용 값 계산. 상시 접수는 별도 표기. 마감 배지와 D-n을 동시에 쓰지 않는다."""
+    today = today or date.today()
+    a["status"] = dl.status_of(a, today=today)
+    a["status_label"] = dl.status_label(a["status"])
+    a["deadline_line"] = dl.deadline_line(a)
+    a["time_known"] = dl.time_known(a.get("apply_end") or "")
+    a["source"] = a.get("source") or filt.source_of(a)
+    a["source_label"] = filt.source_label(a)
+    a["notice_no"] = filt.notice_no(a)
+    a["posted_at"] = filt.posted_at(a)
+    if collected_at:
+        a["collected_at"] = collected_at
+    a["cls"], a["dlabel"], a["dsub"] = dl.dday_badge(a)
     a["blurb"] = intros.blurb_of(a)
     a["signals"] = enrich.notice_signals(a)
     who = ((a.get("target") or "").splitlines() or [""])[0].strip()
@@ -315,9 +307,9 @@ def archived_notices(rows, today):
         row = fill_defaults(dict(a))
         row["dday"] = (today - end).days * -1
         row["is_open"] = False
-        row["is_new"] = False
-        row = decorate(row)
         row["is_closed"] = True
+        row["is_new"] = False
+        row = decorate(row, collected_at=env.globals.get("collected_at"), today=today)
         # 아카이브에 얼어붙은 "ai" 스냅샷도 옛날 조사 버그 문구를 담고
         # 있을 수 있다. enrich_all()을 다시 거치지 않는 경로라 여기서도
         # 같은 방식으로(비용 없이) 고쳐준다.
@@ -451,6 +443,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         list_guides=list_guides or [],
         urgent_rail=filt.urgent_rail(pool),
         source_tally=filt.source_tally(pool),
+        collected_at=env.globals.get("collected_at") or "",
+        alert_email=SITE.get("email") or "",
     )
     write(path, html)
 
@@ -464,6 +458,10 @@ def main():
         ignore=shutil.ignore_patterns(*STATIC_ROOT_FILES),
     )
     emit_root_text_files(DIST)
+
+    collected_at = dl.collected_stamp()
+    env.globals["collected_at"] = collected_at
+    env.globals["alert_email"] = SITE.get("email") or ""
 
     # 키가 있으면 실데이터, 없으면 목업으로 자동 전환.
     # 로컬에서 키 없이 돌려도 그대로 빌드된다.
@@ -492,7 +490,7 @@ def main():
 
     use_llm = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     rows = enrich.enrich_all(rows, use_llm=use_llm)
-    rows = [decorate(fill_defaults(a)) for a in rows]
+    rows = [decorate(fill_defaults(a), collected_at=collected_at) for a in rows]
 
     # 어제 대비 신규 공고 감지 (data/seen.json 과 비교)
     seen_path = os.path.join(ROOT, "data", "seen.json")
@@ -787,15 +785,27 @@ def main():
     # 공고 상세 (접수 중 + 마감 후 최근 것)
     def render_notice(a, pool):
         rel = filt.related_notices(a, pool, limit=5)
-        ld = json.dumps({
-            "@context": "https://schema.org", "@type": "GovernmentService",
-            "name": a["title"], "provider": {"@type": "GovernmentOrganization", "name": a["org"]},
-            "areaServed": a["region"], "audience": {"@type": "Audience", "audienceType": a["target"]},
-            "description": a["ai"]["summary"],
-        }, ensure_ascii=False)
+        npath = f"/notice/{a['id']}/"
+        ld_obj = {
+            "@context": "https://schema.org",
+            "@type": "GovernmentService",
+            "name": a["title"],
+            "url": SITE["domain"] + npath,
+            "identifier": a.get("notice_no") or a.get("id") or "",
+            "provider": {"@type": "GovernmentOrganization", "name": a.get("org") or ""},
+            "areaServed": a.get("region") or "",
+            "audience": {"@type": "Audience", "audienceType": a.get("target") or ""},
+            "description": (a.get("ai") or {}).get("summary") or "",
+        }
+        if a.get("posted_at"):
+            ld_obj["datePublished"] = a["posted_at"]
+        if a.get("detail_url"):
+            ld_obj["sameAs"] = a["detail_url"]
+        if a.get("source_label"):
+            ld_obj["isBasedOn"] = a["source_label"]
+        ld = json.dumps(ld_obj, ensure_ascii=False)
         rslug = (regs.get(a.get("region") or "") or {}).get("slug")
         cslug = (cats.get(a.get("category") or "") or {}).get("slug")
-        npath = f"/notice/{a['id']}/"
         crumbs = [{"name": "홈", "url": "/"}]
         if rslug:
             crumbs.append({"name": a.get("region") or "지역",
@@ -810,6 +820,7 @@ def main():
             desc=serp.notice_desc(a), a=a, related=rel,
             jsonld=ld, faq_jsonld=faq_jsonld(a),
             crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
+            collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )
         write(npath, html)
 

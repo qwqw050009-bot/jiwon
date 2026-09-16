@@ -63,6 +63,21 @@
 
 {% include "_filter.html" %}
 
+<div class="onboard" id="onboard" hidden>
+  <p class="onboard-kicker">처음이세요? 3단계, 건너뛸 수 있습니다</p>
+  <p class="onboard-title">지역 또는 분야를 고르면 내 공고부터 보입니다</p>
+  <ol class="onboard-steps" aria-label="시작 단계">
+    <li data-step="region">지역</li>
+    <li data-step="category">분야</li>
+    <li data-step="done">결과</li>
+  </ol>
+  <div class="onboard-act">
+    <button type="button" class="f-apply" data-onboard="region">지역 고르기</button>
+    <button type="button" class="hero-secondary" data-onboard="category">분야 고르기</button>
+    <button type="button" class="f-text" data-onboard="skip">건너뛰기</button>
+  </div>
+</div>
+
 {% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}
 {% if today %}<a class="today-bar" href="/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
@@ -70,7 +85,7 @@
 <div class="layout-main">
 
 {% if items or sections %}
-<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>이 먼저 닫힙니다. <b>상시</b>는 마감일이 없고, 예산이 끝나면 목록 하단 공고가 먼저 사라집니다.</p>
+<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>이 먼저 닫힙니다. <b>상시</b>는 마감일이 없고, 시각이 없으면 <b>시간 미상</b>입니다. 출처는 기업마당{% if source_tally and source_tally.kstartup %}·K-Startup{% endif %}입니다.{% if collected_at %} 마지막 수집 {{ collected_at }} (KST).{% endif %}</p>
 {% endif %}
 
 {% if ad_top %}{{ ad_slot('list_top') }}{% endif %}

@@ -30,6 +30,7 @@ import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 
 import config
+import deadline as dl
 
 KST = timezone(timedelta(hours=9))
 
@@ -267,24 +268,35 @@ def decorate(row, now=None):
     open_ = is_open(close, now)
     row["dday"] = d
     row["is_open"] = open_
-    row["status"] = "open" if open_ else "closed"
-    close_hm = close.strftime("%H:%M")
-    close_md = close.strftime("%m/%d")
+    open_dt = parse_dt(row.get("open_dt"))
+    if not open_:
+        row["status"] = "closed"
+    elif open_dt and open_dt > now:
+        row["status"] = "upcoming"
+    else:
+        row["status"] = "open"
+    row["status_label"] = dl.status_label(row["status"])
+    row["time_known"] = dl.time_known(row.get("close_dt") or "")
+    row["deadline_line"] = dl.deadline_line(row)
+    row["source"] = "g2b"
+    row["source_label"] = "나라장터"
+    row["notice_no"] = row.get("bid_no") or row.get("id") or ""
+    row["posted_at"] = (row.get("open_dt") or "")[:16]
     if not open_:
         row["cls"], row["dlabel"] = "d-c", "마감"
-        row["dsub"] = f"{close_md} {close_hm}"
+        row["dsub"] = row["deadline_line"]
     elif d == 0:
         row["cls"], row["dlabel"] = "d-u", "오늘"
-        row["dsub"] = f"{close_hm} 마감"
+        row["dsub"] = row["deadline_line"]
     elif d <= 7:
         row["cls"], row["dlabel"] = "d-u", f"D-{d}"
-        row["dsub"] = f"{close_md} {close_hm}"
+        row["dsub"] = row["deadline_line"]
     elif d <= 14:
         row["cls"], row["dlabel"] = "d-s", f"D-{d}"
-        row["dsub"] = f"{close_md} {close_hm}"
+        row["dsub"] = row["deadline_line"]
     else:
         row["cls"], row["dlabel"] = "d-o", f"D-{d}"
-        row["dsub"] = f"{close_md} {close_hm}"
+        row["dsub"] = row["deadline_line"]
     raw = row.get("budget_raw")
     row["budget_card"] = format_krw(raw) if raw else ""
     row["blurb"] = card_line(row)

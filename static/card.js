@@ -6,21 +6,32 @@
     });
   }
 
-  function cls(d, p) {
-    if (d === 9999) return ['d-a', '상시', p || '상시 접수'];
-    if (d < 0) return ['d-c', '마감', (-d) + '일 전 종료'];
-    if (d === 0) return ['d-u', '오늘', '오늘 마감'];
-    if (d <= 7) return ['d-u', 'D-' + d, ''];
-    if (d <= 14) return ['d-s', 'D-' + d, ''];
-    return ['d-o', 'D-' + d, ''];
+  function cls(d, p, st) {
+    if (st === 'closed' || d < 0) return ['d-c', '마감'];
+    if (d === 9999) return ['d-a', '상시'];
+    if (d === 0) return ['d-u', '오늘'];
+    if (d <= 7) return ['d-u', 'D-' + d];
+    if (d <= 14) return ['d-s', 'D-' + d];
+    return ['d-o', 'D-' + d];
+  }
+
+  function whenOf(a) {
+    if (a.du) return a.du;
+    if (a.pt === 'always' || a.d === 9999) return a.p || '상시 접수';
+    if (!a.e) return '마감일 미상';
+    if (a.tm) return a.e + ' (KST)';
+    return a.e + ' · 시간 미상';
   }
 
   function html(a) {
-    var c = cls(a.d, a.p);
-    var sub = c[2] || (a.e ? a.e.slice(5) + ' 마감' : '');
+    var st = a.st || (a.d < 0 ? 'closed' : 'open');
+    var c = cls(a.d, a.p, st);
+    var sl = a.sl || (st === 'closed' ? '마감' : st === 'upcoming' ? '예정' : '진행');
     var tags = '<span class="pill pill-dday ' + c[0] + '">' + esc(c[1]) + '</span>';
+    if (sl && sl !== c[1]) tags += '<span class="pill pill-st">' + esc(sl) + '</span>';
     if (a.c) tags += '<span class="pill">' + esc(a.c) + '</span>';
     if (a.r) tags += '<span class="pill">' + esc(a.r) + '</span>';
+    if (a.sn) tags += '<span class="pill pill-src">' + esc(a.sn) + '</span>';
     if (a.n) tags += '<span class="pill pill-new">신규</span>';
     (a.sg || []).forEach(function (s) {
       tags += '<span class="pill sig-' + esc(s.k) + '">' + esc(s.l) + '</span>';
@@ -32,20 +43,20 @@
     var amt = a.m
       ? '<span class="amt">' + esc(a.m) + '</span>'
       : '<span class="amt amt-empty">규모는 원문 확인</span>';
-    var when = sub ? '<span class="when">' + esc(sub) + '</span>' : '';
+    var when = '<span class="when">' + esc(whenOf(a)) + '</span>';
     var starred = w.Scrap && w.Scrap.has(a.i);
-    return '<a class="row" href="/notice/' + esc(a.i) + '/">' +
-      '<div class="row-body">' +
+    return '<article class="row">' +
+      '<a class="row-body" href="/notice/' + esc(a.i) + '/">' +
       '<div class="row-tags">' + tags + '</div>' +
       '<h3>' + esc(a.t) + '</h3>' +
       (meta ? '<div class="meta">' + meta + '</div>' : '') +
       blurb +
       '<div class="row-foot">' + amt + when + '</div>' +
-      '</div>' +
+      '</a>' +
       '<button type="button" class="star" data-id="' + esc(a.i) +
       '" aria-pressed="' + (starred ? 'true' : 'false') +
-      '" aria-label="스크랩"></button></a>';
+      '" aria-label="스크랩"></button></article>';
   }
 
-  w.MagampanCard = { esc: esc, cls: cls, html: html };
+  w.MagampanCard = { esc: esc, cls: cls, html: html, whenOf: whenOf };
 })(window);

@@ -1,13 +1,28 @@
 <section class="find" id="find"
   data-region="{{ sel_region or '' }}"
   data-category="{{ sel_category or '' }}"
-  data-district="{{ sel_district or '' }}">
+  data-district="{{ sel_district or '' }}"
+  data-email="{{ alert_email or site.email or '' }}">
   <form class="find-search" action="/all/" method="get" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
     <label class="sr-only" for="f-q">공고명·기관 검색</label>
     <input type="search" id="f-q" name="q" placeholder="공고명·기관으로 검색" autocomplete="off">
   </form>
   <p class="find-hint">회원가입 없이 · 마감일 순 · 기본은 접수 중인 공고만</p>
+
+  <div class="find-tools" role="toolbar" aria-label="검색 도구">
+    <button type="button" class="f-chip f-chip--sheet" id="f-sheet" data-panel="all" aria-expanded="false" aria-haspopup="dialog">필터</button>
+    <label class="sr-only" for="f-sort">정렬</label>
+    <select id="f-sort" class="f-sort">
+      <option value="dday">마감 임박순</option>
+      <option value="new">최근 마감일순</option>
+    </select>
+    <label class="f-chip f-chip--check is-on" title="마감된 공고는 숨깁니다. 기본값입니다.">
+      <input type="checkbox" id="f-openonly" checked> 접수 중만
+    </label>
+    <button type="button" class="f-chip f-chip--ghost" data-panel="save" aria-expanded="false" aria-haspopup="dialog">조건 저장</button>
+    <button type="button" class="f-chip f-chip--ghost" id="f-alert" data-panel="alert" aria-expanded="false">알림</button>
+  </div>
 
   <div class="find-chips" role="toolbar" aria-label="필터">
     <button type="button" class="f-chip" data-panel="region" aria-expanded="false" aria-haspopup="dialog">
@@ -27,17 +42,8 @@
       <button type="button" class="f-chip" data-panel="amount" aria-expanded="false" aria-haspopup="dialog">
         지원금액 <span class="f-caret" aria-hidden="true"></span>
       </button>
-      <button type="button" class="f-chip f-chip--ghost" data-panel="save" aria-expanded="false" aria-haspopup="dialog">조건 저장</button>
       <button type="button" class="f-chip f-chip--ghost" data-panel="load" aria-expanded="false" aria-haspopup="dialog">조건 불러오기</button>
-      <label class="sr-only" for="f-sort">정렬</label>
-      <select id="f-sort" class="f-sort">
-        <option value="dday">마감 임박순</option>
-        <option value="new">최근 마감일순</option>
-      </select>
     </span>
-    <label class="f-chip f-chip--check is-on" title="마감된 공고는 숨깁니다. 기본값입니다.">
-      <input type="checkbox" id="f-openonly" checked> 접수 중만
-    </label>
   </div>
 
   <div class="active-pills" id="f-pills" hidden></div>

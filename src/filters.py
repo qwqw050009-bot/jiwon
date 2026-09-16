@@ -9,6 +9,7 @@
 """
 import re
 
+import deadline as dl
 import districts as distmod
 import enrich
 
@@ -23,6 +24,7 @@ AMOUNT_BANDS = [
 SOURCE_LABEL = {
     "bizinfo": "기업마당",
     "kstartup": "K-Startup",
+    "g2b": "나라장터",
 }
 
 _AMT = re.compile(
@@ -74,7 +76,33 @@ def source_of(row):
     src = (row.get("source") or "").strip() if row else ""
     if src == "kstartup":
         return "kstartup"
+    if src in ("g2b", "nara", "bid"):
+        return "g2b"
     return "bizinfo"
+
+
+def source_label(row):
+    return SOURCE_LABEL.get(source_of(row), "기업마당")
+
+
+def notice_no(row):
+    """원문 공고번호. 없으면 id. 없는 번호를 지어내지 않는다."""
+    row = row or {}
+    for key in ("pblanc_id", "bid_no", "notice_no"):
+        v = (row.get(key) or "").strip()
+        if v:
+            return v
+    return (row.get("id") or "").strip()
+
+
+def posted_at(row):
+    """게시일. created/updated/open_dt 중 있는 것만."""
+    row = row or {}
+    for key in ("created", "updated", "open_dt", "posted_at"):
+        v = (row.get(key) or "").strip()
+        if v:
+            return v[:16]
+    return ""
 
 
 def districts_of(row):
@@ -97,6 +125,7 @@ def districts_of(row):
 
 def compact(row):
     """notices.json 한 줄. 키를 짧게 유지한다."""
+    st = row.get("status") or dl.status_of(row)
     rec = {
         "i": row.get("id") or "",
         "t": row.get("title") or "",
@@ -109,9 +138,21 @@ def compact(row):
         "n": 1 if row.get("is_new") else 0,
         "p": row.get("period_raw") or "",
         "src": source_of(row),
+        "sn": source_label(row),
         "b": amount_band_id(row),
         "pt": row.get("period_type") or "dated",
+        "st": st,
+        "sl": row.get("status_label") or dl.status_label(st),
+        "du": row.get("deadline_line") or dl.deadline_line(row),
+        "tm": 1 if dl.time_known(row.get("apply_end") or "") else 0,
+        "no": notice_no(row),
     }
+    pd = posted_at(row)
+    if pd:
+        rec["pd"] = pd
+    col = (row.get("collected_at") or "").strip()
+    if col:
+        rec["col"] = col
     if row.get("blurb"):
         rec["s"] = row["blurb"]
     who = row.get("target_short") or ""
@@ -123,6 +164,64 @@ def compact(row):
     sig = row.get("signals") or []
     if sig:
         rec["sg"] = [{"k": x.get("cls") or "", "l": x.get("label") or ""} for x in sig]
+    return rec
+
+
+def bid_amount_band_id(row):
+    """입찰 추정가격 밴드. 원문 숫자가 있을 때만. 없으면 unk."""
+    raw = row.get("budget_raw") if row else None
+    won = None
+    if isinstance(raw, int) and raw > 0:
+        won = raw
+    elif raw not in (None, ""):
+        try:
+            won = int(raw)
+        except (TypeError, ValueError):
+            won = None
+    if won is None:
+        won = amount_won(row.get("budget_card") or row.get("budget") or "")
+    if won is None or won <= 0:
+        return "unk"
+    if won < 10_000_000:
+        return "lt10"
+    if won < 50_000_000:
+        return "10to50"
+    if won < 100_000_000:
+        return "50to100"
+    return "gte100"
+
+
+def compact_bid(row):
+    """bids.json 한 줄. notices.json 과 섞지 않는다."""
+    st = row.get("status") or dl.status_of(row)
+    rec = {
+        "i": row.get("id") or "",
+        "t": row.get("title") or "",
+        "k": row.get("kind") or "",
+        "ks": row.get("kind_slug") or "",
+        "o": row.get("org") or "",
+        "m": row.get("budget_card") or row.get("budget") or "",
+        "e": row.get("close_dt") or "",
+        "d": row.get("dday", 0),
+        "r": row.get("region") or "",
+        "src": "g2b",
+        "sn": "나라장터",
+        "st": st,
+        "sl": row.get("status_label") or dl.status_label(st),
+        "du": row.get("deadline_line") or dl.deadline_line(row),
+        "tm": 1 if dl.time_known(row.get("close_dt") or "") else 0,
+        "no": notice_no(row),
+        "b": bid_amount_band_id(row),
+        "u": row.get("detail_url") or "",
+    }
+    if row.get("ntce_org"):
+        rec["nt"] = row["ntce_org"]
+    pd = posted_at(row)
+    if pd:
+        rec["pd"] = pd
+    col = (row.get("collected_at") or "").strip()
+    if col:
+        rec["col"] = col
     return rec
 
 
