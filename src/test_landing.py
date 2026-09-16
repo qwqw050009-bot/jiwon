@@ -105,6 +105,11 @@ def test_home_hero_and_footer():
     assert "알림은 얼마나 정확하고 빠른가요?" in home
     assert "mailto:qwqw050009@gmail.com" in home
     assert "카카오톡 · 준비 중" in home
+    assert "path-card" in home
+    assert "오늘 마감" in home
+    assert "내 지역부터 보기" in home
+    assert "처음이세요?" in home
+    assert "입찰 탭" in home
     assert "로그인</a>" not in home
     assert 'href="/login' not in home
     assert "낙찰까지 받았습니다" not in home
@@ -120,6 +125,7 @@ def test_alert_js_is_mailto_not_checkout():
     root = os.path.join(os.path.dirname(__file__), "..")
     js = open(os.path.join(root, "static", "alert.js"), encoding="utf-8").read()
     assert "mailto:" in js
+    assert "formspree" in js
     assert "localStorage" in js
     assert "IMP.init" not in js
     assert "Kakao.init" not in js

@@ -109,7 +109,19 @@
     var on = toggle(b.dataset.id, kind);
     syncStars(b.dataset.id, kind);
     badge();
-    if (on) notice();
+    if (window.MagampanToast) {
+      var first = false;
+      try { first = on && !localStorage.getItem(HIDE); } catch (err) { first = on; }
+      MagampanToast(
+        on
+          ? (first ? '스크랩에 넣었습니다. 이 브라우저에만 저장됩니다.' : '스크랩에 넣었습니다')
+          : '스크랩에서 뺐습니다',
+        { href: '/scrap/', label: '목록 보기', ms: 3200 }
+      );
+      if (first) {
+        try { localStorage.setItem(HIDE, '1'); } catch (err) {}
+      }
+    } else if (on) notice();
     if (document.body.dataset.page === 'scrap' && b.classList.contains('star')) {
       var row = b.closest('.row');
       if (row) row.remove();

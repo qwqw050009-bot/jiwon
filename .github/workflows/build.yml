@@ -27,6 +27,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NARA_API_KEY: ${{ secrets.NARA_API_KEY }}
           DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
+          FORMSPREE_ID: ${{ secrets.FORMSPREE_ID }}
       - name: commit cache
         run: |
           git config user.name "github-actions"

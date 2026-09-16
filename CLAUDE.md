@@ -12,7 +12,8 @@
   구 배포 URL: https://jiwon-5i5.pages.dev (계속 살아있음, 커스텀 도메인의 별칭)
 
 ## 파일 역할
-- `src/config.py` — 사이트 설정, 분야 8종, 지역 17종, 입찰 종류 4종
+- `src/config.py` — 사이트 설정, 분야 8종, 지역 17종, 입찰 종류 4종.
+  `FORMSPREE_ID` 가 있으면 알림 폼 실전달, 없으면 mailto
 - `src/bizinfo.py` — 기업마당 API 어댑터. 응답을 내부 스키마로 정규화
 - `src/kstartup.py` — K-Startup(창업진흥원) API 어댑터. 창업 분야 데이터
   깊이 보강용 선택적 소스. `KSTARTUP_KEY` 없으면 완전히 건너뛰고
@@ -73,6 +74,9 @@ JS가 꺼져도 서버 렌더 목록이 보여야 한다.
 **7. 인증키를 코드에 쓰지 마라**
 `BIZINFO_KEY`, `KSTARTUP_KEY`, `ANTHROPIC_API_KEY`, `NARA_API_KEY`,
 `DATA_GO_KR_SERVICE_KEY`는 환경변수로만 읽는다.
+알림 실전달은 `FORMSPREE_ID`(Formspree 공개 폼 ID 또는
+`https://formspree.io/f/...` URL). GitHub Actions secret 으로만 넣고
+코드에 ID를 쓰지 마라. 비어 있으면 mailto 폴백이라 빌드가 죽지 않는다.
 
 **8. 보강 데이터소스는 항상 선택적으로(optional) 연결하라**
 K-Startup처럼 나중에 추가하는 소스는 해당 API 키 환경변수가 없으면

@@ -2,7 +2,8 @@
   data-region="{{ sel_region or '' }}"
   data-category="{{ sel_category or '' }}"
   data-district="{{ sel_district or '' }}"
-  data-email="{{ alert_email or site.email or '' }}">
+  data-email="{{ alert_email or site.email or '' }}"
+  data-formspree="{{ formspree_url|default('') }}">
   <form class="find-search" action="/all/" method="get" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
     <label class="sr-only" for="f-q">공고명·기관 검색</label>

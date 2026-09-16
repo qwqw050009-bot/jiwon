@@ -146,6 +146,87 @@
     return (new URLSearchParams(location.search).get('q') || '').trim();
   }
 
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
+      return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+    });
+  }
+  function toast(msg, opts) {
+    opts = opts || {};
+    var old = document.getElementById('mp-toast');
+    if (old) old.remove();
+    var el = document.createElement('div');
+    el.id = 'mp-toast';
+    el.className = 'mp-toast';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.style.cssText = 'position:fixed;left:14px;right:14px;bottom:14px;z-index:100;max-width:420px;margin:0 auto;background:#1A1A1A;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.22)';
+    var html = '<p>' + escHtml(msg) + '</p>';
+    if (opts.href) {
+      html += '<p><a href="' + escHtml(opts.href) + '">' +
+        escHtml(opts.label || '열기') + '</a></p>';
+    }
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('in'); });
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () {
+      el.classList.remove('in');
+      setTimeout(function () { if (el.parentNode) el.remove(); }, 200);
+    }, opts.ms || 3200);
+    return el;
+  }
+
+  function isTyping(el) {
+    if (!el) return false;
+    var t = (el.tagName || '').toLowerCase();
+    return t === 'input' || t === 'textarea' || t === 'select' || el.isContentEditable;
+  }
+  function helpBox() { return document.getElementById('keys-help'); }
+  function closeHelp() {
+    var box = helpBox();
+    if (!box) return;
+    box.hidden = true;
+  }
+  function openHelp() {
+    var box = helpBox();
+    if (!box) return;
+    box.hidden = false;
+    var sheet = box.querySelector('.keys-sheet');
+    if (sheet && sheet.focus) sheet.focus();
+  }
+  function toggleHelp() {
+    var box = helpBox();
+    if (!box) return;
+    if (box.hidden) openHelp(); else closeHelp();
+  }
+  function bindKeys() {
+    var box = helpBox();
+    if (box) {
+      box.addEventListener('click', function (e) { if (e.target === box) closeHelp(); });
+      var x = document.getElementById('keys-x');
+      if (x) x.addEventListener('click', closeHelp);
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeHelp();
+        return;
+      }
+      if (isTyping(e.target)) return;
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        toggleHelp();
+        return;
+      }
+      if (e.key === '/' && !e.shiftKey) {
+        e.preventDefault();
+        var inp = document.getElementById('f-q') || document.getElementById('bid-q') ||
+          document.querySelector('.hsearch input');
+        if (inp) inp.focus();
+      }
+    });
+  }
+
   function bindModeSwitch() {
     document.querySelectorAll('.mode-switch a[data-mode]').forEach(function (a) {
       a.addEventListener('click', function (e) {
@@ -175,10 +256,17 @@
     bindDialog: bindDialog,
     currentQ: currentQ
   };
+  w.MagampanToast = toast;
 
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', bindModeSwitch);
-    } else bindModeSwitch();
+      document.addEventListener('DOMContentLoaded', function () {
+        bindModeSwitch();
+        bindKeys();
+      });
+    } else {
+      bindModeSwitch();
+      bindKeys();
+    }
   }
 })(window);

@@ -411,7 +411,9 @@
         '<p class="f-help">지금 조건: ' + esc(desc) + '</p>' +
         '<input class="f-search" id="bid-save-name" value="' + esc(desc.slice(0, 40) || '지금 조건') + '" maxlength="40">' +
         preview + '</div>';
-      document.getElementById('bid-panel-apply').textContent = kind === 'alert' ? '저장하고 메일 열기' : '저장';
+      document.getElementById('bid-panel-apply').textContent = kind === 'alert'
+        ? (window.MagampanAlerts && MagampanAlerts.applyLabel ? MagampanAlerts.applyLabel() : '저장하고 메일 열기')
+        : '저장';
       document.getElementById('bid-panel-reset').hidden = true;
     } else if (kind === 'load') {
       panelTitle.textContent = '조건 불러오기';
@@ -501,11 +503,28 @@
     }
     if (andMail) {
       var desc = window.MagampanState ? MagampanState.describeBid(toURLState()) : name;
+      var freqLabel = ((window.MagampanAlerts && MagampanAlerts.FREQ[freq]) || freq);
+      var email = window.MagampanAlerts && MagampanAlerts.panelEmail
+        ? MagampanAlerts.panelEmail(panelBody) : '';
       var body = '아래 입찰 조건으로 마감 알림을 받고 싶습니다.\n\n' + desc +
-        '\n빈도: ' + ((window.MagampanAlerts && MagampanAlerts.FREQ[freq]) || freq) +
+        '\n빈도: ' + freqLabel +
+        '\n이메일: ' + (email || '(미입력)') +
         '\n\n페이지: ' + location.href + '\n\n(로그인·결제는 없습니다.)';
-      location.href = 'mailto:' + EMAIL + '?subject=' +
-        encodeURIComponent('[마감판] 입찰 조건 알림') + '&body=' + encodeURIComponent(body);
+      var mailer = window.MagampanAlerts && MagampanAlerts.send
+        ? MagampanAlerts.send({
+          email: email,
+          keyword: name,
+          subject: '[마감판] 입찰 조건 알림',
+          message: body
+        })
+        : Promise.resolve({ ok: true, via: 'mailto' });
+      if (!(window.MagampanAlerts && MagampanAlerts.send)) {
+        location.href = 'mailto:' + EMAIL + '?subject=' +
+          encodeURIComponent('[마감판] 입찰 조건 알림') + '&body=' + encodeURIComponent(body);
+      }
+      mailer.then(function (res) {
+        if (window.MagampanAlerts && MagampanAlerts.sayToast) MagampanAlerts.sayToast(res);
+      });
     }
   }
 
@@ -514,7 +533,12 @@
     document.getElementById('bid-panel-x').addEventListener('click', closePanel);
     document.getElementById('bid-panel-apply').addEventListener('click', function () {
       if (panelKind === 'save') { savePreset(false); closePanel(); return; }
-      if (panelKind === 'alert') { savePreset(true); closePanel(); return; }
+      if (panelKind === 'alert') {
+        var em = document.getElementById('alert-panel-email');
+        if (em && !em.value.trim()) { em.focus(); return; }
+        if (em && em.reportValidity && !em.checkValidity()) { em.reportValidity(); return; }
+        savePreset(true); closePanel(); return;
+      }
       if (draft) {
         picked.kind = draft.kind;
         picked.deadline = draft.deadline;
