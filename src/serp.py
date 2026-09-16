@@ -67,19 +67,19 @@ _REGION_KIND = {
 _STATIC_DESC = {
     "about": (
         "정부지원사업을 마감일 순으로 모아 보여주는 사이트입니다. "
-        "소상공인·중소기업, 회원가입 없이 지역·분야로 확인하세요."
+        "소상공인·중소기업, 회원가입 없이 지역·분야로 확인하고, 입찰은 따로 보세요."
     ),
     "privacy": (
         "지원사업 마감판 개인정보처리방침입니다. "
-        "회원가입 없이 이용하며, 광고·쿠키·문의 창구를 확인할 수 있습니다."
+        "회원가입 없이 이용하며, 광고·쿠키 안내와 문의 창구를 이 페이지에서 확인할 수 있습니다."
     ),
     "terms": (
         "지원사업 마감판 이용약관입니다. "
-        "정보 제공 범위, 원문 확인 책임, 입찰·지원 문의 한계를 정리했습니다."
+        "정보 제공 범위, 원문 확인 책임, 입찰·지원 문의 한계를 확인하고 이용해 주세요."
     ),
     "contact": (
         "지원사업 마감판 문의처입니다. "
-        "정보 오류 신고는 받고, 개별 공고 자격·심사는 소관기관에 물어야 합니다."
+        "정보 오류 신고는 받고, 개별 공고 자격·심사는 소관기관 원문에 물어야 합니다."
     ),
 }
 
@@ -154,6 +154,13 @@ def counts_of(items):
 def _nbit(n):
     n = int(n or 0)
     return f"{n}건" if n > 0 else ""
+
+
+def _named(label, n):
+    """'지원사업 · 5건'이 아니라 '지원사업 5건'으로 붙인다."""
+    nbit = _nbit(n)
+    label = (label or "").strip()
+    return f"{label} {nbit}".strip() if nbit else label
 
 
 def _join(*parts):
@@ -241,8 +248,7 @@ def home_lede():
 
 def urgent_title(items=None):
     c = counts_of(items)
-    n = _nbit(c["n"] or c["week"])
-    return with_brand(_join("이번 주 마감 지원사업", n, "D-7 이내"))
+    return with_brand(_join(_named("이번 주 마감 지원사업", c["n"] or c["week"]), "D-7 이내"))
 
 
 def urgent_desc(items=None):
@@ -272,8 +278,7 @@ def urgent_lede(items=None):
 
 def all_title(items=None):
     c = counts_of(items)
-    n = _nbit(c["n"] or c["open"])
-    return with_brand(_join("정부지원사업 전체", n, f"마감일 순 {year()}"))
+    return with_brand(_join(_named("정부지원사업 전체", c["n"] or c["open"]), f"마감일 순 {year()}"))
 
 
 def all_desc(items=None):
@@ -303,7 +308,7 @@ def all_lede(items=None):
 
 def new_title(items=None):
     c = counts_of(items)
-    return with_brand(_join("새로 올라온 지원사업", _nbit(c["n"]), "오늘 등록"))
+    return with_brand(_join(_named("새로 올라온 지원사업", c["n"]), "오늘 등록"))
 
 
 def new_desc(items=None):
@@ -415,26 +420,26 @@ def category_lede(name, cat=None):
 
 # ── 지역 ────────────────────────────────────────────────────
 
-def _region_core(region, nbit):
+def _region_core(region, n):
     kind = _REGION_KIND.get(region, "do")
     if kind == "nation":
-        return _join("전국 신청 가능 지원사업", nbit, "소재지 제한 없음")
+        return _join(_named("전국 신청 가능 지원사업", n), "소재지 제한 없음")
     if kind == "united":
-        return _join("전남광주 소상공인 지원금", "통합특별시", nbit)
+        return _join("전남광주 소상공인 지원금", _named("통합특별시", n))
     if kind == "wide":
-        return _join("경기 소상공인 지원금", "시·군 지원사업", nbit)
+        return _join("경기 소상공인 지원금", _named("시·군 지원사업", n))
     if kind == "metro":
-        return _join(f"{region} 소상공인 지원금", "시·구 지원사업", nbit)
+        return _join(f"{region} 소상공인 지원금", _named("시·구 지원사업", n))
     if kind == "city":
-        return _join(f"{region} 소상공인 지원금", "시 단위", nbit)
+        return _join(f"{region} 소상공인 지원금", _named("시 단위", n))
     if kind == "island":
-        return _join(f"{region} 소상공인 지원금", "도 단위", nbit)
-    return _join(f"{region} 소상공인 지원금", "정부지원사업", nbit)
+        return _join(f"{region} 소상공인 지원금", _named("도 단위", n))
+    return _join(f"{region} 소상공인 지원금", _named("정부지원사업", n))
 
 
 def region_title(region, items=None):
     c = counts_of(items)
-    return with_brand(_region_core(region, _nbit(c["n"])))
+    return with_brand(_region_core(region, c["n"]))
 
 
 def region_desc(region, items=None):
@@ -486,7 +491,7 @@ def combo_title(region, category, items=None):
     c = counts_of(items)
     label = _region_label(region)
     return with_brand(_join(
-        f"{label} {category} 지원사업", _nbit(c["n"]), _urgency_chip(c),
+        _named(f"{label} {category} 지원사업", c["n"]), _urgency_chip(c),
     ))
 
 
@@ -519,7 +524,7 @@ def combo_lede(region, category):
 def district_title(sido, district, items=None):
     c = counts_of(items)
     return with_brand(_join(
-        f"{district} 지원사업", _nbit(c["n"]), f"{_region_label(sido)} 소상공인",
+        _named(f"{district} 지원사업", c["n"]), f"{_region_label(sido)} 소상공인",
     ))
 
 
@@ -548,7 +553,7 @@ def district_lede(sido, district):
 def district_combo_title(sido, district, category, items=None):
     c = counts_of(items)
     return with_brand(_join(
-        f"{district} {category} 지원사업", _nbit(c["n"]), _urgency_chip(c),
+        _named(f"{district} {category} 지원사업", c["n"]), _urgency_chip(c),
     ))
 
 
@@ -600,8 +605,10 @@ def notice_title(row):
 def notice_desc(row, limit=150):
     row = row or {}
     summary = ((row.get("ai") or {}).get("summary") or "").strip()
-    if not summary:
+    if not summary or "이(가)" in summary or "을(를)" in summary:
         summary = (row.get("blurb") or "").strip()
+    if "이(가)" in summary or "을(를)" in summary:
+        summary = ""
     if not summary:
         org = (row.get("org") or "").strip()
         cat = (row.get("category") or "").strip()
@@ -638,7 +645,7 @@ def guide_hub_title():
 def guide_hub_desc():
     return clip_desc(
         "신청 자격, 서류, 바우처·선정 차이, 소상공인 지원금 순서까지. "
-        "공고가 바뀌어도 남는 기본기를 확인하세요."
+        "공고가 바뀌어도 남는 기본기를 보고, 오늘 마감 목록과 같이 확인하세요."
     )
 
 
@@ -653,7 +660,8 @@ def calendar_title():
 def calendar_desc():
     return clip_desc(
         "관심 지역·분야 마감일을 내 캘린더에 자동으로 받습니다. "
-        "회원가입 없이 ICS로 구독하고, 마감 하루 전 알림을 확인하세요."
+        "회원가입 없이 ICS로 구독하고, 마감 하루 전 알림을 확인하세요. "
+        "상시 접수는 날짜가 없어 캘린더에 넣지 않습니다."
     )
 
 
@@ -700,7 +708,7 @@ def bid_hub_desc(tally=None):
 
 
 def bid_urgent_title(n=0):
-    return with_brand(_join("이번 주 마감 입찰", _nbit(n), "나라장터 D-7"))
+    return with_brand(_join(_named("이번 주 마감 입찰", n), "나라장터 D-7"))
 
 
 def bid_urgent_desc(n=0):
@@ -709,12 +717,13 @@ def bid_urgent_desc(n=0):
     else:
         head = "나라장터에서 7일 안에 마감되는 입찰만 모았습니다."
     return clip_desc(
-        f"{head} 물품·용역·공사·외자 마감일시를 확인하고 원문으로 가세요."
+        f"{head} 물품·용역·공사·외자 마감일시를 확인하고 원문으로 가세요. "
+        "지원사업 마감임박은 홈에서 따로 봅니다."
     )
 
 
 def bid_kind_title(name, n=0):
-    return with_brand(_join(f"{name} 입찰공고", _nbit(n), "나라장터 마감일시"))
+    return with_brand(_join(_named(f"{name} 입찰공고", n), "나라장터 마감일시"))
 
 
 def bid_kind_desc(name, n=0, kind_desc=""):
@@ -741,7 +750,7 @@ def bid_region_hub_desc():
 
 
 def bid_region_title(region, n=0):
-    return with_brand(_join(f"{region} 참가지역 입찰", _nbit(n), "나라장터"))
+    return with_brand(_join(_named(f"{region} 참가지역 입찰", n), "나라장터"))
 
 
 def bid_region_desc(region, n=0):
