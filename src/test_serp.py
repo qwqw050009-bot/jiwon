@@ -231,6 +231,18 @@ def test_bid_copy_stays_off_support_words():
             _branded(t)
     assert "서울과" in serp.bid_region_desc("서울", 3)
     assert "경기와" in serp.bid_region_desc("경기", 3)
+    ht = _branded(serp.bid_hub_title())
+    assert "나라장터" in ht and "마감일시" in ht and "2026" in ht
+    assert ht.lower().count("나라장터") == 1
+    ut = _branded(serp.bid_urgent_title(4))
+    assert "나라장터" in ut and "마감일시" in ut and "2026" in ut
+    assert "4건" in ut
+    kt = _branded(serp.bid_kind_title("용역", 8))
+    assert kt.startswith("나라장터 용역 입찰공고")
+    assert "마감일시" in kt and "2026" in kt
+    hd = serp.bid_hub_desc({"today": 1, "urgent": 4, "open": 20})
+    assert "2026" in hd and "나라장터" in hd
+    assert "지원금" not in hd
 
 
 def test_intros_wrappers_match_serp():
@@ -408,6 +420,8 @@ def test_mock_build_html_titles():
         "region/gyeonggi/startup/index.html": ("경기 창업 지원사업 공고", "창업"),
         "guide/start/index.html": ("정부지원사업 신청 방법", "신청 방법"),
         "bid/index.html": ("나라장터 입찰공고", "나라장터"),
+        "bid/urgent/index.html": ("나라장터 이번 주 마감", "마감일시"),
+        "bid/kind/service/index.html": ("나라장터 용역 입찰공고", "용역"),
     }
     if not os.path.exists(os.path.join(root, "index.html")):
         return
@@ -431,6 +445,8 @@ def test_mock_build_html_titles():
         assert "이(가)" not in title + desc
         if rel.startswith("bid/"):
             assert "지원금" not in title and "바우처" not in title
+            if rel in ("bid/index.html", "bid/urgent/index.html", "bid/kind/service/index.html"):
+                assert "나라장터" in title and "마감일시" in title and "2026" in title
     ads = os.path.join(root, "ads.txt")
     if os.path.exists(ads):
         body = open(ads, encoding="utf-8").read()

@@ -139,7 +139,8 @@ def build(env, write, site, urls, dist):
 
     def render_list(path, h1, lede, items, *, title=None, desc=None,
                     intro=None, faqs=None, blocks=None, sections=None,
-                    beginner=False, crumbs=None, empty=None, bid_empty=None):
+                    beginner=False, crumbs=None, empty=None, bid_empty=None,
+                    sel_kind="", sel_due="", sel_region="", limit=20, page="list"):
         n = len(items)
         sections = sections or []
         blocks = blocks or []
@@ -149,7 +150,7 @@ def build(env, write, site, urls, dist):
             intros.ad_plan(0 if bid_empty else n, has_sections=bool(sections) and not bid_empty), site)
         crumbs = crumbs or []
         html = env.get_template("bid_list.html").render(
-            site=site, path=path, section="bid",
+            site=site, path=path, section="bid", page=page,
             title=title or f"{h1} | {site['name']}",
             desc=desc or lede, h1=h1, lede=lede, items=items,
             tally=None if bid_empty else (tally(items) if not sections else t_all),
@@ -166,47 +167,37 @@ def build(env, write, site, urls, dist):
             bid_kinds=BID_KINDS, today=0 if bid_empty else (
                 sum(1 for a in items if a.get("is_open") and a.get("dday") == 0)
                 if not sections else t_all.get("today", 0)),
+            sel_kind=sel_kind, sel_due=sel_due, sel_region=sel_region,
+            limit=0 if bid_empty else limit,
         )
         write(path, html)
 
     open_rows = [a for a in rows if a.get("is_open")]
     week = [a for a in open_rows if 0 <= a["dday"] <= 7]
-    today_rows = [a for a in open_rows if a["dday"] == 0]
-    later = [a for a in open_rows if a["dday"] > 7]
-    sections = []
-    if week:
-        sections.append({"title": "이번 주 마감", "items": week[:8],
-                         "href": "/bid/urgent/", "total": len(week)})
-    if later:
-        sections.append({"title": "이후 마감", "items": later[:8],
-                         "href": "", "total": len(later)})
-    if not sections and open_rows:
-        sections.append({"title": "진행 중인 입찰", "items": open_rows[:8],
-                         "href": "/bid/urgent/", "total": len(open_rows)})
 
     hub_empty = not open_rows
     if hub_empty:
         faqs = empty_hub_faqs()
         intro = empty_hub_intro()
         lede = "지금은 표시할 진행 중 입찰이 없습니다. 나라장터 원문과 지원사업은 아래에서 갈 수 있습니다."
-        hub_sections = []
         hub_blocks = []
+        hub_items = []
     else:
         faqs = hub_faqs(t_all)
         intro = hub_intro(t_all)
         lede = "오늘 마감되는 입찰부터 봅니다. 물품·용역·공사·외자로 나눕니다."
-        hub_sections = sections
         hub_blocks = [{"title": "종류로 찾기", "items": kind_chips}]
         if reg_chips:
             hub_blocks.append({"title": "참가지역으로 찾기", "items": reg_chips})
+        hub_items = open_rows
     render_list(
         "/bid/", "나라장터 입찰, 마감일시 순",
         lede,
-        [],
+        hub_items,
         title=serp.bid_hub_title(),
         desc=serp.bid_hub_desc(None if hub_empty else t_all),
         intro=intro, faqs=faqs, beginner=not hub_empty,
-        sections=hub_sections, blocks=hub_blocks,
+        blocks=hub_blocks, limit=20,
         crumbs=[{"name": "홈", "url": "/"}, {"name": "입찰", "url": "/bid/"}],
         empty=("나라장터 연동이 꺼져 있거나, 오늘 기준 진행 중인 공고가 없습니다."
                if hub_empty else empty_copy("입찰공고")),
@@ -230,6 +221,7 @@ def build(env, write, site, urls, dist):
                 {"name": "입찰", "url": "/bid/"},
                 {"name": "마감임박", "url": "/bid/urgent/"}],
         empty=empty_copy("이번 주 마감 입찰"),
+        sel_due="week", limit=20,
     )
 
     for kind in BID_KINDS:
@@ -251,6 +243,7 @@ def build(env, write, site, urls, dist):
                     {"name": "입찰", "url": "/bid/"},
                     {"name": kind["name"], "url": f"/bid/kind/{kind['slug']}/"}],
             empty=empty_copy(f"{kind['name']} 입찰"),
+            sel_kind=kind["slug"], limit=20,
         )
 
     if reg_chips:
@@ -272,6 +265,7 @@ def build(env, write, site, urls, dist):
                     {"name": "입찰", "url": "/bid/"},
                     {"name": "지역", "url": "/bid/region/"}],
             empty=empty_copy("지역이 확인된 입찰"),
+            limit=20,
         )
         for r in BID_REGIONS:
             items = by_reg[r["name"]]
@@ -291,6 +285,7 @@ def build(env, write, site, urls, dist):
                         {"name": "지역", "url": "/bid/region/"},
                         {"name": r["name"], "url": f"/bid/region/{r['slug']}/"}],
                 empty=empty_copy(f"{r['name']} 입찰"),
+                sel_region=r["name"], limit=20,
             )
 
     def render_notice(a):
@@ -323,7 +318,8 @@ def build(env, write, site, urls, dist):
         render_notice(a)
 
     feed = [{"i": a["id"], "t": a["title"], "k": a.get("kind") or "",
-             "o": a.get("org") or "", "m": a.get("budget") or "",
+             "ks": a.get("kind_slug") or "",
+             "o": a.get("org") or "", "m": a.get("budget_card") or a.get("budget") or "",
              "e": a.get("close_dt") or "", "d": a["dday"],
              "r": a.get("region") or ""}
             for a in rows]

@@ -1,5 +1,9 @@
 {% macro row(a) %}
-<a class="row" href="/bid/notice/{{ a.id }}/">
+<a class="row" href="/bid/notice/{{ a.id }}/"
+   data-kind="{{ a.kind or '' }}"
+   data-kind-slug="{{ a.kind_slug or '' }}"
+   data-d="{{ a.dday }}"
+   data-region="{{ a.region or '' }}">
   <div class="row-body">
     <div class="row-tags">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
@@ -7,7 +11,7 @@
       {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
     </div>
     <h3>{{ a.title }}</h3>
-    <div class="meta">{% if a.org %}<i>{{ a.org }}</i>{% endif %}{% if a.kind %}<i>{{ a.kind }}</i>{% endif %}</div>
+    <div class="meta">{% if a.org %}<i>{{ a.org }}</i>{% endif %}</div>
     <div class="row-foot">
       {% if a.budget_card %}<span class="amt">{{ a.budget_card }}</span>{% else %}<span class="amt amt-empty">추정가격은 원문 확인</span>{% endif %}
       {% if a.dsub %}<span class="when">{{ a.dsub }}</span>{% endif %}

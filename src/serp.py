@@ -887,57 +887,66 @@ def scrap_desc():
 
 # ── 입찰 (지원금·바우처 카피 금지) ───────────────────────────
 
-def bid_hub_title():
-    return with_brand("나라장터 입찰공고 마감일시 · 오늘 마감")
+def bid_hub_title(today=None):
+    return with_brand(f"나라장터 입찰공고 마감일시 · {year(today)}")
 
 
-def bid_hub_desc(tally=None):
+def bid_hub_desc(tally=None, today=None):
     t = tally or {}
-    today = int(t.get("today") or 0)
+    n_today = int(t.get("today") or 0)
     urgent = int(t.get("urgent") or 0)
     open_n = int(t.get("open") or 0)
+    y = year(today)
     if open_n:
-        bits = [f"나라장터 입찰 {open_n}건을 마감일시 순으로 봅니다."]
+        bits = [f"나라장터 {y} 입찰 {open_n}건을 마감일시 순으로 봅니다."]
         clock = []
-        if today:
-            clock.append(f"오늘 마감 {today}건")
-        if urgent and urgent != today:
+        if n_today:
+            clock.append(f"오늘 마감 {n_today}건")
+        if urgent and urgent != n_today:
             clock.append(f"이번 주 {urgent}건")
         if clock:
             bits.append(", ".join(clock) + ".")
         bits.append("물품·용역·공사·외자, 수요기관·추정가격을 확인하세요.")
         return clip_desc(" ".join(bits))
     return clip_desc(
-        "나라장터 입찰공고를 마감일시 순으로 정리합니다. "
+        f"나라장터 {y} 입찰공고를 마감일시 순으로 정리합니다. "
         "물품·용역·공사·외자로 나누고, 수요기관과 추정가격을 확인할 수 있습니다."
     )
 
 
-def bid_urgent_title(n=0):
-    return with_brand(_join(_named("이번 주 마감 입찰", n), "나라장터 D-7"))
+def bid_urgent_title(n=0, today=None):
+    return with_brand(_join(
+        _named("나라장터 이번 주 마감 입찰", n),
+        f"마감일시 {year(today)}",
+    ))
 
 
-def bid_urgent_desc(n=0):
+def bid_urgent_desc(n=0, today=None):
+    y = year(today)
     if n:
-        head = f"나라장터에서 7일 안에 마감되는 입찰 {n}건입니다."
+        head = f"나라장터 {y}에서 7일 안에 마감일시가 있는 입찰 {n}건입니다."
     else:
-        head = "나라장터에서 7일 안에 마감되는 입찰만 모았습니다."
+        head = f"나라장터 {y}에서 7일 안에 마감일시가 있는 입찰만 모았습니다."
     return clip_desc(
-        f"{head} 물품·용역·공사·외자 마감일시를 확인하고 원문으로 가세요. "
+        f"{head} 물품·용역·공사·외자를 확인하고 원문으로 가세요. "
         "지원사업 마감임박은 홈에서 따로 봅니다."
     )
 
 
-def bid_kind_title(name, n=0):
-    return with_brand(_join(_named(f"{name} 입찰공고", n), "나라장터 마감일시"))
+def bid_kind_title(name, n=0, today=None):
+    return with_brand(_join(
+        _named(f"나라장터 {name} 입찰공고", n),
+        f"마감일시 {year(today)}",
+    ))
 
 
-def bid_kind_desc(name, n=0, kind_desc=""):
+def bid_kind_desc(name, n=0, kind_desc="", today=None):
     extra = (kind_desc or "").strip()
+    y = year(today)
     if n:
-        head = f"나라장터 {name} 입찰 진행 중 {n}건입니다."
+        head = f"나라장터 {y} {name} 입찰 진행 중 {n}건입니다."
     else:
-        head = f"나라장터 {name} 입찰을 마감일시 순으로 둡니다."
+        head = f"나라장터 {y} {name} 입찰을 마감일시 순으로 둡니다."
     note = f" {extra}." if extra and extra not in head else ""
     return clip_desc(
         f"{head}{note} 수요기관·추정가격을 보고 원문에서 참가 자격을 확인하세요."

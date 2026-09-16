@@ -249,6 +249,11 @@ def build():
 <a href="/guide/calendar-howto/">캘린더 활용</a>에 있습니다.</li>
 </ul>
 
+<p class="guide-next-lead">다음으로 실제 공고를 마감일 순으로 보세요.</p>
+<div class="hero-actions">
+<a class="hero-primary" href="/">오늘 마감부터 보기</a>
+<a class="hero-secondary" href="/region/">내 지역 고르기</a>
+</div>
 <p class="note">이 사이트는 신청을 대행하지 않습니다. 자격과 금액은
 소관기관 원문이 기준입니다. 막히면
 <a href="/guide/">가이드 목록</a>에서 다음 글을 고르면 됩니다.</p>

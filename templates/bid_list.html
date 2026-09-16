@@ -5,8 +5,47 @@
 {% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
 {% endblock %}
 {% block body %}
-<div class="head{% if path == '/bid/' %} head-home{% endif %}">
-  {% if path == '/bid/' %}<p class="kicker">나라장터 · 마감일시 순 · 물품·용역·공사·외자</p>{% endif %}
+{% if path == '/bid/' %}
+<section class="hero">
+  <p class="kicker">나라장터 · 마감일시 순 · 물품·용역·공사·외자</p>
+  <h1>{{ h1 }}</h1>
+  <p class="hero-lede">{{ lede }}</p>
+  {% if not bid_empty %}
+  <ol class="how" aria-label="입찰 보는 순서">
+    <li>
+      <span class="how-n" aria-hidden="true">1</span>
+      <div>
+        <a href="/bid/kind/service/">종류 고르기</a>
+        <span>물품·용역·공사·외자</span>
+      </div>
+    </li>
+    <li>
+      <span class="how-n" aria-hidden="true">2</span>
+      <div>
+        <a href="/bid/urgent/">마감 가까운 것</a>
+        <span>오늘·D-n이 먼저</span>
+      </div>
+    </li>
+    <li>
+      <span class="how-n" aria-hidden="true">3</span>
+      <div>
+        <a href="https://www.g2b.go.kr/" rel="noopener noreferrer" target="_blank">나라장터 원문</a>
+        <span>이 사이트에서 투찰하지 않습니다</span>
+      </div>
+    </li>
+  </ol>
+  <p class="how-aside">지원사업은 위 <a href="/">지원 탭</a>에서 마감일 순으로 따로 봅니다.</p>
+  {% endif %}
+  {% if tally and not bid_empty %}
+  <div class="tally">
+    {% if tally.today %}<span class="u"><b>{{ tally.today }}</b>오늘 마감</span>{% endif %}
+    <span {% if tally.urgent %}class="u"{% endif %}><b>{{ tally.urgent }}</b>이번 주 마감</span>
+    <span><b>{{ tally.open }}</b>진행중</span>
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<div class="head">
   <h1>{{ h1 }}</h1>
   <p>{{ lede }}</p>
   {% if tally and not bid_empty %}
@@ -17,12 +56,12 @@
   </div>
   {% endif %}
 </div>
-
-{% if intro %}
-<div class="prose intro">{{ intro|safe }}</div>
 {% endif %}
 
 {% if bid_empty %}
+{% if intro %}
+<div class="prose intro">{{ intro|safe }}</div>
+{% endif %}
 <section class="empty-panel" role="status">
   <h2>지금은 표시할 입찰공고가 없습니다</h2>
   <p>{{ empty }}</p>
@@ -33,31 +72,31 @@
   </ul>
 </section>
 {% else %}
-{% if beginner %}
-<a class="beginner-cta" href="/">
-  <b>지원사업을 찾으시나요?</b>
-  <span>보조금·융자 공고는 홈에서 마감일 순으로 따로 봅니다 →</span>
-</a>
-{% endif %}
-
 {% if today %}<a class="today-bar" href="/bid/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
-<section class="find find--static" aria-label="입찰 검색">
+<section class="find find--static" id="bid-find" aria-label="입찰 검색"
+  data-kind="{{ sel_kind or '' }}"
+  data-due="{{ sel_due or '' }}"
+  data-region="{{ sel_region or '' }}">
   <div class="find-search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
     <label class="sr-only" for="bid-q">입찰 공고명·수요기관 검색</label>
     <input type="search" id="bid-q" placeholder="공고명·수요기관으로 검색" autocomplete="off">
   </div>
-</section>
-
-{% for b in blocks %}
-<section class="nav-block nav-block-top">
-  <h2>{{ b.title }}</h2>
-  <div class="chips">
-    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
+  <p class="find-hint">로그인 없이 · 마감일시 순 · 나라장터 원문</p>
+  <div class="find-chips find-chips--bid" role="toolbar" aria-label="입찰 필터">
+    {% for k in bid_kinds|default([]) %}
+    <a class="f-chip{% if sel_kind == k.slug %} is-on{% endif %}"
+       href="/bid/kind/{{ k.slug }}/"
+       data-bid-kind="{{ k.slug }}"
+       {% if sel_kind == k.slug %}aria-current="page"{% endif %}>{{ k.name }}</a>
+    {% endfor %}
+    <button type="button" class="f-chip{% if sel_due == 'today' %} is-on{% endif %}" data-bid-due="today" aria-pressed="{{ 'true' if sel_due == 'today' else 'false' }}">오늘 마감</button>
+    <button type="button" class="f-chip{% if sel_due == 'week' %} is-on{% endif %}" data-bid-due="week" aria-pressed="{{ 'true' if sel_due == 'week' else 'false' }}">이번 주</button>
   </div>
+  <p class="f-count" id="bid-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>
+  <p class="sr-only" id="bid-live" aria-live="assertive" aria-atomic="true"></p>
 </section>
-{% endfor %}
 
 {% if items or sections %}
 <p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>은 마감일시 기준입니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다.</p>
@@ -77,14 +116,36 @@
     {% endif %}
     {% endfor %}
   {% else %}
-    {% for a in items %}
+    {% for a in items[:limit or 20] %}
     {{ row(a) }}
     {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
     {% else %}
     <p class="note">{{ empty }}</p>
     {% endfor %}
+    {% if items|length > (limit or 20) %}
+    <button type="button" class="more" id="bid-more-static">{{ items|length - (limit or 20) }}건 더 보기</button>
+    {% endif %}
   {% endif %}
 </div>
+
+{% for b in blocks %}
+<section class="nav-block">
+  <h2>{{ b.title }}</h2>
+  <div class="chips">
+    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+{% if beginner %}
+<a class="beginner-cta" href="/">
+  <b>지원사업을 찾으시나요?</b>
+  <span>지원사업 공고는 홈에서 마감일 순으로 따로 봅니다 →</span>
+</a>
+{% endif %}
+{% if intro %}
+<div class="prose intro">{{ intro|safe }}</div>
+{% endif %}
 {% endif %}
 
 {% if faqs %}
