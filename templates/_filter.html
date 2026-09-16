@@ -1,35 +1,83 @@
-<section class="filter" data-region="{{ sel_region or '' }}" data-category="{{ sel_category or '' }}">
-  <button type="button" class="f-toggle" id="f-toggle" aria-expanded="false" aria-controls="f-body">
-    <span class="f-badge">필터</span>
-    <span class="f-summary" id="f-summary">지역·분야 선택</span>
-    <span class="f-caret" aria-hidden="true"></span>
-  </button>
+<section class="find" id="find"
+  data-region="{{ sel_region or '' }}"
+  data-category="{{ sel_category or '' }}"
+  data-district="{{ sel_district or '' }}">
+  <form class="find-search" action="/all/" method="get" role="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+    <label class="sr-only" for="f-q">공고명·기관 검색</label>
+    <input type="search" id="f-q" name="q" placeholder="공고명·기관으로 검색" autocomplete="off">
+  </form>
 
-  <div class="f-body" id="f-body" hidden>
-    <div class="f-line">
-      <span class="f-label">지역</span>
-      <div class="f-set" id="f-region">
-        {% for r in all_regions %}<button type="button" data-v="{{ r.name }}">{{ r.name }}</button>{% endfor %}
-      </div>
-    </div>
-    <div class="f-line">
-      <span class="f-label">분야</span>
-      <div class="f-set" id="f-category">
-        {% for c in all_categories %}<button type="button" data-v="{{ c.name }}">{{ c.name }}</button>{% endfor %}
-      </div>
-    </div>
-    <div class="f-line f-foot">
-      <label class="f-open"><input type="checkbox" id="f-openonly" checked> 접수 중만</label>
-      <button type="button" id="f-reset">전체 해제</button>
-    </div>
-  </div>
-
-  <div class="f-bar">
-    <input type="search" id="f-q" placeholder="공고명·기관 검색" autocomplete="off">
-    <select id="f-sort" aria-label="정렬">
+  <div class="find-chips" role="toolbar" aria-label="필터">
+    <button type="button" class="f-chip" data-panel="region" aria-expanded="false" aria-haspopup="dialog">
+      지역 <span class="f-caret" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="f-chip" data-panel="category" aria-expanded="false" aria-haspopup="dialog">
+      분야 <span class="f-caret" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="f-chip" data-panel="org" aria-expanded="false" aria-haspopup="dialog">
+      지원기관 <span class="f-caret" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="f-chip" data-panel="amount" aria-expanded="false" aria-haspopup="dialog">
+      지원금액 <span class="f-caret" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="f-chip" data-panel="period" aria-expanded="false" aria-haspopup="dialog">
+      기간 <span class="f-caret" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="f-chip f-chip--ghost" data-panel="save" aria-expanded="false" aria-haspopup="dialog">조건 저장</button>
+    <button type="button" class="f-chip f-chip--ghost" data-panel="load" aria-expanded="false" aria-haspopup="dialog">조건 불러오기</button>
+    <label class="f-chip f-chip--check">
+      <input type="checkbox" id="f-openonly" checked> 접수 중만
+    </label>
+    <label class="sr-only" for="f-sort">정렬</label>
+    <select id="f-sort" class="f-sort">
       <option value="dday">마감 임박순</option>
-      <option value="new">최근 등록순</option>
+      <option value="new">최근 마감일순</option>
     </select>
   </div>
+
+  <div class="sum-chips" id="sum-chips" hidden>
+    <button type="button" class="sum-chip is-on" data-sum="all">전체</button>
+    <button type="button" class="sum-chip" data-sum="today">오늘 마감</button>
+    <button type="button" class="sum-chip" data-sum="week">이번 주</button>
+    <button type="button" class="sum-chip" data-sum="always">상시</button>
+    <button type="button" class="sum-chip" data-sum="bizinfo" hidden>기업마당</button>
+    <button type="button" class="sum-chip" data-sum="kstartup" hidden>K-Startup</button>
+  </div>
+
+  <p class="f-count" id="f-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>
+
+  <div class="f-overlay" id="f-overlay" hidden>
+    <div class="f-panel" id="f-panel" role="dialog" aria-modal="true" aria-labelledby="f-panel-title" tabindex="-1">
+      <div class="f-panel-head">
+        <h2 id="f-panel-title">필터</h2>
+        <button type="button" class="f-panel-x" id="f-panel-x" aria-label="닫기">×</button>
+      </div>
+      <div class="f-panel-body" id="f-panel-body"></div>
+      <div class="f-panel-foot" id="f-panel-foot">
+        <button type="button" class="f-text" id="f-panel-reset">재설정</button>
+        <button type="button" class="f-apply" id="f-panel-apply">적용</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="f-opt-region">
+    {% for r in all_regions %}
+    <button type="button" class="f-opt" data-k="region" data-v="{{ r.name }}">{{ r.name }}</button>
+    {% endfor %}
+  </template>
+  <template id="f-opt-category">
+    {% for c in all_categories %}
+    <button type="button" class="f-opt" data-k="category" data-v="{{ c.name }}">
+      <b>{{ c.name }}</b><span>{{ c.desc }}</span>
+    </button>
+    {% endfor %}
+  </template>
+  <template id="f-opt-amount">
+    {% for b in amount_bands|default([]) %}
+    <button type="button" class="f-opt" data-k="amount" data-v="{{ b.id }}">
+      <b>{{ b.name }}</b><span>{{ b.desc }}</span>
+    </button>
+    {% endfor %}
+  </template>
 </section>
-<p class="f-count" id="f-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>

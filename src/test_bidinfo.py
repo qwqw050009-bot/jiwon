@@ -233,6 +233,82 @@ def test_nav_split_templates():
     assert 'href="/bid/"' in bid.split('class="brand"', 1)[1][:80]
 
 
+def test_list_and_detail_wework_chrome():
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    root = os.path.join(os.path.dirname(__file__), "..")
+    env = Environment(loader=FileSystemLoader(os.path.join(root, "templates")),
+                      autoescape=select_autoescape(["html"]))
+    env.globals["asset_v"] = "test"
+    env.globals["bid_kinds"] = config.BID_KINDS
+    env.globals["bid_has_regions"] = False
+    env.globals["amount_bands"] = [
+        {"id": "lt10", "name": "1천만 원 미만", "desc": "본문 표기가 1천만 원 미만"},
+    ]
+    item = {
+        "id": "abc", "cls": "d-u", "dlabel": "오늘", "dsub": "오늘 마감",
+        "title": "지원사업", "org": "중기부", "category": "금융", "region": "서울",
+        "target_short": "소상공인", "amount_card": "3백만원", "signals": [],
+        "blurb": "한 줄", "is_new": False, "amount": "3백만원",
+        "target": "소상공인", "method": "온라인", "contact": "",
+        "apply_start": "2026-09-01", "apply_end": "2026-09-16",
+        "period_type": "dated", "period_raw": "", "points": ["내용"],
+        "detail_url": "https://www.bizinfo.go.kr/",
+        "ai": {"summary": "요약", "fit": ["맞음"], "caution": ["주의"],
+               "checklist": ["서류"]},
+        "is_closed": False,
+    }
+    listing = env.get_template("list.html").render(
+        site=config.SITE, path="/all/", page="list", section="support",
+        title="t", desc="d", h1="전체 공고", lede="마감일 순",
+        items=[item], tally={"urgent": 1, "soon": 0, "open": 1},
+        blocks=[], intro="", intro_paras=[], faqs=[], faq_jsonld="",
+        website_jsonld="", ad_top=None, ad_mid_after=None, ad_bottom=None,
+        all_regions=config.REGIONS, all_categories=config.CATEGORIES,
+        sel_region="", sel_category="", sel_district="", slugmap="{}",
+        today=0, new_cnt=0, ics_url="", limit=20, more_href="",
+        sections=[], beginner_cta=False, crumbs=[], crumb_jsonld="",
+        home_guides=[], list_guides=[], urgent_rail=[item], source_tally={},
+    )
+    assert 'class="find"' in listing
+    assert 'data-panel="region"' in listing
+    assert 'data-panel="save"' in listing
+    assert 'id="f-q"' in listing
+    assert 'class="f-apply"' in listing
+    assert "조건 저장" in listing
+    assert "마감 임박" in listing
+    assert 'class="row-tags"' in listing
+    assert "지원사업 마감판" in listing
+    assert "thevc" not in listing.lower()
+    assert "wework" not in listing.lower()
+    home = env.get_template("list.html").render(
+        site=config.SITE, path="/", page="home", section="support",
+        title="t", desc="d", h1="오늘 마감되는 정부지원사업부터 봅니다",
+        lede="마감일 순", items=[], tally={"urgent": 1, "soon": 0, "open": 1},
+        blocks=[], intro="<p>소개</p>", intro_paras=[], faqs=[], faq_jsonld="",
+        website_jsonld="", ad_top=None, ad_mid_after=None, ad_bottom=None,
+        all_regions=config.REGIONS, all_categories=config.CATEGORIES,
+        sel_region="", sel_category="", sel_district="", slugmap="{}",
+        today=1, new_cnt=0, ics_url="", limit=0, more_href="/all/",
+        sections=[{"title": "이번 주에 닫히는 공고", "items": [item],
+                   "href": "/urgent/", "total": 1}],
+        beginner_cta=True, crumbs=[], crumb_jsonld="",
+        home_guides=[], list_guides=[], urgent_rail=[item], source_tally={},
+    )
+    assert 'class="hero"' in home
+    assert "오늘 마감되는 정부지원사업부터 봅니다" in home
+    assert "지원사업, 처음이신가요?" in home
+    detail = env.get_template("detail.html").render(
+        site=config.SITE, path="/notice/abc/", page="detail", section="support",
+        title="t", desc="d", a=item, related=[], jsonld="{}", faq_jsonld="{}",
+        crumbs=[], crumb_jsonld="",
+    )
+    assert 'class="notice-head"' in detail
+    assert 'class="notice-chips"' in detail
+    assert "원문 공고 보기" in detail
+    assert "요약" in detail
+    assert "이(가)" not in detail
+
+
 def test_row_templates_do_not_cross_link():
     from jinja2 import Environment, FileSystemLoader, select_autoescape
     root = os.path.join(os.path.dirname(__file__), "..")
@@ -338,6 +414,7 @@ if __name__ == "__main__":
     test_no_cross_contamination()
     test_hub_copy_has_no_grant_vocab()
     test_nav_split_templates()
+    test_list_and_detail_wework_chrome()
     test_row_templates_do_not_cross_link()
     test_empty_hub_looks_intentional()
     test_no_catchall_redirects_in_build()

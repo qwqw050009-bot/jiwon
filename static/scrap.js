@@ -75,20 +75,25 @@
   }
 
   /* 상세페이지 버튼 */
-  var btn = document.getElementById('scrap-btn');
-  if (btn) {
-    var id = btn.dataset.id;
-    var sync = function () {
-      var on = has(id);
-      btn.setAttribute('aria-pressed', String(on));
-      btn.querySelector('span').textContent = on ? '스크랩함' : '스크랩';
-    };
-    sync();
-    btn.addEventListener('click', function () {
-      var on = toggle(id); sync(); badge();
-      if (on) notice();
+  function syncStars(id) {
+    var on = has(id);
+    document.querySelectorAll('.cta-star[data-id="' + id + '"]').forEach(function (el) {
+      el.setAttribute('aria-pressed', String(on));
+      var sp = el.querySelector('span');
+      if (sp) sp.textContent = on ? '스크랩함' : '스크랩';
     });
   }
+  document.querySelectorAll('.cta-star[data-id]').forEach(function (btn) {
+    syncStars(btn.dataset.id);
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.cta-star');
+    if (!b || !b.dataset.id) return;
+    var on = toggle(b.dataset.id);
+    syncStars(b.dataset.id);
+    badge();
+    if (on) notice();
+  });
 
   /* 목록 행의 별 버튼 (위임) */
   document.addEventListener('click', function (e) {
@@ -107,17 +112,6 @@
   /* 스크랩 목록 페이지 */
   var board = document.getElementById('scrap-board');
   if (!board) return;
-
-  function cls(d, p) {
-    if (d === 9999) return ['d-a', '상시', p || '상시 접수'];
-    if (d < 0) return ['d-c', '마감', (-d) + '일 전 종료'];
-    if (d === 0) return ['d-u', '오늘', '오늘 마감'];
-    if (d <= 7) return ['d-u', 'D-' + d, ''];
-    if (d <= 14) return ['d-s', 'D-' + d, ''];
-    return ['d-o', 'D-' + d, ''];
-  }
-  function esc(s) { return String(s).replace(/[<>&"]/g, function (c) {
-    return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]; }); }
 
   var DATA = [];
   function render() {
@@ -143,14 +137,7 @@
     } else { al.hidden = true; }
 
     board.innerHTML = items.map(function (a) {
-      var c = cls(a.d, a.p), sub = c[2] || (a.e ? a.e.slice(5) + ' 마감' : '');
-      var blurb = a.s ? '<p class="blurb">' + esc(a.s) + '</p>' : '';
-      return '<a class="row" href="/notice/' + a.i + '/">' +
-        '<div class="dday ' + c[0] + '">' + c[1] + '<small>' + sub + '</small></div>' +
-        '<div><h3>' + esc(a.t) + '</h3><div class="meta"><i>' + esc(a.o) + '</i><i>' +
-        esc(a.c) + '</i><i class="amt">' + esc(a.m) + '</i></div>' + blurb + '</div>' +
-        '<button type="button" class="star" data-id="' + a.i + '" aria-pressed="true" ' +
-        'aria-label="스크랩 해제"></button></a>';
+      return window.MagampanCard ? MagampanCard.html(a) : '';
     }).join('');
   }
 

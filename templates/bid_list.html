@@ -42,9 +42,12 @@
 
 {% if today %}<a class="today-bar" href="/bid/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
-<section class="bid-search">
-  <label class="sr-only" for="bid-q">입찰 공고명·수요기관 검색</label>
-  <input type="search" id="bid-q" placeholder="공고명·수요기관으로 검색" autocomplete="off">
+<section class="find find--static" aria-label="입찰 검색">
+  <div class="find-search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+    <label class="sr-only" for="bid-q">입찰 공고명·수요기관 검색</label>
+    <input type="search" id="bid-q" placeholder="공고명·수요기관으로 검색" autocomplete="off">
+  </div>
 </section>
 
 {% for b in blocks %}
@@ -57,7 +60,7 @@
 {% endfor %}
 
 {% if items or sections %}
-<p class="dlegend">왼쪽 숫자는 마감일시 기준입니다. <b>오늘</b>·<b>D-n</b>이 먼저 닫힙니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다.</p>
+<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>은 마감일시 기준입니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다.</p>
 {% endif %}
 
 {% if ad_top %}{{ ad_slot('list_top') }}{% endif %}

@@ -47,6 +47,7 @@ import intros
 import serp
 import districts as distmod
 import bid_build
+import filters as filt
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -66,7 +67,7 @@ def _static_version():
     URL도 바뀌게 해 캐시를 자연스럽게 무효화한다.
     """
     h = hashlib.md5()
-    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js"):
+    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js", "card.js"):
         p = os.path.join(ROOT, "static", name)
         if os.path.exists(p):
             with open(p, "rb") as f:
@@ -77,6 +78,7 @@ def _static_version():
 env.globals["asset_v"] = _static_version()
 env.globals["bid_kinds"] = config.BID_KINDS
 env.globals["bid_has_regions"] = False
+env.globals["amount_bands"] = filt.AMOUNT_BANDS
 
 URLS = []
 
@@ -316,7 +318,7 @@ def website_ld():
 
 def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 intro=None, intro_paras=None, faqs=None, faq_jsonld=None,
-                sel_region=None, sel_category=None, today=0,
+                sel_region=None, sel_category=None, sel_district=None, today=0,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
                 sections=None, tally_items=None, beginner_cta=False,
                 crumbs=None, website_jsonld="", home_guides=None,
@@ -325,8 +327,10 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
     crumbs = crumbs or []
+    pool = tally_items if tally_items is not None else items
     html = env.get_template("list.html").render(
         site=SITE, path=path, section="support",
+        page="home" if path == "/" else "list",
         title=title or f"{h1} | {SITE['name']}",
         desc=desc or lede, h1=h1, lede=lede, items=items,
         tally=tally(tally_items if tally_items is not None else items),
@@ -334,12 +338,15 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         faqs=faqs or [], faq_jsonld=faq_jsonld or "",
         ad_top=ad_top, ad_mid_after=ad_mid_after, ad_bottom=ad_bottom,
         all_regions=config.REGIONS, all_categories=config.CATEGORIES,
-        sel_region=sel_region, sel_category=sel_category, slugmap=SLUGMAP,
+        sel_region=sel_region, sel_category=sel_category,
+        sel_district=sel_district, slugmap=SLUGMAP,
         today=today, new_cnt=new_cnt, ics_url=ics_url,
         limit=limit or 0, more_href=more_href or "", sections=sections or [],
         beginner_cta=beginner_cta, crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
         website_jsonld=website_jsonld or "", home_guides=home_guides or [],
         list_guides=list_guides or [],
+        urgent_rail=filt.urgent_rail(pool),
+        source_tally=filt.source_tally(pool),
     )
     write(path, html)
 
@@ -634,6 +641,7 @@ def main():
                 list_guides=intros.list_guides(region=rname),
                 blocks=d_blocks,
                 sel_region=rname, limit=20,
+                sel_district=dname,
                 crumbs=[{"name": "홈", "url": "/"},
                         {"name": "지역", "url": "/region/"},
                         {"name": rname, "url": f"/region/{r['slug']}/"},
@@ -658,6 +666,7 @@ def main():
                     list_guides=intros.list_guides(category=cn, region=rname),
                     blocks=combo_blocks,
                     sel_region=rname, sel_category=cn, limit=20,
+                    sel_district=dname,
                     crumbs=[{"name": "홈", "url": "/"},
                             {"name": "지역", "url": "/region/"},
                             {"name": rname, "url": f"/region/{r['slug']}/"},
@@ -834,13 +843,7 @@ def main():
     )
 
     # 필터용 데이터 (압축 키)
-    feed = [{"i": a["id"], "t": a["title"], "c": a["category"], "r": a["region"],
-             "o": a.get("org", ""), "m": a.get("amount", ""),
-             "e": a.get("apply_end") or "", "d": a["dday"],
-             "n": 1 if a["is_new"] else 0,
-             "p": a.get("period_raw", ""),
-             **({"s": a["blurb"]} if a.get("blurb") else {})}
-            for a in rows]
+    feed = [filt.compact(a) for a in rows]
     with open(os.path.join(DIST, "notices.json"), "w", encoding="utf-8") as f:
         json.dump(feed, f, ensure_ascii=False, separators=(",", ":"))
 

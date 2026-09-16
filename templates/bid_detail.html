@@ -5,20 +5,30 @@
 {% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
 {% endblock %}
 {% block body %}
-<article class="detail">
+<article class="notice">
   {% if not a.is_open %}
   <p class="alert">이 공고는 입찰이 마감되었습니다. 아래에서 같은 종류의 진행 중 공고를 확인하세요.</p>
   {% endif %}
-  <div class="detail-kicker">
-    <div class="dday {{ a.cls }}">{{ a.dlabel }}<small>{{ a.dsub }}</small></div>
-    <div>
-      <p class="detail-meta"><i>{{ a.org }}</i><i>{{ a.kind }}</i>{% if a.region %}<i>{{ a.region }}</i>{% endif %}</p>
-      <h1>{{ a.title }}</h1>
+
+  <header class="notice-head">
+    <div class="notice-chips">
+      <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+      {% if a.kind %}<span class="pill">{{ a.kind }}</span>{% endif %}
+      {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
+      {% if a.budget_card %}<span class="pill pill-amt">{{ a.budget_card }}</span>{% endif %}
     </div>
-  </div>
-  {% if a.blurb %}
-  <p class="lede">{{ a.blurb }}</p>
-  {% endif %}
+    <p class="notice-kicker">{{ a.dsub }}</p>
+    <h1>{{ a.title }}</h1>
+    <p class="notice-org">{{ a.org }}{% if a.kind %} · {{ a.kind }}{% endif %}</p>
+    {% if a.blurb %}
+    <p class="lede">{{ a.blurb }}</p>
+    {% endif %}
+    {% if a.detail_url %}
+    <div class="cta-bar cta-bar--lead">
+      <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">나라장터 원문 보기</a>
+    </div>
+    {% endif %}
+  </header>
 
   <dl class="facts">
     <div><dt>수요기관</dt><dd>{{ a.org }}</dd></div>
@@ -43,12 +53,6 @@
     <div><dt>계약방법</dt><dd>{{ a.contract }}</dd></div>
     {% endif %}
   </dl>
-
-  {% if a.detail_url %}
-  <div class="cta-bar cta-bar--lead">
-    <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">나라장터 원문 보기</a>
-  </div>
-  {% endif %}
 
   {{ ad_slot('detail_mid') }}
 
@@ -75,11 +79,11 @@
 
 {% if related %}
 <section class="related">
+  <div class="sec-head">
+    <h2>{{ a.kind }} 진행 중인 다른 입찰</h2>
+    <span>{{ related|length }}건</span>
+  </div>
   <div class="board">
-    <div class="sec-head">
-      <h2>{{ a.kind }} 진행 중인 다른 입찰</h2>
-      <span>{{ related|length }}건</span>
-    </div>
     {% for x in related %}{{ row(x) }}{% endfor %}
   </div>
 </section>
