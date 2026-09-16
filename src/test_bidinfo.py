@@ -422,7 +422,7 @@ def test_bid_list_wework_chips_and_detail_cta():
     assert 'id="bid-live"' in listing
     assert "로그인 없이" in listing
     assert "종류 고르기" in listing
-    assert "마감일시 가까운 것" in listing
+    assert "마감 가까운 것" in listing
     assert "나라장터 원문" in listing
     assert "지원 탭" in listing
     assert "지원금" not in listing

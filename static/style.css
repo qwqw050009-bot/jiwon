@@ -732,7 +732,7 @@ footer a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border
   .hero h1{font-size:26px;letter-spacing:-.04em}
   .hero-lede{font-size:15px}
   .how{gap:8px 10px;margin-top:12px;max-width:none}
-  .how li{flex:1 1 30%;min-width:0}
+  .how li{flex:1 1 9rem;min-width:0}
   .how span:not(.how-n){display:none}
   .hero-actions{margin-top:10px}
   .hero-primary,.hero-secondary{min-height:38px;padding:7px 14px;font-size:13px}

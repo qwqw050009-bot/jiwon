@@ -22,7 +22,7 @@
     <li>
       <span class="how-n" aria-hidden="true">2</span>
       <div>
-        <a href="/bid/urgent/">마감일시 가까운 것</a>
+        <a href="/bid/urgent/">마감 가까운 것</a>
         <span>오늘·D-n이 먼저</span>
       </div>
     </li>
@@ -58,11 +58,10 @@
 </div>
 {% endif %}
 
+{% if bid_empty %}
 {% if intro %}
 <div class="prose intro">{{ intro|safe }}</div>
 {% endif %}
-
-{% if bid_empty %}
 <section class="empty-panel" role="status">
   <h2>지금은 표시할 입찰공고가 없습니다</h2>
   <p>{{ empty }}</p>
@@ -73,13 +72,6 @@
   </ul>
 </section>
 {% else %}
-{% if beginner %}
-<a class="beginner-cta" href="/">
-  <b>지원사업을 찾으시나요?</b>
-  <span>지원사업 공고는 홈에서 마감일 순으로 따로 봅니다 →</span>
-</a>
-{% endif %}
-
 {% if today %}<a class="today-bar" href="/bid/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
 <section class="find find--static" id="bid-find" aria-label="입찰 검색"
@@ -144,6 +136,16 @@
   </div>
 </section>
 {% endfor %}
+
+{% if beginner %}
+<a class="beginner-cta" href="/">
+  <b>지원사업을 찾으시나요?</b>
+  <span>지원사업 공고는 홈에서 마감일 순으로 따로 봅니다 →</span>
+</a>
+{% endif %}
+{% if intro %}
+<div class="prose intro">{{ intro|safe }}</div>
+{% endif %}
 {% endif %}
 
 {% if faqs %}
