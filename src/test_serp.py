@@ -48,19 +48,19 @@ def test_home_urgent_all_have_magnets():
     assert "2026" in ht
     hd = serp.home_desc(rows)
     assert "오늘 마감 1건" in hd
+    assert "오늘마감" in hd
     assert "이번 주 마감 2건" in hd
     assert 70 <= len(hd) <= 120, (len(hd), hd)
     assert serp.home_h1().startswith("오늘 마감")
 
     urgent = [a for a in rows if 0 <= a["dday"] <= 7]
     ut = _branded(serp.urgent_title(urgent))
-    assert ut.startswith("이번 주 마감 지원사업")
+    assert ut.startswith("오늘 마감")
     assert "2건" in ut
-    assert "D-7" in ut
     ud = serp.urgent_desc(urgent)
-    assert "2건" in ud and "7일" in ud
+    assert "오늘마감" in ud and "2건" in ud
     assert 70 <= len(ud) <= 120, (len(ud), ud)
-    assert "공고" not in serp.urgent_h1()
+    assert serp.urgent_h1().startswith("오늘 마감")
 
     at = _branded(serp.all_title(rows))
     assert at.startswith("정부지원사업 전체")
@@ -176,14 +176,20 @@ def test_notice_urgency_prefix_only_within_week():
     later = _item(dday=20, title="소상공인 특례보증")
     always = _item(period_type="always", period_raw="예산 소진시까지",
                    dday=99, title="소상공인 특례보증")
-    closed = _item(dday=-3, is_closed=True, is_open=False, title="소상공인 특례보증")
-    assert _branded(serp.notice_title(today)).startswith("[오늘 마감]")
-    assert _branded(serp.notice_title(week)).startswith("[D-3]")
-    assert "[D-" not in serp.notice_title(later)
+    closed = _item(dday=-3, is_closed=True, is_open=False, title="소상공인 특례보증",
+                   apply_end="2026-09-13")
+    assert _branded(serp.notice_title(today)).startswith("오늘 마감 ·")
+    assert _branded(serp.notice_title(week)).startswith("이번 주 마감 D-3 ·")
+    assert "이번 주 마감" not in serp.notice_title(later)
+    assert "오늘 마감" not in serp.notice_title(later)
     assert "상시 접수" in serp.notice_title(always)
-    assert "마감된 공고" in serp.notice_title(closed)
+    assert "마감된 공고" not in serp.notice_title(closed)
+    assert "소상공인 특례보증" in serp.notice_title(closed)
+    assert serp.notice_title(later).startswith("소상공인 특례보증")
     assert serp.notice_desc(today).startswith("오늘 마감")
     assert "특례보증" in serp.notice_desc(today) or "소상공인" in serp.notice_desc(today)
+    assert "접수 마감" in serp.notice_desc(closed)
+    assert "마감일 2026-09-19" in serp.notice_desc(later) or "2026-09-19" in serp.notice_desc(later)
 
 
 def test_bid_copy_stays_off_support_words():
@@ -222,6 +228,71 @@ def test_static_and_guide_pages():
     assert "ICS" in serp.calendar_title()
 
 
+def test_gsc_region_and_nationwide_copy():
+    items = [_item(dday=4, region="부산") for _ in range(3)]
+    bt = _branded(serp.region_title("부산", items))
+    assert bt.startswith("부산시 2026 기업 지원사업 공고")
+    assert "3건" in bt
+    bd = serp.region_desc("부산", items)
+    assert "부산시 2026 기업 지원사업 공고" in bd
+    nt = _branded(serp.region_title("전국", items))
+    assert nt.startswith("전국 2026 기업 지원사업 공고")
+    assert "소재지 제한 없음" in nt
+    mgmt = [_item(region="전국", category="경영", dday=10) for _ in range(4)]
+    ct = _branded(serp.combo_title("전국", "경영", mgmt))
+    assert ct.startswith("전국 경영 지원사업 공고 2026")
+    assert "소재지 제한 없음" in ct
+    cd = serp.combo_desc("전국", "경영", {"desc": "컨설팅·경영개선·시설 지원"}, mgmt)
+    assert cd.startswith("전국에서")
+    assert "소재지 제한" in cd
+    etc = serp.combo_title("전국", "기타", mgmt)
+    assert "전국 기타 지원사업 공고" in etc
+    jeonbuk = serp.combo_title("전북", "기술", [_item(region="전북", category="기술", dday=2)])
+    assert jeonbuk.startswith("전북 기술 지원사업 공고 2026")
+
+
+def test_gsc_notice_longtail_keeps_keywords():
+    ax = _item(
+        title="2026년 AX 전환 및 확산 시범사업 외부 지원 프로그램 참여기업 모집 공고",
+        region="인천", category="창업", org="인천광역시", target="창업벤처",
+        dday=16, apply_end="2026-10-02",
+    )
+    t = _branded(serp.notice_title(ax))
+    assert t.startswith("2026년 AX 전환")
+    assert "참여기업 모집" in t
+    assert "마감된 공고" not in t
+    assert "마감일·신청자격" not in t
+    d = serp.notice_desc(ax)
+    assert "2026-10-02" in d
+    assert "창업벤처" in d or "인천" in d
+    assert "원문" in d
+
+    fnb = _item(
+        title="2026 고양시 F&B 성장지원 프로그램 with G-ROUND 877 참여기업 모집공고",
+        region="경기", category="경영", org="스타에셋파트너스(주)",
+        target="고양시 소재 F&B·프랜차이즈 분야 창업 7년 이내 초기 창업기업",
+        dday=14, apply_end="2026-09-30",
+    )
+    ft = _branded(serp.notice_title(fnb))
+    assert "고양시" in ft and "F&B" in ft
+    assert ft.startswith("2026 고양시")
+    fd = serp.notice_desc(fnb)
+    assert "2026-09-30" in fd
+    assert "고양시" in fd or "F&B" in fd
+
+    lotte = _item(
+        title="2026년 오프라인 기획전(롯데백화점 부산본점, 10월) 참여기업 모집 공고",
+        region="전국", category="내수", org="중소벤처기업부", target="중소기업",
+        dday=5, apply_end="2026-09-21",
+    )
+    lt = _branded(serp.notice_title(lotte))
+    assert lt.startswith("이번 주 마감 D-5 ·")
+    assert "롯데백화점 부산본점" in lt
+    ld = serp.notice_desc(lotte)
+    assert ld.startswith("이번 주 마감")
+    assert "소재지 제한" in ld
+
+
 def test_clip_and_counts():
     assert serp.counts_of([
         _item(dday=0), _item(dday=5), _item(period_type="always", dday=99),
@@ -237,15 +308,15 @@ def test_mock_build_html_titles():
     """목업 빌드가 있으면 대표 URL의 title·desc를 읽는다."""
     root = os.path.join(os.path.dirname(__file__), "..", "dist")
     samples = {
-        "index.html": ("오늘 마감 정부지원사업", "오늘 마감"),
-        "urgent/index.html": ("이번 주 마감 지원사업", "7일"),
+        "index.html": ("오늘 마감 정부지원사업", "오늘마감"),
+        "urgent/index.html": ("오늘 마감", "오늘마감"),
         "all/index.html": ("정부지원사업 전체", "마감일"),
         "region/index.html": ("지역별 정부지원사업", "사업장"),
         "category/index.html": ("분야별 정부지원사업", "8종"),
         "category/startup/index.html": ("창업 지원금", "창업"),
-        "region/gyeonggi/index.html": ("경기 소상공인 지원금", "경기"),
-        "region/gyeonggi/startup/index.html": ("경기 창업 지원사업", "창업"),
-        "guide/start/index.html": ("정부지원사업 처음이라면", "소상공인"),
+        "region/gyeonggi/index.html": ("경기 2026 기업 지원사업 공고", "기업 지원사업"),
+        "region/gyeonggi/startup/index.html": ("경기 창업 지원사업 공고", "창업"),
+        "guide/start/index.html": ("정부지원사업 신청 방법", "신청 방법"),
         "bid/index.html": ("나라장터 입찰공고", "나라장터"),
     }
     if not os.path.exists(os.path.join(root, "index.html")):
@@ -282,6 +353,8 @@ if __name__ == "__main__":
     test_bid_copy_stays_off_support_words()
     test_intros_wrappers_match_serp()
     test_static_and_guide_pages()
+    test_gsc_region_and_nationwide_copy()
+    test_gsc_notice_longtail_keeps_keywords()
     test_clip_and_counts()
     test_mock_build_html_titles()
     print("serp tests ok")
