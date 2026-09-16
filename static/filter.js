@@ -436,6 +436,7 @@
     justApplied = false;
     syncURL();
     if (typeof y === 'number') window.scrollTo(0, y);
+    if (touched) hideOnboard(false);
   }
 
   function districtsFor(regions) {
