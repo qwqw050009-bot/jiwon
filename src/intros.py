@@ -14,6 +14,7 @@ import re
 
 from enrich import _josa, card_line, title_gist
 import config
+import serp
 
 
 # 지역 페이지가 "무엇을 묶는지"만 설명한다. 특정 공고·예산을 지어내지 않는다.
@@ -113,7 +114,7 @@ CATEGORY_GUIDE = {
     "기타": ("/guide/workplace-region/", "지역 제한 공고 보는 법"),
 }
 
-ALWAYS_GUIDE = ("/guide/always-deadline/", "상시 접수 공고, 지금 신청해야 하는 이유")
+ALWAYS_GUIDE = ("/guide/always-deadline/", "상시 접수 지원사업, 지금 신청해야 하는 이유")
 
 # 홈 초보 CTA. 템플릿과 문구를 같게 둔다.
 BEGINNER_CTA = {
@@ -1392,19 +1393,14 @@ def home_intro(today_n, week_n, open_n):
     )
 
 
-def category_title(name):
-    """분야 목록 title. 검색어(분야 + 마감일)를 앞에 둔다."""
-    return f"{name} 지원사업 마감일 | {config.SITE['name']}"
+def category_title(name, items=None):
+    """분야 목록 title. SERP 헬퍼에 위임한다."""
+    return serp.category_title(name, items)
 
 
-def category_desc(name, cat):
-    """분야 목록 meta. 마감일 순·회원가입 없음·지역을 명시한다."""
-    extra = (cat or {}).get("desc") or f"{name} 지원"
-    return (
-        f"{name} 분야 정부지원사업을 마감일 순으로 정리합니다. "
-        f"회원가입 없이 지역별로 오늘 마감·이번 주 마감을 확인할 수 있습니다. "
-        f"{extra}."
-    )
+def category_desc(name, cat, items=None):
+    """분야 목록 meta. SERP 헬퍼에 위임한다."""
+    return serp.category_desc(name, cat, items)
 
 
 def category_hub_intro(n):
