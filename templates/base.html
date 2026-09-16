@@ -30,6 +30,7 @@
 {% endif %}
 </head>
 <body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}">
+<a class="skip" href="#main">본문으로 건너뛰기</a>
 <header class="top">
   <div class="wrap top-row">
     <div class="brand-cluster">
@@ -77,7 +78,7 @@
   </div>
 </header>
 
-<main class="wrap">
+<main class="wrap" id="main">
 {% if crumbs %}
 <nav class="crumbs" aria-label="현재 위치">
   {% for c in crumbs %}
@@ -101,7 +102,7 @@
     <a href="/terms/">이용약관</a>
     <a href="/contact/">문의</a>
   </nav>
-  <p>지원사업은 기업마당, 입찰공고는 나라장터 자료를 정리한 것입니다. 신청·투찰 전 반드시 원문 공고를 확인하세요.<br>
+  <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.<br>
   © {{ site.name }}</p>
 </div></footer>
 {% if (section|default('support')) != 'bid' %}

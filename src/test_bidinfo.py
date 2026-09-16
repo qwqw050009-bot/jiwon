@@ -308,6 +308,13 @@ def test_list_and_detail_wework_chrome():
     assert "처음이세요?" in home
     assert 'href="/guide/start/"' in home
     assert "지원사업, 처음이신가요?" in home
+    assert "입찰은 위" in home
+    assert "입찰 탭" in home
+    assert 'href="/bid/"' in home
+    assert 'class="skip"' in home
+    assert 'href="#main"' in home
+    assert "순위를 매기거나 선정을 보장하지 않습니다" in home
+    assert "example.com" not in home
     detail = env.get_template("detail.html").render(
         site=config.SITE, path="/notice/abc/", page="detail", section="support",
         title="t", desc="d", a=item, related=[], jsonld="{}", faq_jsonld="{}",
@@ -335,13 +342,15 @@ def test_row_templates_do_not_cross_link():
     })
     row_b = env.get_template("_bid_row.html").module.row({
         "id": "2026-000", "cls": "d-u", "dlabel": "오늘", "dsub": "18:00 마감",
-        "title": "용역 입찰", "org": "조달청", "kind": "용역",
-        "region": "", "budget_card": "", "blurb": "조달청 · 용역",
+        "title": "용역 입찰", "org": "조달청", "kind": "용역", "kind_slug": "service",
+        "region": "", "budget_card": "", "blurb": "조달청 · 용역", "dday": 0,
     })
     assert "/notice/abc/" in row_s
     assert "/bid/notice/" not in row_s
     assert "/bid/notice/2026-000/" in row_b
     assert 'href="/notice/' not in row_b
+    assert 'data-kind="용역"' in row_b
+    assert 'data-kind-slug="service"' in row_b
 
 
 def test_gha_without_key_returns_empty_not_mock():
@@ -373,6 +382,111 @@ def test_gha_live_fail_no_cache_returns_empty():
         bidinfo.load_cache = orig_cache
         os.environ.pop("NARA_API_KEY", None)
         os.environ.pop("GITHUB_ACTIONS", None)
+
+
+def test_bid_list_wework_chips_and_detail_cta():
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    root = os.path.join(os.path.dirname(__file__), "..")
+    env = Environment(loader=FileSystemLoader(os.path.join(root, "templates")),
+                      autoescape=select_autoescape(["html"]))
+    env.globals["asset_v"] = "test"
+    env.globals["bid_kinds"] = config.BID_KINDS
+    env.globals["bid_has_regions"] = False
+    item = {
+        "id": "20260915001-000", "cls": "d-u", "dlabel": "오늘", "dsub": "23:00 마감",
+        "title": "사무용 가구 구매", "org": "중구청", "kind": "물품", "kind_slug": "goods",
+        "region": "서울", "budget_card": "8,500만원", "dday": 0, "is_open": True,
+        "ntce_org": "중구청", "budget": "8,500만원", "open_dt": "2026-09-01 09:00",
+        "close_dt": "2026-09-15 23:00", "method": "전자입찰", "contract": "일반경쟁",
+        "blurb": "중구청 · 물품", "detail_url": "https://www.g2b.go.kr/",
+    }
+    listing = env.get_template("bid_list.html").render(
+        site=config.SITE, path="/bid/", page="list", section="bid",
+        title="t", desc="d", h1="나라장터 입찰, 마감일시 순",
+        lede="오늘 마감되는 입찰부터 봅니다.",
+        items=[item], sections=[], blocks=[],
+        tally={"today": 1, "urgent": 1, "open": 1, "soon": 0},
+        intro="<p>입찰은 나라장터 공고입니다.</p>", faqs=[], faq_jsonld="",
+        beginner=True, empty="", bid_empty=False, today=1,
+        ad_top=None, ad_mid_after=None, ad_bottom=None,
+        crumbs=[], crumb_jsonld="", sel_kind="", sel_due="", sel_region="",
+        limit=20,
+    )
+    assert 'id="bid-find"' in listing
+    assert 'id="bid-q"' in listing
+    assert 'data-bid-kind="goods"' in listing
+    assert 'data-bid-kind="service"' in listing
+    assert 'data-bid-due="today"' in listing
+    assert 'data-bid-due="week"' in listing
+    assert 'id="bid-count"' in listing
+    assert 'id="bid-live"' in listing
+    assert "로그인 없이" in listing
+    assert "종류 고르기" in listing
+    assert "마감일시 가까운 것" in listing
+    assert "나라장터 원문" in listing
+    assert "지원 탭" in listing
+    assert "지원금" not in listing
+    assert "바우처" not in listing
+    assert "보조금" not in listing
+    assert "find-chips--bid" in listing
+    assert 'data-kind-slug="goods"' in listing
+    assert "bid_filter.js" in listing
+    assert 'href="/bid/notice/' in listing
+    urgent = env.get_template("bid_list.html").render(
+        site=config.SITE, path="/bid/urgent/", page="list", section="bid",
+        title="t", desc="d", h1="이번 주 마감 입찰", lede="7일",
+        items=[item], sections=[], blocks=[],
+        tally={"today": 1, "urgent": 1, "open": 1, "soon": 0},
+        intro="", faqs=[], faq_jsonld="", beginner=False, empty="",
+        bid_empty=False, today=1, ad_top=None, ad_mid_after=None, ad_bottom=None,
+        crumbs=[], crumb_jsonld="", sel_kind="", sel_due="week", sel_region="",
+        limit=20,
+    )
+    assert 'data-due="week"' in urgent
+    assert 'data-bid-due="week"' in urgent
+    assert "is-on" in urgent
+    detail = env.get_template("bid_detail.html").render(
+        site=config.SITE, path="/bid/notice/x/", page="bid-detail", section="bid",
+        title="t", desc="d", a=item, related=[], faqs=[], faq_jsonld="",
+        crumbs=[], crumb_jsonld="",
+    )
+    assert "cta-bar--lead" in detail
+    assert "cta-bar--end" in detail
+    assert "나라장터 원문 보기" in detail
+    assert "같은 종류의 다른 진행 중 입찰이 없습니다" in detail
+    assert "지원금" not in detail
+    css = open(os.path.join(root, "static", "style.css"), encoding="utf-8").read()
+    assert ".find-chips--bid" in css
+    assert ".skip" in css
+    assert "min-height:40px" in css
+    js = open(os.path.join(root, "static", "bid_filter.js"), encoding="utf-8").read()
+    assert "fetch('/notices.json')" not in js
+    assert 'fetch("/notices.json")' not in js
+    assert "bids.json" in js
+    assert "data-bid-kind" in js
+    assert "data-bid-due" in js
+    assert "지원금" not in js
+
+
+def test_contact_email_is_real_not_example():
+    assert "example.com" not in config.SITE["email"]
+    assert config.SITE["email"] == "qwqw050009@gmail.com"
+    pages = __import__("pages")
+    about = "\n".join(c for _, _, c in pages.build(config.SITE, {"open": 1, "orgs": 1, "regions": 1}))
+    assert "qwqw050009@gmail.com" in about
+    assert "contact@example.com" not in about
+    assert "순위를 매기거나 선정을 보장하지 않습니다" in about
+
+
+def test_guide_start_has_next_cta():
+    import guides
+    start = next(g for g in guides.build() if g[0] == "start")
+    body = start[3]
+    assert 'href="/"' in body
+    assert 'href="/region/"' in body
+    assert "오늘 마감부터 보기" in body
+    assert "내 지역 고르기" in body
+    assert "hero-primary" in body
 
 
 def test_empty_hub_looks_intentional():
@@ -432,6 +546,9 @@ if __name__ == "__main__":
     test_nav_split_templates()
     test_list_and_detail_wework_chrome()
     test_row_templates_do_not_cross_link()
+    test_bid_list_wework_chips_and_detail_cta()
+    test_contact_email_is_real_not_example()
+    test_guide_start_has_next_cta()
     test_empty_hub_looks_intentional()
     test_no_catchall_redirects_in_build()
     print("bid tests ok")

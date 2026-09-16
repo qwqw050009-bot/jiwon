@@ -21,7 +21,7 @@ SITE = {
     "ga_id": "",                           # ← G-XXXXXXX (선택)
     "google_site_verification": "Gu5i_F8dMB1UeRpB-399OCLdtPoVFe1e3Ed2opMQIbQ",
     "naver_site_verification": "0bc9dc85c2832ca5736a60371a695d6cc6d8d3d4",
-    "email": "contact@example.com",
+    "email": "qwqw050009@gmail.com",
     "publisher": "지원사업 마감판",
 }
 
