@@ -147,6 +147,46 @@ def source_tally(items):
     }
 
 
+def related_notices(row, pool, limit=5):
+    """같은 지역·분야를 우선하고, 부족하면 지역 또는 분야로 채운다. 가짜 공고는 없다."""
+    row = row or {}
+    rid = row.get("id")
+    region = row.get("region")
+    cat = row.get("category")
+    others = []
+    for x in pool or []:
+        if x.get("id") == rid:
+            continue
+        if x.get("is_open") is False:
+            continue
+        d = x.get("dday")
+        if isinstance(d, int) and d < 0:
+            continue
+        others.append(x)
+
+    def dkey(x):
+        d = x.get("dday")
+        return d if isinstance(d, int) else 9999
+
+    both, by_reg, by_cat = [], [], []
+    for x in others:
+        same_r = region and x.get("region") == region
+        same_c = cat and x.get("category") == cat
+        if same_r and same_c:
+            both.append(x)
+        elif same_r:
+            by_reg.append(x)
+        elif same_c:
+            by_cat.append(x)
+    out = []
+    for group in (both, by_reg, by_cat):
+        for x in sorted(group, key=dkey):
+            out.append(x)
+            if len(out) >= limit:
+                return out
+    return out
+
+
 def urgent_rail(items, limit=8):
     out = []
     for a in items or []:

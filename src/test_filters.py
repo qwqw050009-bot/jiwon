@@ -90,10 +90,27 @@ def test_tally_and_rail_deadline_first():
     assert [a["dday"] for a in rail] == [0, 3]
 
 
+def test_related_notices_prefer_same_region_category():
+    pool = [
+        {"id": "a", "region": "서울", "category": "금융", "dday": 2, "is_open": True},
+        {"id": "b", "region": "서울", "category": "금융", "dday": 1, "is_open": True},
+        {"id": "c", "region": "서울", "category": "창업", "dday": 0, "is_open": True},
+        {"id": "d", "region": "경기", "category": "금융", "dday": 3, "is_open": True},
+        {"id": "e", "region": "서울", "category": "금융", "dday": -2, "is_open": False},
+    ]
+    rel = filters.related_notices(pool[0], pool, limit=3)
+    assert [x["id"] for x in rel] == ["b", "c", "d"]
+    assert all(x["id"] != "a" for x in rel)
+    assert all(x["id"] != "e" for x in rel)
+    empty = filters.related_notices(pool[0], [], limit=5)
+    assert empty == []
+
+
 if __name__ == "__main__":
     test_amount_won_reads_korean_units()
     test_amount_band_uses_amount_of_not_placeholder()
     test_districts_of_exact_tag_only()
     test_source_and_compact_keys()
     test_tally_and_rail_deadline_first()
+    test_related_notices_prefer_same_region_category()
     print("filters tests ok")
