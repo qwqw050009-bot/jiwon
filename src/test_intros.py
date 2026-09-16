@@ -241,10 +241,12 @@ def test_home_and_category_search_copy():
     assert "/guide/start/" in html
     faqs = intros.home_faqs(2, 11, 40)
     assert any("신청" in f["q"] for f in faqs)
-    assert "2건" in faqs[1]["a"]
+    assert any("오늘 마감 2건" in f["a"] for f in faqs)
+    assert faqs[0]["q"] == "알림은 얼마나 정확하고 빠른가요?"
     ld = intros.faq_jsonld(faqs)
     assert "정부지원사업은 어떻게 신청하나요?" in ld
     assert "오늘 마감" in ld
+    assert "알림은 얼마나 정확하고 빠른가요?" in ld
     hrefs = [g["href"] for g in intros.HOME_GUIDES]
     assert hrefs == [
         "/guide/find-by-deadline/",

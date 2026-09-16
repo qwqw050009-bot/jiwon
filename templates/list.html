@@ -7,10 +7,12 @@
 {% endblock %}
 {% block body %}
 {% if path == '/' %}
-<section class="hero">
-  <p class="kicker">무료 · 마감일 순 · 지역·분야</p>
-  <h1>{{ h1 }}</h1>
-  <p class="hero-lede">{{ lede }}</p>
+<section class="hero hero--alert">
+  <p class="kicker">오늘마감 · 무료 알림 · 마감일 순</p>
+  <h1>{{ landing.hero_h1 }}</h1>
+  <p class="hero-lede">{{ landing.hero_lede }}</p>
+  {% include "_alert_form.html" %}
+  {% include "_industry_chips.html" %}
   <ol class="how" aria-label="쓰는 순서">
     <li>
       <span class="how-n" aria-hidden="true">1</span>
@@ -147,6 +149,10 @@
   </div>
 </section>
 {% endfor %}
+
+{% if path == '/' %}
+{% include "_mid_cta.html" %}
+{% endif %}
 
 {% if faqs %}
 <section class="faq" id="faq">

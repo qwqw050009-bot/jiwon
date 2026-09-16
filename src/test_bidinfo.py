@@ -215,7 +215,10 @@ def test_nav_split_templates():
         site=site, path="/bid/", title="t", desc="d", section="bid")
     assert 'class="is-on"' in support
     assert 'href="/bid/"' in support and 'href="/"' in support
-    assert "지원사업 처음이세요?" in support
+    assert "구독하기" in support
+    assert 'href="/pricing/"' in support
+    assert "알림 등록" in support
+    assert "로그인" not in support
     assert "지원사업 보기" not in support
     assert 'action="/all/"' in support
     assert 'href="/urgent/"' in support
@@ -223,8 +226,11 @@ def test_nav_split_templates():
     # 입찰 헤더
     assert "입찰" in bid
     assert 'action="/bid/"' in bid
-    assert "지원사업 보기" in bid
+    assert "구독하기" in bid
+    assert "알림 등록" in bid
+    assert "로그인" not in bid
     assert "지원사업 처음이세요?" not in bid
+    assert "지원사업 보기" not in bid
     assert 'href="/bid/kind/goods/"' in bid
     assert 'href="/category/"' not in bid
     assert 'href="/urgent/"' not in bid.replace("/bid/urgent/", "")
@@ -251,6 +257,8 @@ def test_list_and_detail_wework_chrome():
     env.globals["amount_bands"] = [
         {"id": "lt10", "name": "1천만 원 미만", "desc": "본문 표기가 1천만 원 미만"},
     ]
+    import landing
+    env.globals["landing"] = landing.context()
     item = {
         "id": "abc", "cls": "d-u", "dlabel": "오늘", "dsub": "오늘 마감",
         "title": "지원사업", "org": "중기부", "category": "금융", "region": "서울",
@@ -306,8 +314,15 @@ def test_list_and_detail_wework_chrome():
         beginner_cta=True, crumbs=[], crumb_jsonld="",
         home_guides=[], list_guides=[], urgent_rail=[item], source_tally={},
     )
-    assert 'class="hero"' in home
-    assert "오늘 마감되는 정부지원사업부터 봅니다" in home
+    assert "hero--alert" in home
+    assert "지원사업부터 입찰까지, 마감을 놓치면 수천만 원이 날아갑니다" in home
+    assert "전국 지원사업·나라장터 입찰 공고를 한 곳에서" in home
+    assert "무료 알림 등록" in home
+    assert "이 조건 저장하고 알림받기" in home
+    assert "조명·전기공사" in home
+    assert "요금제 보기" in home
+    assert "후기" not in home
+    assert "낙찰까지 받았습니다" not in home
     assert "지역 고르기" in home
     assert "마감 가까운 것 보기" in home
     assert "원문 신청" in home
@@ -594,6 +609,8 @@ def test_bid_list_wework_chips_and_detail_cta():
     env.globals["asset_v"] = "test"
     env.globals["bid_kinds"] = config.BID_KINDS
     env.globals["bid_has_regions"] = False
+    import landing
+    env.globals["landing"] = landing.context()
     item = {
         "id": "20260915001-000", "cls": "d-u", "dlabel": "오늘", "dsub": "23:00 마감",
         "title": "사무용 가구 구매", "org": "중구청", "kind": "물품", "kind_slug": "goods",
@@ -699,6 +716,8 @@ def test_empty_hub_looks_intentional():
     env.globals["asset_v"] = "test"
     env.globals["bid_kinds"] = config.BID_KINDS
     env.globals["bid_has_regions"] = False
+    import landing
+    env.globals["landing"] = landing.context()
     html = env.get_template("bid_list.html").render(
         site=config.SITE, path="/bid/", section="bid", title="t", desc="d",
         h1="나라장터 입찰, 마감일시 순",

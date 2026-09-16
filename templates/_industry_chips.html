@@ -1,0 +1,8 @@
+<nav class="industry" aria-label="업종으로 찾기">
+  <h2>업종으로 찾기</h2>
+  <div class="industry-chips">
+    {% for name in landing.industries %}
+    <button type="button" class="f-chip" data-alert-keyword="{{ name }}">{{ name }}</button>
+    {% endfor %}
+  </div>
+</nav>
