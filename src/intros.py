@@ -1442,6 +1442,11 @@ def region_page_intro(region, items):
         f"{_where(region)} 지원사업은 {n}건입니다. "
         "분야를 가리지 않고 마감이 가까운 순으로 두었습니다."
     )
+    if facts["today"]:
+        p1 += (
+            f' <a href="/urgent/">오늘 마감</a> {len(facts["today"])}건이 '
+            "이 지역 목록에 있습니다."
+        )
     p2 = REGION_BLURB.get(region) or (
         f"{h(region)} 소재 사업장 기준 공고입니다. 공고문 대상 지역을 원문에서 확인하세요."
     )
@@ -1755,6 +1760,11 @@ def category_page_intro(category, cat, items):
         f"{h(cat_desc)}에 해당하는 공고를 마감이 가까운 순으로 두었습니다. "
         f"{_mix_sentence(facts)}"
     )
+    if facts["today"]:
+        p1 += (
+            f' <a href="/urgent/">오늘 마감</a> {len(facts["today"])}건이 '
+            "이 분야 목록에 있습니다."
+        )
     p2 = (
         f"{cat_note} 신청이 처음이면 {_guide_html(category)} 먼저 보시면 됩니다."
     )
@@ -1764,6 +1774,67 @@ def category_page_intro(category, cat, items):
         f"{_workplace_guide_html()} 보시면 됩니다."
     )
     return [p1, p2, p3]
+
+
+def related_hubs(path="", region=None, category=None, district=None):
+    """
+    목록 허브에 붙는 크롤 가능한 내부 링크. 항상 3개 이상.
+    없는 조합 URL을 만들지 않고, 현재 페이지는 뺀다.
+    """
+    regs = {r["name"]: r for r in config.REGIONS}
+    cats = {c["name"]: c for c in config.CATEGORIES}
+    here = (path or "").rstrip("/") + "/"
+    out = []
+
+    def add(href, name):
+        url = href if href.endswith("/") else href + "/"
+        if url == here:
+            return
+        if any(x["href"] == url for x in out):
+            return
+        out.append({"href": url, "name": name})
+
+    r = regs.get(region or "")
+    c = cats.get(category or "")
+    if r:
+        add(f"/region/{r['slug']}/", f"{region} 지원사업")
+    if c:
+        add(f"/category/{c['slug']}/", f"{category} 지원사업")
+    if r and c:
+        add(f"/region/{r['slug']}/{c['slug']}/", f"{region} {category}")
+    if r and district:
+        add(f"/region/{r['slug']}/", f"{region} 전체")
+        add("/region/", "지역별 목록")
+    add("/urgent/", "이번 주 마감")
+    add("/all/", "전체 공고")
+    add("/guide/start/", "처음 안내")
+    add("/region/", "지역별 목록")
+    add("/category/", "분야별 목록")
+    return out[:6]
+
+
+def bid_related_hubs(path="", kind_slug="", region_slug=""):
+    here = (path or "").rstrip("/") + "/"
+    out = []
+
+    def add(href, name):
+        url = href if href.endswith("/") else href + "/"
+        if url == here:
+            return
+        if any(x["href"] == url for x in out):
+            return
+        out.append({"href": url, "name": name})
+
+    add("/bid/", "입찰 허브")
+    add("/bid/urgent/", "이번 주 마감 입찰")
+    if kind_slug:
+        kind = next((k for k in config.BID_KINDS if k["slug"] == kind_slug), None)
+        add(f"/bid/kind/{kind_slug}/", f"{(kind or {}).get('name') or kind_slug} 입찰")
+    if region_slug:
+        add(f"/bid/region/{region_slug}/", "이 참가지역 입찰")
+        add("/bid/region/", "참가지역으로 찾기")
+    add("/", "지원사업 마감판")
+    return out[:6]
 
 
 def faq_jsonld(faqs):

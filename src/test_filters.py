@@ -95,6 +95,8 @@ def test_tally_and_rail_deadline_first():
     assert t["bizinfo"] == 4
     rail = filters.urgent_rail(items, limit=8)
     assert [a["dday"] for a in rail] == [0, 3]
+    today = filters.today_rail(items, limit=8)
+    assert [a["dday"] for a in today] == [0]
 
 
 def test_related_notices_prefer_same_region_category():

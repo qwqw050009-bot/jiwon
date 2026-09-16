@@ -222,6 +222,10 @@ def compact_bid(row):
     col = (row.get("collected_at") or "").strip()
     if col:
         rec["col"] = col
+    if row.get("is_new"):
+        rec["n"] = 1
+    if row.get("is_correction"):
+        rec["corr"] = 1
     return rec
 
 
@@ -293,6 +297,17 @@ def urgent_rail(items, limit=8):
         if d is None:
             continue
         if 0 <= d <= 7:
+            out.append(a)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def today_rail(items, limit=8):
+    """오늘 마감(D-0)만. 상시·마감된 공고는 넣지 않는다."""
+    out = []
+    for a in items or []:
+        if a.get("dday") == 0:
             out.append(a)
         if len(out) >= limit:
             break

@@ -1,11 +1,19 @@
 {% macro row(a) %}
 <article class="row row--bid"
    data-kind="{{ a.kind or '' }}"
+   data-cmp="bid"
+   data-id="{{ a.id }}"
+   data-title="{{ a.title }}"
+   data-org="{{ a.org or '' }}"
+   data-due="{{ a.deadline_line or a.dsub or a.close_dt or '' }}"
+   data-amt="{{ a.budget_card or '' }}"
+   data-src="나라장터"
    data-kind-slug="{{ a.kind_slug or '' }}"
    data-d="{{ a.dday }}"
    data-region="{{ a.region or '' }}"
-   data-org="{{ a.org or '' }}"
    data-amount="{{ a.amount_band or '' }}">
+  <button type="button" class="cmp" data-id="{{ a.id }}" data-kind="bid"
+    aria-pressed="false" aria-label="비교에 넣기"></button>
   <a class="row-body" href="/bid/notice/{{ a.id }}/">
     <div class="row-tags">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
@@ -13,6 +21,7 @@
       {% if a.kind %}<span class="pill">{{ a.kind }}</span>{% endif %}
       {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
       <span class="pill pill-src">나라장터</span>
+      {% if a.is_correction %}<span class="pill pill-corr">정정공고</span>{% elif a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
     </div>
     <h3>{{ a.title }}</h3>
     <div class="meta">{% if a.org %}<i>{{ a.org }}</i>{% endif %}{% if a.notice_no or a.bid_no %}<i>공고 {{ a.notice_no or a.bid_no }}</i>{% endif %}</div>
@@ -21,6 +30,7 @@
       <span class="when">{{ a.deadline_line or a.dsub }}</span>
     </div>
   </a>
+  <button type="button" class="star" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false" aria-label="스크랩"></button>
   {% if a.detail_url %}
   <a class="row-ext" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문</a>
   {% endif %}

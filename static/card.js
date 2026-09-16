@@ -44,8 +44,14 @@
       ? '<span class="amt">' + esc(a.m) + '</span>'
       : '<span class="amt amt-empty">규모는 원문 확인</span>';
     var when = '<span class="when">' + esc(whenOf(a)) + '</span>';
-    var starred = w.Scrap && w.Scrap.has(a.i);
-    return '<article class="row">' +
+    var starred = w.Scrap && w.Scrap.has(a.i, 'grant');
+    var due = whenOf(a);
+    return '<article class="row" data-kind="grant" data-id="' + esc(a.i) +
+      '" data-title="' + esc(a.t) + '" data-org="' + esc(a.o || '') +
+      '" data-due="' + esc(due) + '" data-amt="' + esc(a.m || '') +
+      '" data-src="' + esc(a.sn || '기업마당') + '">' +
+      '<button type="button" class="cmp" data-id="' + esc(a.i) +
+      '" data-kind="grant" aria-pressed="false" aria-label="비교에 넣기"></button>' +
       '<a class="row-body" href="/notice/' + esc(a.i) + '/">' +
       '<div class="row-tags">' + tags + '</div>' +
       '<h3>' + esc(a.t) + '</h3>' +
@@ -54,7 +60,7 @@
       '<div class="row-foot">' + amt + when + '</div>' +
       '</a>' +
       '<button type="button" class="star" data-id="' + esc(a.i) +
-      '" aria-pressed="' + (starred ? 'true' : 'false') +
+      '" data-kind="grant" aria-pressed="' + (starred ? 'true' : 'false') +
       '" aria-label="스크랩"></button></article>';
   }
 

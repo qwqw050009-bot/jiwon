@@ -521,9 +521,21 @@ def category_h1(name):
     return f"{name} 지원금·지원사업"
 
 
-def category_lede(name, cat=None):
+def _lede_clock(items):
+    """레데 끝에 붙는 오늘/이번 주 건수. 없는 숫자를 만들지 않는다."""
+    c = counts_of(items)
+    if c["today"]:
+        return f" 오늘 마감 {c['today']}건입니다."
+    if c["week"]:
+        return f" 이번 주 마감 {c['week']}건입니다."
+    if c["n"]:
+        return f" 지금 {c['n']}건입니다."
+    return ""
+
+
+def category_lede(name, cat=None, items=None):
     extra = ((cat or {}).get("desc") or f"{name} 지원").strip()
-    return f"{extra}. 마감이 가까운 순입니다."
+    return f"{extra}. 마감이 가까운 순입니다.{_lede_clock(items)}"
 
 
 # ── 지역 ────────────────────────────────────────────────────
@@ -610,13 +622,17 @@ def region_h1(region):
     return f"{_region_query(region)} {y} 기업 지원사업 공고"
 
 
-def region_lede(region):
+def region_lede(region, items=None):
     y = year()
+    open_s = _region_open(region)
+    clock = _lede_clock(items)
     if region == "전국":
-        return f"소재지 제한이 없는 {y} 기업 지원사업 공고를 마감일 순으로 둡니다."
-    if region == "전남광주":
-        return f"전남광주통합특별시 {y} 기업 지원사업 공고를 마감일 순으로 둡니다."
-    return f"{_region_query(region)} {y} 기업 지원사업 공고를 마감일 순으로 둡니다."
+        head = f"소재지 제한이 없는 {y} 기업 지원사업 공고를 마감일 순으로 둡니다."
+    elif region == "전남광주":
+        head = f"전남광주통합특별시 {y} 기업 지원사업 공고를 마감일 순으로 둡니다."
+    else:
+        head = f"{_region_query(region)} {y} 기업 지원사업 공고를 마감일 순으로 둡니다."
+    return f"{head} {open_s}.{clock}".replace("..", ".")
 
 
 # ── 지역×분야 ───────────────────────────────────────────────
@@ -671,10 +687,15 @@ def combo_h1(region, category):
     return f"{_region_query(region)} {category} 지원사업 공고"
 
 
-def combo_lede(region, category):
+def combo_lede(region, category, items=None):
+    clock = _lede_clock(items)
+    nature = _cat_nature(category)
     if region == "전국":
-        return f"소재지 제한이 없는 {category} 공고를 마감일 순으로 둡니다."
-    return f"{_region_query(region)} {category} 분야 공고를 마감일 순으로 둡니다."
+        return f"소재지 제한이 없는 {category} 공고를 마감일 순으로 둡니다. {nature}입니다.{clock}"
+    return (
+        f"{_region_query(region)} {category} 분야 공고를 마감일 순으로 둡니다. "
+        f"{nature}입니다.{clock}"
+    )
 
 
 # ── 시군구 ──────────────────────────────────────────────────
@@ -704,8 +725,12 @@ def district_h1(sido, district):
     return f"{district} {year()} 기업 지원사업 공고"
 
 
-def district_lede(sido, district):
-    return f"{_region_label(sido)} {district} 관련 공고를 마감일 순으로 둡니다."
+def district_lede(sido, district, items=None):
+    clock = _lede_clock(items)
+    return (
+        f"{_region_label(sido)} {district} 관련 공고를 마감일 순으로 둡니다. "
+        f"시·도 전체가 아니라 이 시군구 해시태그만 골랐습니다.{clock}"
+    )
 
 
 def district_combo_title(sido, district, category, items=None):
@@ -737,8 +762,13 @@ def district_combo_h1(sido, district, category):
     return f"{district} {category} 지원사업"
 
 
-def district_combo_lede(sido, district, category):
-    return f"{_region_label(sido)} {district} {category} 분야 공고를 마감일 순으로 둡니다."
+def district_combo_lede(sido, district, category, items=None):
+    clock = _lede_clock(items)
+    nature = _cat_nature(category)
+    return (
+        f"{_region_label(sido)} {district} {category} 분야 공고를 마감일 순으로 둡니다. "
+        f"{nature}입니다.{clock}"
+    )
 
 
 # ── 상세 ────────────────────────────────────────────────────
@@ -892,11 +922,14 @@ def pricing_desc():
 
 
 def scrap_title():
-    return with_brand("스크랩한 지원사업")
+    return with_brand("스크랩한 공고")
 
 
 def scrap_desc():
-    return "이 브라우저에 스크랩한 지원사업을 마감일 순으로 모읍니다. 서버에 저장하지 않습니다."
+    return (
+        "이 브라우저에 스크랩한 지원사업·입찰을 마감일 순으로 모읍니다. "
+        "로그인 없이 기기에만 저장되며, 서버에 올리지 않습니다."
+    )
 
 
 # ── 입찰 (지원금·바우처 카피 금지) ───────────────────────────

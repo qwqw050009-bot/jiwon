@@ -103,6 +103,8 @@
     if (a.k) tags += '<span class="pill">' + esc(a.k) + '</span>';
     if (a.r) tags += '<span class="pill">' + esc(a.r) + '</span>';
     tags += '<span class="pill pill-src">나라장터</span>';
+    if (a.corr) tags += '<span class="pill pill-corr">정정공고</span>';
+    else if (a.n) tags += '<span class="pill pill-new">신규</span>';
     var amt = a.m
       ? '<span class="amt">' + esc(a.m) + '</span>'
       : '<span class="amt amt-empty">추정가격은 원문 확인</span>';
@@ -112,14 +114,25 @@
     var ext = a.u
       ? '<a class="row-ext" href="' + esc(a.u) + '" rel="nofollow noopener" target="_blank">원문</a>'
       : '';
+    var starred = window.Scrap && window.Scrap.has(a.i, 'bid');
+    var due = whenOf(a);
     return '<article class="row row--bid" data-kind="' + esc(a.k || '') +
-      '" data-kind-slug="' + esc(slugOf(a)) + '" data-d="' + esc(a.d) +
-      '" data-region="' + esc(a.r || '') + '" data-org="' + esc(a.o || '') + '">' +
+      '" data-cmp="bid" data-id="' + esc(a.i) +
+      '" data-title="' + esc(a.t) + '" data-org="' + esc(a.o || '') +
+      '" data-due="' + esc(due) + '" data-amt="' + esc(a.m || '') +
+      '" data-src="나라장터" data-kind-slug="' + esc(slugOf(a)) +
+      '" data-d="' + esc(a.d) + '" data-region="' + esc(a.r || '') +
+      '" data-amount="' + esc(a.b || '') + '">' +
+      '<button type="button" class="cmp" data-id="' + esc(a.i) +
+      '" data-kind="bid" aria-pressed="false" aria-label="비교에 넣기"></button>' +
       '<a class="row-body" href="/bid/notice/' + esc(a.i) + '/">' +
       '<div class="row-tags">' + tags + '</div>' +
       '<h3>' + esc(a.t) + '</h3>' +
       (meta ? '<div class="meta">' + meta + '</div>' : '') +
-      '<div class="row-foot">' + amt + '<span class="when">' + esc(whenOf(a)) + '</span></div></a>' +
+      '<div class="row-foot">' + amt + '<span class="when">' + esc(due) + '</span></div></a>' +
+      '<button type="button" class="star" data-id="' + esc(a.i) +
+      '" data-kind="bid" aria-pressed="' + (starred ? 'true' : 'false') +
+      '" aria-label="스크랩"></button>' +
       ext + '</article>';
   }
 
@@ -268,21 +281,29 @@
     else view.sort(function (x, y) { return (x.d < 0) - (y.d < 0) || x.d - y.d; });
     var weekN = view.filter(function (a) { return a.d >= 0 && a.d <= 7; }).length;
     hideMore();
-    board.querySelectorAll('.sec-head, .row, p.note, .empty-filter, a.more').forEach(function (el) {
-      el.remove();
-    });
-    if (!view.length) {
-      board.innerHTML = emptyHTML();
-      announce(0, 0);
-      window.scrollTo(0, y);
-      return;
+    board.classList.add('is-busy');
+    var sk = '';
+    for (var i = 0; i < 3; i++) {
+      sk += '<article class="row sk-row" aria-hidden="true"><div class="sk-bar"></div>' +
+        '<div class="sk-bar sk-bar--lg"></div><div class="sk-bar sk-bar--sm"></div></article>';
     }
-    var html = '';
-    view.slice(0, shown).forEach(function (a) { html += rowHTML(a); });
-    board.innerHTML = html;
-    appendMore(view.length - shown);
-    announce(view.length, weekN);
-    window.scrollTo(0, y);
+    board.innerHTML = sk;
+    requestAnimationFrame(function () {
+      if (!view.length) {
+        board.innerHTML = emptyHTML();
+        announce(0, 0);
+        board.classList.remove('is-busy');
+        window.scrollTo(0, y);
+        return;
+      }
+      var html = '';
+      view.slice(0, shown).forEach(function (a) { html += rowHTML(a); });
+      board.innerHTML = html;
+      appendMore(view.length - shown);
+      board.classList.remove('is-busy');
+      announce(view.length, weekN);
+      window.scrollTo(0, y);
+    });
   }
 
   function filtered() {

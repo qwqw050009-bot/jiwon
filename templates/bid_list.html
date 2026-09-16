@@ -76,6 +76,26 @@
 {% else %}
 {% if today %}<a class="today-bar" href="/bid/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
+{% if today_rail %}
+<aside class="today-rail" aria-label="오늘 마감 입찰">
+  <div class="rail-head">
+    <h2>오늘 마감</h2>
+    <a href="/bid/urgent/">전체</a>
+  </div>
+  <ol class="rail-list">
+    {% for a in today_rail %}
+    <li>
+      <a href="/bid/notice/{{ a.id }}/">
+        <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+        <span class="rail-title">{{ a.title }}</span>
+        <span class="rail-meta">{{ a.kind }}{% if a.org %} · {{ a.org }}{% endif %}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+</aside>
+{% endif %}
+
 <section class="find find--static" id="bid-find" aria-label="입찰 검색"
   data-kind="{{ sel_kind or '' }}"
   data-due="{{ sel_due or '' }}"
@@ -177,6 +197,14 @@
   </div>
 </section>
 {% endfor %}
+
+{% if related_hubs %}
+<nav class="related-hubs" aria-label="이어서 볼 목록">
+  {% for h in related_hubs %}
+  <a href="{{ h.href }}">{{ h.name }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
 
 {% if beginner %}
 <a class="beginner-cta" href="/">

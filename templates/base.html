@@ -9,6 +9,8 @@
 {% if site.google_site_verification %}<meta name="google-site-verification" content="{{ site.google_site_verification }}">{% endif %}
 {% if site.naver_site_verification %}<meta name="naver-site-verification" content="{{ site.naver_site_verification }}">{% endif %}
 <link rel="canonical" href="{{ site.domain }}{{ path }}">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/favicon.svg">
 <meta property="og:type" content="website">
 <meta property="og:title" content="{{ title }}">
 <meta property="og:description" content="{{ desc }}">
@@ -20,6 +22,19 @@
 <meta property="og:image:alt" content="{{ site.name }} — {% if (section|default('support')) == 'bid' %}나라장터 입찰, 마감일시 순{% else %}{{ site.tagline }}{% endif %}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="{{ site.domain }}/static/og.png">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preload" as="style" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css"></noscript>
+<style>
+:root{--ink:#1A1A1A;--paper:#F4F4F2;--sheet:#fff;--line:#E6E6E3;--accent:#2F5BEA;--top-h:64px}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
+.top{background:var(--sheet);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+.top-row{display:flex;align-items:center;min-height:64px}
+.find{position:sticky;top:var(--top-h,64px);z-index:40;min-height:7.25rem;background:var(--paper)}
+@media(max-width:560px){.top{position:static}.find{top:0;min-height:6.25rem}}
+</style>
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
 {% if site.adsense_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>{% endif %}
@@ -29,6 +44,8 @@
 {% if (section|default('support')) != 'bid' %}
 <script src="/static/card.js?v={{ asset_v }}" defer></script>
 {% endif %}
+<script src="/static/scrap.js?v={{ asset_v }}" defer></script>
+<script src="/static/compare.js?v={{ asset_v }}" defer></script>
 </head>
 <body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}">
 <a class="skip" href="#main">본문으로 건너뛰기</a>
@@ -54,6 +71,7 @@
       {% if bid_has_regions %}
       <a href="/bid/region/" class="{{ 'active' if path.startswith('/bid/region/') }}">지역</a>
       {% endif %}
+      <a href="/scrap/" class="nav-scrap {{ 'active' if path.startswith('/scrap/') }}">스크랩<b id="scrap-count" hidden></b></a>
       {% else %}
       <a href="/urgent/" class="{{ 'active' if path.startswith('/urgent/') }}">마감임박</a>
       <a href="/category/" class="{{ 'active' if path.startswith('/category/') }}">분야</a>
@@ -120,9 +138,20 @@
   <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.{% if collected_at %} 이 빌드 수집 {{ collected_at }} (KST).{% endif %}</p>
   <p>© {{ site.name }}. All rights reserved.</p>
 </div></footer>
-{% if (section|default('support')) != 'bid' %}
-<script src="/static/scrap.js?v={{ asset_v }}" defer></script>
-{% endif %}
 <script src="/static/alert.js?v={{ asset_v }}" defer></script>
+<div class="cmp-bar" id="cmp-bar" hidden>
+  <p id="cmp-bar-label">비교할 공고를 고르세요</p>
+  <button type="button" class="f-apply" id="cmp-go" disabled>나란히 보기</button>
+  <button type="button" class="f-text" id="cmp-clear">선택 해제</button>
+</div>
+<div class="cmp-overlay" id="cmp-overlay" hidden>
+  <div class="cmp-sheet" role="dialog" aria-modal="true" aria-labelledby="cmp-title">
+    <div class="cmp-sheet-head">
+      <h2 id="cmp-title">공고 비교</h2>
+      <button type="button" class="f-panel-x" id="cmp-x" aria-label="닫기">×</button>
+    </div>
+    <div class="cmp-sheet-body" id="cmp-body"></div>
+  </div>
+</div>
 </body>
 </html>

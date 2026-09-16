@@ -401,42 +401,58 @@
     if (location.pathname + location.search !== next) history.replaceState(null, '', next);
   }
 
+  function showSkeleton() {
+    if (!board) return;
+    board.classList.add('is-busy');
+    var sk = '';
+    for (var i = 0; i < 4; i++) {
+      sk += '<article class="row sk-row" aria-hidden="true">' +
+        '<div class="sk-bar"></div><div class="sk-bar sk-bar--lg"></div>' +
+        '<div class="sk-bar sk-bar--sm"></div></article>';
+    }
+    board.innerHTML = sk;
+  }
+
   function render(reset) {
     var y = window.scrollY;
     paintChips(); paintSum(); paintPills(); paintOpenOnly();
     if (!touched) return;
     if (reset) shown = PAGE;
     compute();
-    if (!view.length) {
-      board.innerHTML = emptyHTML();
-    } else {
-      var mid = parseInt(board.dataset.adMid, 10) || 0;
-      var ad = midAdHTML();
-      var slice = view.slice(0, shown);
-      var html = '';
-      var card = window.MagampanCard;
-      for (var i = 0; i < slice.length; i++) {
-        html += card ? card.html(slice[i]) : '';
-        if (ad && (i + 1) === mid && (i + 1) < view.length) html += ad;
+    showSkeleton();
+    requestAnimationFrame(function () {
+      if (!view.length) {
+        board.innerHTML = emptyHTML();
+      } else {
+        var mid = parseInt(board.dataset.adMid, 10) || 0;
+        var ad = midAdHTML();
+        var slice = view.slice(0, shown);
+        var html = '';
+        var card = window.MagampanCard;
+        for (var i = 0; i < slice.length; i++) {
+          html += card ? card.html(slice[i]) : '';
+          if (ad && (i + 1) === mid && (i + 1) < view.length) html += ad;
+        }
+        if (view.length > shown) {
+          html += '<button type="button" class="more" id="f-more">' +
+            Math.min(PAGE * 2, view.length - shown) + '건 더 보기</button>';
+        } else if (MORE && !picked.region.size && !picked.category.size && !q &&
+                   !picked.org.size && !picked.district.size && !picked.amount.size &&
+                   !picked.period.size && !picked.src) {
+          html += '<a class="more" href="' + MORE + '">전체 공고 보기</a>';
+        }
+        board.innerHTML = html;
+        if (ad && board.querySelector('.ad-slot--mid ins.adsbygoogle')) {
+          try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (err) {}
+        }
       }
-      if (view.length > shown) {
-        html += '<button type="button" class="more" id="f-more">' +
-          Math.min(PAGE * 2, view.length - shown) + '건 더 보기</button>';
-      } else if (MORE && !picked.region.size && !picked.category.size && !q &&
-                 !picked.org.size && !picked.district.size && !picked.amount.size &&
-                 !picked.period.size && !picked.src) {
-        html += '<a class="more" href="' + MORE + '">전체 공고 보기</a>';
-      }
-      board.innerHTML = html;
-      if (ad && board.querySelector('.ad-slot--mid ins.adsbygoogle')) {
-        try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (err) {}
-      }
-    }
-    announce(view.length);
-    justApplied = false;
-    syncURL();
-    if (typeof y === 'number') window.scrollTo(0, y);
-    if (touched) hideOnboard(false);
+      board.classList.remove('is-busy');
+      announce(view.length);
+      justApplied = false;
+      syncURL();
+      if (typeof y === 'number') window.scrollTo(0, y);
+      if (touched) hideOnboard(false);
+    });
   }
 
   function districtsFor(regions) {
