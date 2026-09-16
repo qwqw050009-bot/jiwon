@@ -828,7 +828,7 @@ body.has-cmp{padding-bottom:72px}
   position:absolute;left:-9999px;width:1px;height:1px;opacity:0;
 }
 .mp-toast{
-  position:fixed;left:14px;right:14px;bottom:14px;z-index:70;max-width:420px;
+  position:fixed;left:14px;right:14px;bottom:14px;z-index:100;max-width:420px;
   margin:0 auto;background:var(--ink);color:#fff;padding:12px 16px;
   box-shadow:0 6px 24px rgba(0,0,0,.22);border-radius:12px;
   opacity:0;transform:translateY(8px);transition:opacity .18s,transform .18s;

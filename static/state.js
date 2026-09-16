@@ -160,6 +160,7 @@
     el.className = 'mp-toast';
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
+    el.style.cssText = 'position:fixed;left:14px;right:14px;bottom:14px;z-index:100;max-width:420px;margin:0 auto;background:#1A1A1A;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.22)';
     var html = '<p>' + escHtml(msg) + '</p>';
     if (opts.href) {
       html += '<p><a href="' + escHtml(opts.href) + '">' +
