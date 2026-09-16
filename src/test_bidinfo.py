@@ -405,9 +405,13 @@ def test_empty_hub_looks_intentional():
 
 def test_no_catchall_redirects_in_build():
     src = open(os.path.join(os.path.dirname(__file__), "build.py"), encoding="utf-8").read()
-    assert "/404.html  404" not in src
-    assert 'os.path.join(DIST, "_redirects")' not in src
-    assert '404.html' in src
+    assert "404.html" in src
+    import build as buildmod
+    redir = buildmod.cf_redirects_contents()
+    assert "/* /404.html" not in redir
+    assert "/* /index.html" not in redir
+    assert "/ads.txt /ads.txt 200" in redir
+    assert "/app-ads.txt /app-ads.txt 200" in redir
 
 
 if __name__ == "__main__":

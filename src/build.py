@@ -55,47 +55,107 @@ SITE = config.SITE
 
 # ads.txt 는 애드센스 심사에 쓰이는 루트 파일이라 dist/ 최상단에 항상 둔다.
 # pub id 는 config.SITE['adsense_client'] 와 같고, 다른 값을 만들지 않는다.
+# static 복사가 빠져도(파일 없음·copytree ignore) 파이썬 상수로 다시 쓴다.
 ADS_TXT_LINE = "google.com, pub-2738052782253666, DIRECT, f08c47fec0942fa0"
-STATIC_ROOT_FILES = ("ads.txt", "_headers")
+ADS_TXT_NAMES = ("ads.txt", "app-ads.txt")
+STATIC_ROOT_FILES = ("ads.txt", "app-ads.txt", "_headers", "_redirects")
 
 
 def ads_txt_contents(site=None):
-    """루트 /ads.txt 본문. 항상 개행으로 끝낸다."""
+    """
+    루트 /ads.txt·/app-ads.txt 본문. 항상 같은 한 줄 + 개행.
+    static/ads.txt 는 교차검증만 하고, 없어도 빌드가 만든다.
+    site 인자는 호출 호환용이며 다른 pub id 를 만들지 않는다.
+    """
+    _ = site
+    body = ADS_TXT_LINE + "\n"
     src = os.path.join(ROOT, "static", "ads.txt")
     if os.path.exists(src):
-        body = open(src, encoding="utf-8").read()
-    else:
-        site = site or SITE
-        pub = (site.get("adsense_client") or "").removeprefix("ca-") or "pub-2738052782253666"
-        body = f"google.com, {pub}, DIRECT, f08c47fec0942fa0\n"
-    if not body.endswith("\n"):
-        body += "\n"
+        got = open(src, encoding="utf-8").read()
+        line = (got.splitlines() or [""])[0].strip()
+        if line and line != ADS_TXT_LINE:
+            raise SystemExit(
+                f"static/ads.txt 첫 줄이 고정 pub 줄과 다릅니다: {line!r}"
+            )
     return body
 
 
 def cf_headers_contents():
-    """Cloudflare Pages _headers. ads.txt 를 text/plain 으로 캐시 가능하게."""
-    src = os.path.join(ROOT, "static", "_headers")
-    if os.path.exists(src):
-        body = open(src, encoding="utf-8").read()
-        if not body.endswith("\n"):
-            body += "\n"
-        return body
-    return (
-        "/ads.txt\n"
+    """Cloudflare Pages _headers. 코드에서 항상 만든다. static 복본에 의존하지 않는다."""
+    block = (
         "  Content-Type: text/plain; charset=utf-8\n"
         "  Cache-Control: public, max-age=86400\n"
         "  X-Content-Type-Options: nosniff\n"
-        "\n"
+    )
+    return (
+        "/ads.txt\n" + block + "\n"
+        "/app-ads.txt\n" + block + "\n"
         "/rss.xml\n"
         "  X-Robots-Tag: noindex\n"
     )
 
 
+def cf_redirects_contents():
+    """
+    Cloudflare Pages _redirects.
+
+    스플랫(홈 200·404.html)은 쓰지 않는다. 정적 ads.txt 가 있어도
+    스플랫이 먼저 먹으면 HTML 을 돌려 애드센스가 '찾을 수 없음'을 본다.
+    자신으로의 200 은 force(!) 가 아니라서, 파일이 있으면 원본을 그대로 준다.
+    """
+    return (
+        "/ads.txt /ads.txt 200\n"
+        "/app-ads.txt /app-ads.txt 200\n"
+    )
+
+
 def emit_root_text_files(dist):
-    """ads.txt·_headers 를 dist 루트에 항상 쓴다. static/ 아래로 넣지 않는다."""
-    open(os.path.join(dist, "ads.txt"), "w", encoding="utf-8").write(ads_txt_contents())
-    open(os.path.join(dist, "_headers"), "w", encoding="utf-8").write(cf_headers_contents())
+    """ads.txt·app-ads.txt·_headers·_redirects 를 dist 루트에 항상 쓴다."""
+    os.makedirs(dist, exist_ok=True)
+    body = ads_txt_contents()
+    for name in ADS_TXT_NAMES:
+        with open(os.path.join(dist, name), "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+    with open(os.path.join(dist, "_headers"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(cf_headers_contents())
+    with open(os.path.join(dist, "_redirects"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(cf_redirects_contents())
+    assert_ads_delivery(dist)
+
+
+def assert_ads_delivery(dist):
+    """빌드가 ads.txt 없이 끝나지 않게 한다. HTML·BOM·다른 pub 은 실패."""
+    for name in ADS_TXT_NAMES:
+        path = os.path.join(dist, name)
+        if not os.path.isfile(path):
+            raise SystemExit(f"{name} 가 dist 루트에 없습니다")
+        raw = open(path, "rb").read()
+        if raw.startswith(b"\xef\xbb\xbf"):
+            raise SystemExit(f"{name} 에 BOM 이 있습니다")
+        low = raw.lower()
+        if b"<html" in low or b"<!doctype" in low:
+            raise SystemExit(f"{name} 가 HTML 처럼 보입니다")
+        text = raw.decode("ascii")
+        if not text.endswith("\n"):
+            raise SystemExit(f"{name} 끝에 개행이 없습니다")
+        if text.splitlines()[0] != ADS_TXT_LINE:
+            raise SystemExit(f"{name} 첫 줄이 고정 pub 줄이 아닙니다: {text!r}")
+    headers = open(os.path.join(dist, "_headers"), encoding="utf-8").read()
+    for needle in (
+        "/ads.txt", "/app-ads.txt",
+        "Content-Type: text/plain; charset=utf-8",
+        "Cache-Control: public, max-age=86400",
+        "X-Content-Type-Options: nosniff",
+    ):
+        if needle not in headers:
+            raise SystemExit(f"dist/_headers 에 {needle!r} 가 없습니다")
+    redirects = open(os.path.join(dist, "_redirects"), encoding="utf-8").read()
+    for bad in ("/* /index.html", "/* /404.html", "/ads.txt /index.html",
+                "/ads.txt /404.html"):
+        if bad in redirects.replace("  ", " "):
+            raise SystemExit(f"dist/_redirects 가 ads.txt 를 HTML 로 삼킵니다: {bad}")
+    if "/ads.txt" not in redirects:
+        raise SystemExit("dist/_redirects 에 /ads.txt 규칙이 없습니다")
 
 env = Environment(
     loader=FileSystemLoader(os.path.join(ROOT, "templates")),
@@ -901,7 +961,7 @@ def main():
     # URL에 이 파일을 진짜 404 상태코드로 돌려준다 — 없으면(지금까지 없었음)
     # 홈페이지를 200으로 대신 돌려주는 소프트 404가 나서 SEO에 안 좋았다.
     # sitemap에 넣으면 안 되므로 write() 대신 직접 쓴다.
-    # /* /404.html 404 스플랫 _redirects 는 쓰지 않는다. Cloudflare는
+    # 스플랫 _redirects(모든 경로를 404.html 이나 홈으로)는 쓰지 않는다. Cloudflare는
     # 정적 파일이 있어도 리다이렉트를 적용하고, 404 상태 재작성은 지원하지
     # 않아 기존 지원 URL을 깨뜨릴 수 있다.
     html_404 = env.get_template("404.html").render(
@@ -923,14 +983,26 @@ def main():
     # 도메인 연결 전에는 색인을 막는다.
     # .pages.dev 주소로 색인되면 도메인 이전 시 중복 콘텐츠가 된다.
     if SITE.get("allow_index"):
-        robots = f"User-agent: *\nAllow: /\nSitemap: {SITE['domain']}/sitemap.xml\n"
+        robots = (
+            "User-agent: *\n"
+            "Allow: /ads.txt\n"
+            "Allow: /app-ads.txt\n"
+            "Allow: /\n"
+            f"Sitemap: {SITE['domain']}/sitemap.xml\n"
+        )
     else:
-        robots = "User-agent: *\nDisallow: /\n"
+        robots = (
+            "User-agent: *\n"
+            "Allow: /ads.txt\n"
+            "Allow: /app-ads.txt\n"
+            "Disallow: /\n"
+        )
     open(os.path.join(DIST, "robots.txt"), "w", encoding="utf-8").write(robots)
 
-    # ads.txt·_headers 는 빌드 초반 emit_root_text_files() 가 이미 썼다.
-    # 키가 비어도 /ads.txt 를 빼지 않는다 — HTML 404 가 되면 애드센스 심사가 막힌다.
+    # ads.txt 는 빌드 초반에도 쓰지만, 마지막에 한 번 더 써서 중간 단계가
+    # dist 를 비우거나 덮어써도 크롤러가 HTML 홈을 받지 않게 한다.
     emit_root_text_files(DIST)
+    print("ads.txt·app-ads.txt 루트 확인:", ADS_TXT_LINE)
 
     # 네이버 서치어드바이저 HTML 파일 소유확인. 사이트 루트에 그대로 둔다.
     naver_html = "naver0defc699223f8ffa807d6d0bc99bb36c.html"

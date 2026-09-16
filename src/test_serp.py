@@ -368,13 +368,23 @@ def test_mock_build_html_titles():
         body = open(ads, encoding="utf-8").read()
         assert body.endswith("\n"), repr(body)
         assert body.splitlines()[0] == "google.com, pub-2738052782253666, DIRECT, f08c47fec0942fa0"
+        app = os.path.join(root, "app-ads.txt")
+        if os.path.exists(app):
+            assert open(app, encoding="utf-8").read() == body
     headers = os.path.join(root, "_headers")
     if os.path.exists(headers):
         h = open(headers, encoding="utf-8").read()
         assert "/ads.txt" in h
+        assert "/app-ads.txt" in h
         assert "text/plain" in h
         assert "Cache-Control" in h
         assert "/rss.xml" in h
+    redirects = os.path.join(root, "_redirects")
+    if os.path.exists(redirects):
+        r = open(redirects, encoding="utf-8").read()
+        assert "/* /index.html" not in r
+        assert "/* /404.html" not in r
+        assert "/ads.txt" in r
 
 
 if __name__ == "__main__":
