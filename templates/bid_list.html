@@ -10,40 +10,22 @@
   <p class="kicker">나라장터 · 마감일시 순 · 물품·용역·공사·외자</p>
   <h1>{{ h1 }}</h1>
   <p class="hero-lede">{{ lede }}</p>
+  {% if not bid_empty %}
+  <div class="path" aria-label="바로 보기">
+    <a class="path-card path-card--today" href="/bid/urgent/?deadline=today">
+      <b>{{ today|default(tally.today if tally else 0) }}</b>
+      <span>오늘 마감</span>
+    </a>
+    <a class="path-card" href="/bid/kind/service/">
+      <b>{{ bid_kinds|default([])|length }}</b>
+      <span>종류 고르기</span>
+    </a>
+  </div>
+  {% endif %}
   {% include "_alert_form.html" %}
   {% include "_industry_chips.html" %}
   {% if not bid_empty %}
-  <ol class="how" aria-label="입찰 보는 순서">
-    <li>
-      <span class="how-n" aria-hidden="true">1</span>
-      <div>
-        <a href="/bid/kind/service/">종류 고르기</a>
-        <span>물품·용역·공사·외자</span>
-      </div>
-    </li>
-    <li>
-      <span class="how-n" aria-hidden="true">2</span>
-      <div>
-        <a href="/bid/urgent/">마감 가까운 것</a>
-        <span>오늘·D-n이 먼저</span>
-      </div>
-    </li>
-    <li>
-      <span class="how-n" aria-hidden="true">3</span>
-      <div>
-        <a href="https://www.g2b.go.kr/" rel="noopener noreferrer" target="_blank">나라장터 원문</a>
-        <span>이 사이트에서 투찰하지 않습니다</span>
-      </div>
-    </li>
-  </ol>
-  <p class="how-aside">지원사업은 위 <a href="/">지원 탭</a>에서 마감일 순으로 따로 봅니다.</p>
-  {% endif %}
-  {% if tally and not bid_empty %}
-  <div class="tally">
-    {% if tally.today %}<span class="u"><b>{{ tally.today }}</b>오늘 마감</span>{% endif %}
-    <span {% if tally.urgent %}class="u"{% endif %}><b>{{ tally.urgent }}</b>이번 주 마감</span>
-    <span><b>{{ tally.open }}</b>진행중</span>
-  </div>
+  <p class="how-aside">지원사업은 위 <a href="/">지원 탭</a>에서 마감일 순으로 따로 봅니다. 투찰은 <a href="https://www.g2b.go.kr/" rel="noopener noreferrer" target="_blank">나라장터 원문</a>에서 합니다.</p>
   {% endif %}
 </section>
 {% else %}
@@ -74,7 +56,7 @@
   </ul>
 </section>
 {% else %}
-{% if today %}<a class="today-bar" href="/bid/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
+{% if today and path != '/bid/' %}<a class="today-bar" href="/bid/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
 {% if today_rail %}
 <aside class="today-rail" aria-label="오늘 마감 입찰">
@@ -100,7 +82,8 @@
   data-kind="{{ sel_kind or '' }}"
   data-due="{{ sel_due or '' }}"
   data-region="{{ sel_region or '' }}"
-  data-email="{{ alert_email or site.email or '' }}">
+  data-email="{{ alert_email or site.email or '' }}"
+  data-formspree="{{ formspree_url|default('') }}">
   <form class="find-search" action="/bid/" method="get" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
     <label class="sr-only" for="bid-q">입찰 공고명·수요기관 검색</label>

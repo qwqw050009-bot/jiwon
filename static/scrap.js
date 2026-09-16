@@ -109,6 +109,11 @@
     var on = toggle(b.dataset.id, kind);
     syncStars(b.dataset.id, kind);
     badge();
+    if (window.MagampanToast) {
+      MagampanToast(on ? '스크랩에 넣었습니다' : '스크랩에서 뺐습니다', {
+        href: '/scrap/', label: '목록 보기', ms: 2800
+      });
+    }
     if (on) notice();
     if (document.body.dataset.page === 'scrap' && b.classList.contains('star')) {
       var row = b.closest('.row');

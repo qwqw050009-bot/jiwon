@@ -1,5 +1,27 @@
 # -*- coding: utf-8 -*-
 """사이트 전역 설정. 도메인/애드센스 ID만 바꾸면 됨."""
+import os
+import re
+
+
+def formspree_url(raw=None):
+    """정적 알림 폼 엔드포인트. 없으면 빈 문자열 → mailto 폴백.
+
+    `FORMSPREE_ID` 는 Formspree 공개 폼 ID (`xpzgkjyz`) 또는
+    `https://formspree.io/f/...` 전체 URL. Getform 등 https 웹훅도 허용.
+    코드에 실제 ID를 넣지 않는다. 키가 없거나 형식이 이상하면 빈 값.
+    """
+    if raw is None:
+        raw = os.environ.get("FORMSPREE_ID") or os.environ.get("FORMSPREE_ENDPOINT") or ""
+    raw = str(raw or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("https://"):
+        return raw.split("?", 1)[0]
+    if re.fullmatch(r"[A-Za-z0-9]+", raw):
+        return "https://formspree.io/f/" + raw
+    return ""
+
 
 SITE = {
     "name": "지원사업 마감판",
@@ -22,6 +44,8 @@ SITE = {
     "google_site_verification": "Gu5i_F8dMB1UeRpB-399OCLdtPoVFe1e3Ed2opMQIbQ",
     "naver_site_verification": "0bc9dc85c2832ca5736a60371a695d6cc6d8d3d4",
     "email": "qwqw050009@gmail.com",
+    # 빌드 시 FORMSPREE_ID 가 있으면 알림 폼이 여기로 POST 한다. 코드에 ID를 넣지 않음.
+    "formspree_id": "",
     "publisher": "지원사업 마감판",
     # 사업자 정보는 발급 전까지 대괄호 플레이스홀더. 가짜 번호를 넣지 않는다.
     "business": {

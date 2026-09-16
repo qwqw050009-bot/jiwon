@@ -1,5 +1,5 @@
-/* 알림 조건: 서버·결제·카카오 없음.
-   이메일은 mailto, 조건·일시정지·삭제는 이 브라우저 localStorage 만. */
+/* 알림 조건: 서버 계정·결제·카카오 없음.
+   전달은 Formspree(설정 시) 또는 mailto 폴백. 조건은 localStorage. */
 (function (w) {
   var KEY = 'magampan.alerts.v1';
   var LEGACY = 'alert.conditions.v1';
@@ -66,6 +66,61 @@
     if (section === 'bid') return '/bid/notice/' + encodeURIComponent(a.i) + '/';
     return '/notice/' + encodeURIComponent(a.i) + '/';
   }
+  function formspreeOf() {
+    var b = document.body;
+    var form = document.getElementById('alert-form');
+    return (form && form.getAttribute('data-formspree')) ||
+      (b && b.getAttribute('data-formspree')) || '';
+  }
+  function mailtoOf() {
+    var form = document.getElementById('alert-form');
+    var b = document.body;
+    return (form && form.getAttribute('data-mailto')) ||
+      (b && b.getAttribute('data-alert-email')) || '';
+  }
+  function mailtoHref(fields) {
+    fields = fields || {};
+    var to = fields.to || mailtoOf();
+    var sub = encodeURIComponent(fields.subject || '[마감판] 알림 신청');
+    var body = encodeURIComponent(fields.message || (
+      '알림 신청합니다.\n\n' +
+      '이메일: ' + (fields.email || '') + '\n' +
+      '업종/키워드: ' + (fields.keyword || '(없음)') + '\n' +
+      '희망 플랜: ' + (fields.plan || 'free') + '\n' +
+      '\n— 지원사업 마감판 알림 신청 양식'
+    ));
+    return 'mailto:' + to + '?subject=' + sub + '&body=' + body;
+  }
+  function send(fields) {
+    fields = fields || {};
+    var url = formspreeOf();
+    var payload = {
+      email: fields.email || '',
+      keyword: fields.keyword || '',
+      plan: fields.plan || '',
+      message: fields.message || '',
+      _subject: fields.subject || '[마감판] 알림 신청'
+    };
+    function fallback() {
+      var to = mailtoOf();
+      if (!to) return Promise.resolve({ ok: false, via: 'none' });
+      w.location.href = mailtoHref(fields);
+      return Promise.resolve({ ok: true, via: 'mailto' });
+    }
+    if (!url) return fallback();
+    return fetch(url, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('fail');
+      return r.json().catch(function () { return {}; });
+    }).then(function () {
+      return { ok: true, via: 'form' };
+    }).catch(function () {
+      return fallback();
+    });
+  }
   function previewHTML(hits, opts) {
     opts = opts || {};
     var n = (hits || []).length;
@@ -82,6 +137,9 @@
     } else {
       html += '<p>지금은 맞는 공고가 없습니다. 저장하면 나중에 올라오는 공고를 메일로 받아볼 수 있습니다.</p>';
     }
+    html += '<label class="f-help" for="alert-panel-email">알림 받을 이메일</label>';
+    html += '<input class="f-search" type="email" id="alert-panel-email" name="email" ' +
+      'placeholder="you@example.com" autocomplete="email" required>';
     html += '<fieldset class="alert-freq"><legend>알림 빈도</legend>';
     ['now', 'daily', 'weekly'].forEach(function (k) {
       html += '<label><input type="radio" name="alert-freq" value="' + k + '"' +
@@ -89,7 +147,9 @@
     });
     html += '</fieldset>';
     html += '<p class="f-help">빈도는 이 브라우저에만 기록합니다. 서버 푸시·결제는 없습니다. ' +
-      '메일 앱이 열리면 그대로 보내 주세요.</p>';
+      (formspreeOf()
+        ? '보내기를 누르면 운영자에게 조건이 전달됩니다.'
+        : '메일 앱이 열리면 그대로 보내 주세요.') + '</p>';
     html += '<p class="f-help"><a href="/alerts/">저장한 알림 조건 보기</a> · ' +
       '<a href="/scrap/">스크랩</a></p></div>';
     return html;
@@ -98,11 +158,29 @@
     var el = (root || document).querySelector('input[name="alert-freq"]:checked');
     return (el && el.value) || 'daily';
   }
+  function panelEmail(root) {
+    var el = (root || document).querySelector('#alert-panel-email');
+    return (el && el.value || '').trim();
+  }
+  function applyLabel() {
+    return formspreeOf() ? '저장하고 보내기' : '저장하고 메일 열기';
+  }
+  function sayToast(res) {
+    var msg = res && res.via === 'form'
+      ? '알림 신청을 받았습니다. 결제·계정은 없습니다.'
+      : (res && res.via === 'mailto'
+        ? '메일 앱이 열리면 그대로 보내 주세요.'
+        : '전달에 실패했습니다. 문의 메일로 보내 주세요.');
+    if (w.MagampanToast) MagampanToast(msg, { href: '/alerts/', label: '알림 조건' });
+    return msg;
+  }
 
   w.MagampanAlerts = {
     KEY: KEY, FREQ: FREQ, read: read, write: write, save: save,
     pause: pause, resume: resume, remove: remove,
-    previewHTML: previewHTML, freqOf: freqOf, dlabel: dlabel
+    previewHTML: previewHTML, freqOf: freqOf, dlabel: dlabel,
+    send: send, mailtoHref: mailtoHref, formspreeOf: formspreeOf,
+    panelEmail: panelEmail, applyLabel: applyLabel, sayToast: sayToast
   };
 
   var form = document.getElementById('alert-form');
@@ -111,10 +189,11 @@
   var plan = document.getElementById('alert-plan');
   var status = document.getElementById('alert-status');
   var saveBtn = document.getElementById('alert-save');
-  var emailTo = (form && form.getAttribute('action') || '').replace(/^mailto:/i, '');
+  var done = document.getElementById('alert-done');
 
   function say(msg) {
     if (!status) return;
+    status.hidden = false;
     status.textContent = msg || '';
   }
   function keyword() {
@@ -132,20 +211,12 @@
     if (k && kw && !kw.value) setKeyword(k);
     if (p && plan) plan.value = p;
   }
-  function mailtoHref(extra) {
-    var k = keyword();
-    var e = ((mail && mail.value) || '').trim();
-    var p = (plan && plan.value) || '';
-    var sub = encodeURIComponent('[마감판] 알림 신청' + (p ? ' · ' + p : ''));
-    var body = encodeURIComponent(
-      '알림 신청합니다.\n\n' +
-      '이메일: ' + e + '\n' +
-      '업종/키워드: ' + (k || '(없음)') + '\n' +
-      '희망 플랜: ' + (p || 'free') + '\n' +
-      (extra ? extra + '\n' : '') +
-      '\n— 지원사업 마감판 알림 신청 양식'
-    );
-    return 'mailto:' + emailTo + '?subject=' + sub + '&body=' + body;
+  function showDone(res) {
+    if (done && res && res.via === 'form') {
+      if (form) form.hidden = true;
+      done.hidden = false;
+    }
+    say(sayToast(res));
   }
 
   if (form) {
@@ -178,19 +249,34 @@
     }
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (!emailTo) {
-        say('문의 메일이 아직 없습니다. 사이트 문의 페이지를 이용해 주세요.');
+      if (mail && !mail.checkValidity()) {
+        mail.reportValidity();
         return;
       }
-      if (!mail.checkValidity()) {
-        mail.reportValidity();
+      if (!formspreeOf() && !mailtoOf()) {
+        say('문의 메일이 아직 없습니다. 사이트 문의 페이지를 이용해 주세요.');
         return;
       }
       var k = keyword();
       if (k) save({ name: k, section: 'grant', q: k, freq: 'now' });
       var saved = read().map(function (x) { return x.name; }).filter(Boolean);
-      window.location.href = mailtoHref(saved.length ? '저장한 조건: ' + saved.join(', ') : '');
-      say('메일 앱이 열리면 그대로 보내 주세요. 앱이 없으면 ' + emailTo + ' 으로 같은 내용을 보내 주시면 됩니다.');
+      var extra = saved.length ? '저장한 조건: ' + saved.join(', ') : '';
+      var btn = document.getElementById('alert-submit');
+      if (btn) btn.disabled = true;
+      send({
+        email: (mail && mail.value) || '',
+        keyword: k,
+        plan: (plan && plan.value) || 'free',
+        subject: '[마감판] 알림 신청' + ((plan && plan.value) ? ' · ' + plan.value : ''),
+        message: '알림 신청합니다.\n\n이메일: ' + ((mail && mail.value) || '') +
+          '\n업종/키워드: ' + (k || '(없음)') +
+          '\n희망 플랜: ' + ((plan && plan.value) || 'free') +
+          (extra ? '\n' + extra : '') +
+          '\n\n— 지원사업 마감판 알림 신청 양식'
+      }).then(function (res) {
+        if (btn) btn.disabled = false;
+        showDone(res);
+      });
     });
   }
 

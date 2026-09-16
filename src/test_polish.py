@@ -51,11 +51,17 @@ def test_mode_switch_preserves_q_hook():
     assert 'data-mode="bid"' in base
     assert "suggest.js" in base
     assert "dns-prefetch" in base
-    assert "preload" in base and "style.css" in base
+    assert "style.css" in base
+    assert 'media="print"' in base
+    assert "requestIdleCallback" in base
+    assert "keys-help" in base
+    assert 'data-formspree' in base
     js = open(os.path.join(ROOT, "static", "state.js"), encoding="utf-8").read()
     assert "encodeURIComponent(q)" in js
     assert "bindDialog" in js
     assert "data-mode" in js
+    assert "MagampanToast" in js
+    assert "keys-help" in js
 
 
 def test_alert_preview_in_filters():
@@ -71,6 +77,8 @@ def test_alert_preview_in_filters():
     assert "하루 1회" in ajs
     assert "일시정지" in ajs
     assert "결제" in ajs
+    assert "formspree" in ajs
+    assert "fetch(" in ajs
     sjs = open(os.path.join(ROOT, "static", "suggest.js"), encoding="utf-8").read()
     assert "aria-autocomplete" in sjs
     assert "<mark>" in sjs
@@ -110,6 +118,10 @@ def test_a11y_skip_and_dialog_controls():
     assert "--muted:#4E4E4A" in css
     assert ".cmp-overlay[hidden]" in css
     assert ".cmp-bar[hidden]" in css
+    assert "content-visibility" in css
+    assert ".path-card" in css
+    assert ".mp-toast" in css
+    assert ".keys-help" in css
 
 
 def test_related_detail_shows_dday_copy():
@@ -144,6 +156,20 @@ def test_related_detail_shows_dday_copy():
     assert "정정" in open(os.path.join(ROOT, "templates", "_row.html"), encoding="utf-8").read()
 
 
+def test_scrap_toast_and_formspree_helpers():
+    sjs = open(os.path.join(ROOT, "static", "scrap.js"), encoding="utf-8").read()
+    assert "스크랩에 넣었습니다" in sjs
+    assert "MagampanToast" in sjs
+    assert config.formspree_url("") == ""
+    assert config.formspree_url("abc123XYZ") == "https://formspree.io/f/abc123XYZ"
+    assert config.formspree_url("https://formspree.io/f/xyz") == "https://formspree.io/f/xyz"
+    assert config.formspree_url("not a key!") == ""
+    form = open(os.path.join(ROOT, "templates", "_alert_form.html"), encoding="utf-8").read()
+    assert "data-formspree" in form
+    assert "alert-done" in form
+    assert "mailto:" in form
+
+
 if __name__ == "__main__":
     test_alerts_serp_and_template_noindex()
     test_mode_switch_preserves_q_hook()
@@ -153,4 +179,5 @@ if __name__ == "__main__":
     test_date_of_reads_posted_only()
     test_a11y_skip_and_dialog_controls()
     test_related_detail_shows_dday_copy()
+    test_scrap_toast_and_formspree_helpers()
     print("polish tests ok")

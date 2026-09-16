@@ -11,43 +11,19 @@
   <p class="kicker">오늘마감 · 무료 알림 · 마감일 순</p>
   <h1>{{ landing.hero_h1 }}</h1>
   <p class="hero-lede">{{ landing.hero_lede }}</p>
+  <div class="path" aria-label="바로 보기">
+    <a class="path-card path-card--today" href="/urgent/?deadline=today">
+      <b>{{ today|default(tally.today if tally else 0) }}</b>
+      <span>오늘 마감</span>
+    </a>
+    <a class="path-card" href="/region/" data-howto="region">
+      <b>{{ region_n|default(all_regions|length) }}</b>
+      <span>내 지역부터 보기</span>
+    </a>
+  </div>
   {% include "_alert_form.html" %}
   {% include "_industry_chips.html" %}
-  <ol class="how" aria-label="쓰는 순서">
-    <li>
-      <span class="how-n" aria-hidden="true">1</span>
-      <div>
-        <a href="/region/" data-howto="region">지역 고르기</a>
-        <span>사업장 소재지</span>
-      </div>
-    </li>
-    <li>
-      <span class="how-n" aria-hidden="true">2</span>
-      <div>
-        <a href="/urgent/">마감 가까운 것 보기</a>
-        <span>오늘·D-n이 먼저</span>
-      </div>
-    </li>
-    <li>
-      <span class="how-n" aria-hidden="true">3</span>
-      <div>
-        <a href="/guide/start/">원문 신청</a>
-        <span>소관기관에서 접수</span>
-      </div>
-    </li>
-  </ol>
-  <p class="how-aside">나라장터 입찰은 위 <a href="/bid/">입찰 탭</a>에서 따로 봅니다.</p>
-  <div class="hero-actions">
-    <a class="hero-primary" href="/region/" data-howto="region">내 지역부터 보기</a>
-    <a class="hero-secondary" href="/guide/start/">처음이세요?</a>
-  </div>
-  {% if tally %}
-  <div class="tally">
-    <span class="u"><b>{{ tally.urgent }}</b>이번 주 마감</span>
-    <span class="s"><b>{{ tally.soon }}</b>2주 내</span>
-    <span><b>{{ tally.open }}</b>접수중</span>
-  </div>
-  {% endif %}
+  <p class="how-aside">나라장터 입찰은 위 <a href="/bid/">입찰 탭</a>에서 따로 봅니다. <a href="/guide/start/">처음이세요?</a></p>
 </section>
 {% else %}
 <div class="head">
@@ -81,7 +57,7 @@
 </div>
 
 {% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}
-{% if today %}<a class="today-bar" href="/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
+{% if today and path != '/' %}<a class="today-bar" href="/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
 
 <div class="layout">
 <div class="layout-main">

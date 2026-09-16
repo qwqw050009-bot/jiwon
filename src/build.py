@@ -192,6 +192,7 @@ env.globals["bid_kinds"] = config.BID_KINDS
 env.globals["bid_has_regions"] = False
 env.globals["amount_bands"] = filt.AMOUNT_BANDS
 env.globals["landing"] = landing.context()
+env.globals["formspree_url"] = config.formspree_url()
 
 URLS = []
 URL_META = {}
@@ -277,6 +278,7 @@ def decorate(a, collected_at=None, today=None):
 
 def tally(items):
     return {
+        "today": sum(1 for a in items if a["dday"] == 0),
         "urgent": sum(1 for a in items if 0 <= a["dday"] <= 7),
         "soon": sum(1 for a in items if 7 < a["dday"] <= 14
                     and a.get("period_type") != "always"),
@@ -431,7 +433,7 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
                 sections=None, tally_items=None, beginner_cta=False,
                 crumbs=None, website_jsonld="", home_guides=None,
-                list_guides=None):
+                list_guides=None, region_n=0):
     n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
@@ -466,6 +468,7 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         source_tally=filt.source_tally(pool),
         collected_at=env.globals.get("collected_at") or "",
         alert_email=SITE.get("email") or "",
+        region_n=region_n,
     )
     write(path, html)
 
@@ -487,6 +490,7 @@ def main():
     collected_at = dl.collected_stamp()
     env.globals["collected_at"] = collected_at
     env.globals["alert_email"] = SITE.get("email") or ""
+    env.globals["formspree_url"] = config.formspree_url()
 
     # 키가 있으면 실데이터, 없으면 목업으로 자동 전환.
     # 로컬에서 키 없이 돌려도 그대로 빌드된다.
@@ -577,6 +581,7 @@ def main():
         home_guides=intros.HOME_GUIDES,
         faqs=intros.home_faqs(today_n, week_n, open_n),
         faq_jsonld=intros.faq_jsonld(intros.home_faqs(today_n, week_n, open_n)),
+        region_n=len(reg_chips),
     )
 
     # 전체 목록
@@ -1088,6 +1093,12 @@ def main():
     # dist 를 비우거나 덮어써도 크롤러가 HTML 홈을 받지 않게 한다.
     emit_root_text_files(DIST)
     print("ads.txt·app-ads.txt 루트 확인:", ADS_TXT_LINE)
+    fs = env.globals.get("formspree_url") or ""
+    print("알림 전달:", "Formspree " + fs if fs else "mailto 폴백 (FORMSPREE_ID 없음)")
+    for rel in ("index.html", "static/style.css", "static/filter.js", "static/alert.js"):
+        p = os.path.join(DIST, rel)
+        if os.path.isfile(p):
+            print(f"  {rel} {os.path.getsize(p)}B")
 
     # 네이버 서치어드바이저 HTML 파일 소유확인. 사이트 루트에 그대로 둔다.
     naver_html = "naver0defc699223f8ffa807d6d0bc99bb36c.html"

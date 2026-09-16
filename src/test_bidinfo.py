@@ -238,11 +238,13 @@ def test_nav_split_templates():
     assert 'href="/category/"' not in bid
     assert 'href="/urgent/"' not in bid.replace("/bid/urgent/", "")
     # 모드 스위치 활성
-    assert support.split("mode-switch", 1)[1].split("</nav>", 1)[0].count("is-on") == 1
+    support_sw = support.split('<nav class="mode-switch"', 1)[1].split("</nav>", 1)[0]
+    bid_sw = bid.split('<nav class="mode-switch"', 1)[1].split("</nav>", 1)[0]
+    assert support_sw.count("is-on") == 1
     assert 'data-mode="support"' in support
-    assert 'class="is-on"' in support.split("mode-switch", 1)[1].split("</nav>", 1)[0]
+    assert 'class="is-on"' in support_sw
     assert 'href="/bid/"' in bid
-    assert 'class="is-on"' in bid.split("mode-switch", 1)[1].split("</nav>", 1)[0]
+    assert 'class="is-on"' in bid_sw
     assert "지원사업<b>마감판</b>" in support
     assert "지원·입찰<b>마감판</b>" in bid
     assert "지원·입찰<b>마감판</b>" not in support
@@ -328,9 +330,8 @@ def test_list_and_detail_wework_chrome():
     assert "요금제 보기" in home
     assert "후기" not in home
     assert "낙찰까지 받았습니다" not in home
-    assert "지역 고르기" in home
-    assert "마감 가까운 것 보기" in home
-    assert "원문 신청" in home
+    assert "path-card" in home
+    assert "오늘 마감" in home
     assert "내 지역부터 보기" in home
     assert "처음이세요?" in home
     assert 'href="/guide/start/"' in home
@@ -686,7 +687,7 @@ def test_bid_list_wework_chips_and_detail_cta():
     assert 'id="bid-live"' in listing
     assert "로그인 없이" in listing
     assert "종류 고르기" in listing
-    assert "마감 가까운 것" in listing
+    assert "오늘 마감" in listing
     assert "나라장터 원문" in listing
     assert "지원 탭" in listing
     assert "지원금" not in listing

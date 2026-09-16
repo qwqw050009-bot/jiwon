@@ -70,8 +70,8 @@ button:focus:not(:focus-visible),a:focus:not(:focus-visible),input:focus:not(:fo
 }
 .mode-switch a{
   display:flex;align-items:center;justify-content:center;
-  min-width:48px;padding:5px 12px;border-radius:999px;
-  font-size:13px;font-weight:700;line-height:1.2;text-align:center;
+  min-width:52px;min-height:36px;padding:6px 14px;border-radius:999px;
+  font-size:14px;font-weight:700;line-height:1.2;text-align:center;
   text-decoration:none;color:var(--muted);letter-spacing:-.02em;
 }
 .mode-switch a:hover{color:var(--ink)}
@@ -136,7 +136,8 @@ body[data-page="list"] .hsearch{display:none}
   .brand-cluster{flex:1 1 auto}
   .navbar{flex:1 1 100%;order:4;margin:0 -24px;padding:0 24px}
   .hsearch{flex:1 1 160px;max-width:none}
-  .hstart{margin-left:auto}
+  .hcta{display:none}
+  .mode-switch a{min-height:40px;min-width:56px;padding:8px 16px;font-size:15px}
 }
 
 /* ── 빵가루 ── */
@@ -158,6 +159,22 @@ body[data-page="list"] .hsearch{display:none}
   margin:0 0 6px;font-size:34px;line-height:1.2;letter-spacing:-.045em;font-weight:800;
 }
 .hero-lede{margin:0;color:var(--muted);font-size:16px;line-height:1.55}
+.path{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  margin:16px 0 4px;max-width:28rem;
+}
+.path-card{
+  display:flex;flex-direction:column;gap:4px;
+  padding:14px 16px;min-height:76px;
+  background:var(--sheet);border:1px solid var(--line-strong);border-radius:16px;
+  text-decoration:none;color:var(--ink);box-shadow:var(--shadow-card);
+}
+.path-card:hover{border-color:var(--accent)}
+.path-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.path-card b{font-size:28px;font-weight:800;letter-spacing:-.04em;line-height:1.1}
+.path-card span{font-size:14px;font-weight:700;color:var(--muted)}
+.path-card--today{border-color:#E8C4BE}
+.path-card--today b{color:var(--urgent)}
 .how{
   margin:14px 0 0;padding:0;list-style:none;
   display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-start;
@@ -459,6 +476,12 @@ body[data-page="list"] .hsearch{display:none}
 }
 .row--bid{grid-template-columns:28px 1fr 36px auto}
 .row:hover{border-color:var(--line-strong);box-shadow:0 8px 24px rgba(17,17,17,.06)}
+@supports (content-visibility:auto){
+  .board>.row:nth-child(n+6){
+    content-visibility:auto;
+    contain-intrinsic-size:0 148px;
+  }
+}
 .row:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .row-body{min-width:0;max-width:100%;text-decoration:none;color:inherit}
 .row-body:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
@@ -752,6 +775,7 @@ body.has-cmp{padding-bottom:72px}
 
 /* ── 알림 신청 / 요금제 ── */
 .alert-box{margin:16px 0 4px;max-width:38rem}
+.alert-form{position:relative}
 #alert{scroll-margin-top:84px}
 .alert-box--compact{margin:18px 0 8px}
 .alert-row{
@@ -797,6 +821,40 @@ body.has-cmp{padding-bottom:72px}
   margin:8px 0 0;font-size:13px;color:var(--accent);font-weight:600;min-height:1.2em;
 }
 .alert-status:empty{display:none}
+.alert-done[hidden]{display:none}
+.alert-done p{margin:0 0 6px;font-size:14px;font-weight:600}
+.alert-done a{color:var(--accent);font-weight:700}
+.hp{
+  position:absolute;left:-9999px;width:1px;height:1px;opacity:0;
+}
+.mp-toast{
+  position:fixed;left:14px;right:14px;bottom:14px;z-index:70;max-width:420px;
+  margin:0 auto;background:var(--ink);color:#fff;padding:12px 16px;
+  box-shadow:0 6px 24px rgba(0,0,0,.22);border-radius:12px;
+  opacity:0;transform:translateY(8px);transition:opacity .18s,transform .18s;
+}
+.mp-toast.in{opacity:1;transform:none}
+.mp-toast p{margin:0;font-size:14px;line-height:1.5}
+.mp-toast a{color:#fff;font-weight:700}
+.keys-help{
+  position:fixed;inset:0;z-index:90;background:rgba(17,17,17,.28);
+  display:flex;align-items:center;justify-content:center;padding:24px 16px;
+}
+.keys-help[hidden]{display:none}
+.keys-sheet{
+  width:min(360px,100%);background:var(--sheet);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:8px 8px 16px;
+}
+.keys-sheet:focus{outline:none}
+.keys-list{margin:0;padding:0 16px;display:grid;gap:8px}
+.keys-list div{display:flex;gap:12px;align-items:baseline}
+.keys-list dt{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:13px;font-weight:800;min-width:2.5rem;
+  padding:2px 8px;border:1px solid var(--line-strong);border-radius:8px;
+  background:var(--paper);text-align:center;
+}
+.keys-list dd{margin:0;font-size:14px}
 .industry{margin:16px 0 8px}
 .industry h2{
   margin:0 0 8px;font-size:13px;font-weight:700;color:var(--muted);
@@ -1034,6 +1092,9 @@ footer a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border
   .how span:not(.how-n){display:none}
   .how--detail span:not(.how-n){display:block}
   .hero-actions{margin-top:10px}
+  .path{max-width:none;margin-top:12px}
+  .path-card{min-height:72px;padding:12px 14px}
+  .path-card b{font-size:24px}
   .hero-primary,.hero-secondary{min-height:38px;padding:7px 14px;font-size:13px}
   .head{padding:20px 0 6px}
   .head h1,.notice-head h1,.detail h1{font-size:22px}

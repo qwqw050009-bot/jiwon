@@ -23,25 +23,58 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="{{ site.domain }}/static/og.png">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="preload" as="style" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css">
+{# 히어로 텍스트는 시스템 폰트로 LCP. Pretendard는 인쇄 미디어로 비동기. #}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css"></noscript>
 <style>
-:root{--ink:#1A1A1A;--paper:#F4F4F2;--sheet:#fff;--line:#E6E6E3;--accent:#2F5BEA;--top-h:64px}
+:root{--ink:#1A1A1A;--paper:#F4F4F2;--sheet:#fff;--line:#E6E6E3;--line-strong:#D3D3CF;--muted:#4E4E4A;--accent:#2F5BEA;--urgent:#B42318;--top-h:64px}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px;min-width:0}
+.skip{position:absolute;left:12px;top:-48px;z-index:100;padding:8px 14px;border-radius:8px;background:var(--accent);color:#fff;font-weight:700;text-decoration:none}
+.skip:focus,.skip:focus-visible{top:12px}
 .top{background:var(--sheet);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
-.top-row{display:flex;align-items:center;min-height:64px}
+.top-row{display:flex;align-items:center;gap:18px;min-height:64px}
+.brand-cluster{display:flex;align-items:center;gap:12px;flex:0 1 auto;min-width:0}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:18px;text-decoration:none;color:var(--ink);white-space:nowrap}
+.brand-mark{width:22px;height:22px;flex:0 0 auto;border-radius:6px;background:var(--accent)}
+.brand b{color:var(--accent)}
+.mode-switch{display:inline-flex;align-items:stretch;padding:3px;background:var(--paper);border:1px solid var(--line);border-radius:999px}
+.mode-switch a{display:flex;align-items:center;justify-content:center;min-width:52px;min-height:36px;padding:6px 14px;border-radius:999px;font-size:14px;font-weight:700;text-decoration:none;color:var(--muted)}
+.mode-switch a.is-on{background:var(--ink);color:#fff;font-weight:800}
+.navbar{display:flex;align-items:center;gap:2px;flex:1 1 auto;min-width:0;overflow-x:auto}
+.navbar a{display:flex;align-items:center;color:var(--muted);text-decoration:none;font-weight:600;font-size:14px;padding:8px 10px;white-space:nowrap}
+.hero{padding:20px 0 2px;max-width:44rem}
+.hero h1{margin:0 0 6px;font-size:34px;line-height:1.2;letter-spacing:-.045em;font-weight:800}
+.hero-lede{margin:0;color:var(--muted);font-size:16px;line-height:1.55}
+.path{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 4px;max-width:28rem}
+.path-card{display:flex;flex-direction:column;gap:4px;padding:14px 16px;min-height:76px;background:var(--sheet);border:1px solid var(--line-strong);border-radius:16px;text-decoration:none;color:var(--ink)}
+.path-card b{font-size:28px;font-weight:800;letter-spacing:-.04em;line-height:1.1}
+.path-card span{font-size:14px;font-weight:700;color:var(--muted)}
+.path-card--today b{color:var(--urgent)}
 .find{position:sticky;top:var(--top-h,64px);z-index:40;min-height:7.25rem;background:var(--paper)}
-@media(max-width:560px){.top{position:sticky;top:0;z-index:55}.find{top:var(--top-h,56px);min-height:6.25rem}}
+@media(max-width:860px){
+  .top-row{flex-wrap:wrap;height:auto;padding-top:10px;padding-bottom:10px;gap:10px 12px}
+  .brand-cluster{flex:1 1 auto}
+  .hcta{display:none}
+  .navbar{flex:1 1 100%;order:4;margin:0 -24px;padding:0 24px}
+  .mode-switch a{min-height:40px;min-width:56px;padding:8px 16px;font-size:15px}
+}
+@media(max-width:560px){
+  .wrap{padding:0 16px}
+  .hero{padding:16px 0 4px}
+  .hero h1{font-size:26px}
+  .path-card{min-height:72px;padding:12px 14px}
+  .path-card b{font-size:24px}
+  .find{top:var(--top-h,56px);min-height:6.25rem}
+  .top{position:sticky;top:0;z-index:55}
+}
 </style>
-<link rel="preload" as="style" href="/static/style.css?v={{ asset_v }}">
-<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
+<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="/static/style.css?v={{ asset_v }}"></noscript>
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
 {% if site.adsense_client %}
 <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
-<link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>
 {% endif %}
 {% if crumb_jsonld %}<script type="application/ld+json">{{ crumb_jsonld|safe }}</script>{% endif %}
 {% block jsonld %}{% endblock %}
@@ -50,10 +83,13 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
 {% if (section|default('support')) != 'bid' %}
 <script src="/static/card.js?v={{ asset_v }}" defer></script>
 {% endif %}
+<script src="/static/alert.js?v={{ asset_v }}" defer></script>
 <script src="/static/scrap.js?v={{ asset_v }}" defer></script>
 <script src="/static/compare.js?v={{ asset_v }}" defer></script>
 </head>
-<body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}">
+<body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}"
+      data-formspree="{{ formspree_url|default('') }}"
+      data-alert-email="{{ site.email or '' }}">
 <a class="skip" href="#main">본문으로 건너뛰기</a>
 <header class="top">
   <div class="wrap top-row">
@@ -63,7 +99,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
       {% else %}
       <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
       {% endif %}
-      <nav class="mode-switch" aria-label="서비스 구분">
+      <nav class="mode-switch" aria-label="지원사업과 입찰 전환">
         <a href="/" data-mode="support"{% if (section|default('support')) != 'bid' %} class="is-on" aria-current="page"{% endif %}>지원</a>
         <a href="/bid/" data-mode="bid"{% if (section|default('support')) == 'bid' %} class="is-on" aria-current="page"{% endif %}>입찰</a>
       </nav>
@@ -104,6 +140,9 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     </div>
   </div>
 </header>
+<script>
+(function(){function pin(){var t=document.querySelector(".top");if(!t)return;var h=Math.round(t.getBoundingClientRect().height);if(h>0)document.documentElement.style.setProperty("--top-h",h+"px")}pin();window.addEventListener("resize",pin);})();
+</script>
 
 <main class="wrap" id="main">
 {% if crumbs %}
@@ -144,7 +183,6 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
   <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.{% if collected_at %} 이 빌드 수집 {{ collected_at }} (KST).{% endif %}</p>
   <p>© {{ site.name }}. All rights reserved.</p>
 </div></footer>
-<script src="/static/alert.js?v={{ asset_v }}" defer></script>
 <div class="cmp-bar" id="cmp-bar" hidden>
   <p id="cmp-bar-label">비교할 공고를 고르세요</p>
   <button type="button" class="f-apply" id="cmp-go" disabled>나란히 보기</button>
@@ -159,5 +197,38 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     <div class="cmp-sheet-body" id="cmp-body"></div>
   </div>
 </div>
+<div class="keys-help" id="keys-help" hidden>
+  <div class="keys-sheet" role="dialog" aria-modal="true" aria-labelledby="keys-title" tabindex="-1">
+    <div class="cmp-sheet-head">
+      <h2 id="keys-title">키보드</h2>
+      <button type="button" class="f-panel-x" id="keys-x" aria-label="닫기">×</button>
+    </div>
+    <dl class="keys-list">
+      <div><dt>/</dt><dd>검색창으로</dd></div>
+      <div><dt>?</dt><dd>이 안내</dd></div>
+      <div><dt>Esc</dt><dd>패널·비교·안내 닫기</dd></div>
+    </dl>
+    <p class="f-help">입력 중에는 동작하지 않습니다. 결제는 없습니다.</p>
+  </div>
+</div>
+{% if site.adsense_client %}
+<script>
+(function(){
+  var client={{ site.adsense_client|tojson }};
+  if(!client)return;
+  function load(){
+    if(window.__adsLoaded)return;
+    window.__adsLoaded=1;
+    var s=document.createElement("script");
+    s.async=true;
+    s.src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client="+client;
+    s.crossOrigin="anonymous";
+    document.head.appendChild(s);
+  }
+  if("requestIdleCallback" in window)requestIdleCallback(load,{timeout:4000});
+  else window.addEventListener("load",function(){setTimeout(load,1200)});
+})();
+</script>
+{% endif %}
 </body>
 </html>
