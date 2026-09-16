@@ -23,6 +23,13 @@ SITE = {
     "naver_site_verification": "0bc9dc85c2832ca5736a60371a695d6cc6d8d3d4",
     "email": "qwqw050009@gmail.com",
     "publisher": "지원사업 마감판",
+    # 사업자 정보는 발급 전까지 대괄호 플레이스홀더. 가짜 번호를 넣지 않는다.
+    "business": {
+        "ceo": "[대표자명]",
+        "biz_no": "[000-00-00000]",
+        "mail_order": "[제0000-서울OO-0000호]",
+        "address": "[주소]",
+    },
 }
 
 # IndexNow(빙·네이버 지원) 소유 확인용 랜덤 토큰. 로그인/가입이 필요한
