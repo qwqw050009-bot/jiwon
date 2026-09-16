@@ -5,7 +5,6 @@
   var board = document.getElementById('board');
   if (!root || !board) return;
 
-  var SLUG = window.__SLUG__ || { region: {}, category: {} };
   var PAGE = parseInt(board.dataset.limit, 10) || 20;
   var MORE = board.dataset.more || '';
   var onDistrictPage = !!root.dataset.district;
@@ -189,23 +188,8 @@
 
   function syncURL() {
     var qs = q ? ('?q=' + encodeURIComponent(q)) : '';
-    if (onDistrictPage || picked.district.size) {
-      var next = location.pathname + qs;
-      if (location.pathname + location.search !== next) history.replaceState(null, '', next);
-      return;
-    }
-    var r = [...picked.region], c = [...picked.category], p = null;
-    if (r.length === 1 && c.length === 1 && SLUG.region[r[0]] && SLUG.category[c[0]])
-      p = '/region/' + SLUG.region[r[0]] + '/' + SLUG.category[c[0]] + '/';
-    else if (r.length === 1 && !c.length && SLUG.region[r[0]])
-      p = '/region/' + SLUG.region[r[0]] + '/';
-    else if (!r.length && c.length === 1 && SLUG.category[c[0]])
-      p = '/category/' + SLUG.category[c[0]] + '/';
-    if (p && location.pathname !== p) history.replaceState(null, '', p + qs);
-    else {
-      var cur = location.pathname + qs;
-      if (location.pathname + location.search !== cur) history.replaceState(null, '', cur);
-    }
+    var next = location.pathname + qs;
+    if (location.pathname + location.search !== next) history.replaceState(null, '', next);
   }
 
   function render(reset) {
@@ -330,6 +314,7 @@
         '<label class="f-help" for="f-save-name">이름</label>' +
         '<input class="f-search" id="f-save-name" value="' + MagampanCard.esc(auto) + '" maxlength="40"></div>';
       document.getElementById('f-panel-apply').textContent = '저장';
+      document.getElementById('f-panel-reset').hidden = true;
     } else if (kind === 'load') {
       panelTitle.textContent = '조건 불러오기';
       var list = readPresets();
