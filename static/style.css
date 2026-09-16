@@ -735,6 +735,7 @@ body.has-cmp{padding-bottom:72px}
   position:fixed;inset:0;z-index:60;background:rgba(17,17,17,.4);
   display:flex;align-items:flex-end;justify-content:center;padding:16px;
 }
+.cmp-bar[hidden],.cmp-overlay[hidden]{display:none}
 .cmp-sheet{
   width:min(960px,100%);max-height:86vh;overflow:auto;
   background:var(--sheet);border-radius:16px 16px 0 0;padding:16px 18px 24px;
@@ -988,6 +989,7 @@ footer a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border
   background:var(--sheet);border:1px solid var(--line-strong);border-radius:12px;
   box-shadow:var(--shadow);padding:6px;max-height:16rem;overflow:auto;
 }
+.suggest[hidden]{display:none}
 .suggest-item{
   display:flex;align-items:baseline;justify-content:space-between;gap:10px;
   width:100%;text-align:left;font:inherit;padding:8px 10px;border:0;border-radius:8px;

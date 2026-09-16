@@ -108,6 +108,8 @@ def test_a11y_skip_and_dialog_controls():
     assert ":focus-visible" in css
     assert ".suggest" in css
     assert "--muted:#4E4E4A" in css
+    assert ".cmp-overlay[hidden]" in css
+    assert ".cmp-bar[hidden]" in css
 
 
 def test_related_detail_shows_dday_copy():
