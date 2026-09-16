@@ -275,6 +275,11 @@ def test_list_and_detail_wework_chrome():
     assert 'id="f-q"' in listing
     assert 'class="f-apply"' in listing
     assert "조건 저장" in listing
+    assert "더 많은 필터" in listing
+    assert "회원가입 없이" in listing
+    assert "접수 중만" in listing
+    assert 'id="f-live"' in listing
+    assert 'id="f-pills"' in listing
     assert "마감 임박" in listing
     assert 'class="row-tags"' in listing
     assert "지원사업 마감판" in listing
@@ -296,6 +301,12 @@ def test_list_and_detail_wework_chrome():
     )
     assert 'class="hero"' in home
     assert "오늘 마감되는 정부지원사업부터 봅니다" in home
+    assert "지역 고르기" in home
+    assert "마감 가까운 것 보기" in home
+    assert "원문 신청" in home
+    assert "내 지역부터 보기" in home
+    assert "처음이세요?" in home
+    assert 'href="/guide/start/"' in home
     assert "지원사업, 처음이신가요?" in home
     detail = env.get_template("detail.html").render(
         site=config.SITE, path="/notice/abc/", page="detail", section="support",
@@ -305,6 +316,7 @@ def test_list_and_detail_wework_chrome():
     assert 'class="notice-head"' in detail
     assert 'class="notice-chips"' in detail
     assert "원문 공고 보기" in detail
+    assert "cta-bar--lead" in detail
     assert "요약" in detail
     assert "이(가)" not in detail
 

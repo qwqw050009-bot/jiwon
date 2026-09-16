@@ -11,6 +11,24 @@
   <p class="kicker">무료 · 마감일 순 · 지역·분야</p>
   <h1>{{ h1 }}</h1>
   <p class="hero-lede">{{ lede }}</p>
+  <ol class="how" aria-label="쓰는 순서">
+    <li>
+      <a href="/region/" data-howto="region">지역 고르기</a>
+      <span>사업장 소재지</span>
+    </li>
+    <li>
+      <a href="/urgent/">마감 가까운 것 보기</a>
+      <span>오늘·D-n이 먼저</span>
+    </li>
+    <li>
+      <a href="/guide/start/">원문 신청</a>
+      <span>소관기관에서 접수</span>
+    </li>
+  </ol>
+  <div class="hero-actions">
+    <a class="hero-primary" href="/region/" data-howto="region">내 지역부터 보기</a>
+    <a class="hero-secondary" href="/guide/start/">처음이세요?</a>
+  </div>
   {% if tally %}
   <div class="tally">
     <span class="u"><b>{{ tally.urgent }}</b>이번 주 마감</span>

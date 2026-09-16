@@ -186,6 +186,127 @@
     });
   }
 
+  function esc(s) {
+    return window.MagampanCard ? MagampanCard.esc(s) : String(s == null ? '' : s);
+  }
+
+  function pageLocked(k, v) {
+    if (k === 'region' && root.dataset.region === v) return true;
+    if (k === 'category' && root.dataset.category === v) return true;
+    if (k === 'district' && root.dataset.district === v) return true;
+    return false;
+  }
+
+  function paintOpenOnly() {
+    var lab = root.querySelector('.f-chip--check');
+    if (lab) lab.classList.toggle('is-on', !!openOnly);
+    var inp = document.getElementById('f-openonly');
+    if (inp) inp.checked = !!openOnly;
+  }
+
+  function paintPills() {
+    var box = document.getElementById('f-pills');
+    if (!box) return;
+    var pills = [];
+    function add(k, v, label) {
+      if (pageLocked(k, v)) return;
+      pills.push({ k: k, v: v, label: label || v });
+    }
+    picked.region.forEach(function (v) { add('region', v, v); });
+    picked.category.forEach(function (v) { add('category', v, v); });
+    picked.org.forEach(function (v) { add('org', v, v); });
+    picked.district.forEach(function (v) { add('district', v, v); });
+    var amtNames = {};
+    var amtTpl = document.getElementById('f-opt-amount');
+    var amtOpts = amtTpl ? amtTpl.content.querySelectorAll('.f-opt') : [];
+    amtOpts.forEach(function (b) {
+      amtNames[b.dataset.v] = (b.querySelector('b') || b).textContent.trim();
+    });
+    picked.amount.forEach(function (v) { add('amount', v, amtNames[v] || v); });
+    var perNames = { today: '오늘 마감', week: '이번 주', always: '상시', range: '기간' };
+    picked.period.forEach(function (v) { add('period', v, perNames[v] || v); });
+    if (picked.from || picked.to) {
+      if (!picked.period.has('range')) add('period', 'range', '기간');
+    }
+    if (q) pills.push({ k: 'q', v: q, label: '검색' });
+    if (picked.src) {
+      pills.push({ k: 'src', v: picked.src, label: picked.src === 'kstartup' ? 'K-Startup' : '기업마당' });
+    }
+    if (!pills.length) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = pills.map(function (p) {
+      return '<button type="button" class="pill-x" data-clear="' + esc(p.k) + '" data-v="' + esc(p.v) +
+        '" aria-label="' + esc(p.label) + ' 필터 지우기">' + esc(p.label) + ' ×</button>';
+    }).join('') + '<button type="button" class="pill-x pill-x--all js-f-clear">필터 지우기</button>';
+  }
+
+  var POPULAR = ['서울', '경기', '부산', '전국'];
+  function emptyHTML() {
+    var slugs = ((window.__SLUG__ || {}).region) || {};
+    var links = POPULAR.map(function (name) {
+      var slug = slugs[name];
+      if (!slug) return '';
+      return '<a href="/region/' + slug + '/">' + name + '</a>';
+    }).join('');
+    return '<div class="empty-filter" role="status">' +
+      '<p>조건에 맞는 공고가 없습니다. 선택을 줄이거나 마감된 공고까지 함께 보세요.</p>' +
+      '<button type="button" class="f-apply js-f-clear">필터 지우기</button>' +
+      (links ? '<p class="empty-pop">많이 찾는 지역</p><div class="chips">' + links + '</div>' : '') +
+      '</div>';
+  }
+
+  var justApplied = false;
+  function announce(n) {
+    var soon = view.filter(function (a) { return a.d >= 0 && a.d <= 7; }).length;
+    var text = n + '건' + (soon ? ' · 이번 주 마감 ' + soon + '건' : '');
+    var countEl = document.getElementById('f-count');
+    if (countEl) countEl.textContent = text;
+    var live = document.getElementById('f-live');
+    if (live && justApplied) {
+      live.textContent = '';
+      live.textContent = '필터를 적용했습니다. ' + n + '건입니다.';
+    }
+  }
+
+  function clearFilters() {
+    picked = emptyPicked();
+    if (root.dataset.region) picked.region.add(root.dataset.region);
+    if (root.dataset.category) picked.category.add(root.dataset.category);
+    if (root.dataset.district) picked.district.add(root.dataset.district);
+    q = '';
+    var qi = document.getElementById('f-q');
+    if (qi) qi.value = '';
+    openOnly = true;
+    sortBy = 'dday';
+    var so = document.getElementById('f-sort');
+    if (so) so.value = 'dday';
+    paintOpenOnly();
+    touched = true;
+    justApplied = true;
+    render(true);
+  }
+
+  function dropPill(k, v) {
+    if (k === 'q') {
+      q = '';
+      var qi = document.getElementById('f-q');
+      if (qi) qi.value = '';
+    } else if (k === 'src') {
+      picked.src = '';
+    } else if (picked[k] && picked[k] instanceof Set) {
+      picked[k].delete(v);
+      if (k === 'region') picked.district.clear();
+      if (k === 'period' && v === 'range') { picked.from = ''; picked.to = ''; }
+    }
+    touched = true;
+    justApplied = true;
+    render(true);
+  }
+
   function syncURL() {
     var qs = q ? ('?q=' + encodeURIComponent(q)) : '';
     var next = location.pathname + qs;
@@ -193,11 +314,12 @@
   }
 
   function render(reset) {
-    if (!touched) { paintChips(); paintSum(); return; }
+    paintChips(); paintSum(); paintPills(); paintOpenOnly();
+    if (!touched) return;
     if (reset) shown = PAGE;
     compute();
     if (!view.length) {
-      board.innerHTML = '<p class="note">조건에 맞는 공고가 없습니다. 선택을 줄이거나 마감된 공고까지 함께 보세요.</p>';
+      board.innerHTML = emptyHTML();
     } else {
       var mid = parseInt(board.dataset.adMid, 10) || 0;
       var ad = midAdHTML();
@@ -221,10 +343,9 @@
         try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (err) {}
       }
     }
-    var soon = view.filter(function (a) { return a.d >= 0 && a.d <= 7; }).length;
-    document.getElementById('f-count').textContent =
-      view.length + '건' + (soon ? ' · 이번 주 마감 ' + soon + '건' : '');
-    paintChips(); paintSum(); syncURL();
+    announce(view.length);
+    justApplied = false;
+    syncURL();
   }
 
   function districtsFor(regions) {
@@ -418,6 +539,7 @@
     if (draft.from || draft.to) draft.period.add('range');
     picked = clonePicked(draft);
     touched = true;
+    justApplied = true;
     closePanel();
     render(true);
   }
@@ -469,6 +591,7 @@
       document.getElementById('f-openonly').checked = openOnly;
       document.getElementById('f-sort').value = sortBy;
       touched = true;
+      justApplied = true;
       closePanel();
       render(true);
       return;
@@ -504,6 +627,7 @@
       picked.src = picked.src === k ? '' : k;
     }
     touched = true;
+    justApplied = true;
     render(true);
   });
 
@@ -515,10 +639,44 @@
   board.addEventListener('click', function (e) {
     if (e.target.id === 'f-more') { shown += PAGE * 2; render(); }
     if (e.target.id === 'f-more-static') { touched = true; shown = PAGE * 3; render(); }
+    if (e.target.classList.contains('js-f-clear') || (e.target.closest && e.target.closest('.js-f-clear'))) {
+      clearFilters();
+    }
+  });
+
+  var pillsBox = document.getElementById('f-pills');
+  if (pillsBox) {
+    pillsBox.addEventListener('click', function (e) {
+      if (e.target.classList.contains('js-f-clear') || e.target.classList.contains('pill-x--all')) {
+        clearFilters();
+        return;
+      }
+      var btn = e.target.closest('[data-clear]');
+      if (!btn) return;
+      dropPill(btn.dataset.clear, btn.dataset.v);
+    });
+  }
+
+  var moreBtn = document.getElementById('f-more-filters');
+  if (moreBtn) {
+    moreBtn.addEventListener('click', function () {
+      var row = root.querySelector('.find-chips');
+      var on = row.classList.toggle('is-more');
+      moreBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    });
+  }
+
+  document.querySelectorAll('[data-howto="region"]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.preventDefault();
+      openPanel('region');
+      var find = document.getElementById('find');
+      if (find && find.scrollIntoView) find.scrollIntoView({ block: 'nearest' });
+    });
   });
 
   document.getElementById('f-openonly').addEventListener('change', function (e) {
-    openOnly = e.target.checked; touched = true; render(true);
+    openOnly = e.target.checked; touched = true; justApplied = true; render(true);
   });
   document.getElementById('f-sort').addEventListener('change', function (e) {
     sortBy = e.target.value; touched = true; render(true);
@@ -535,7 +693,7 @@
     .then(function (r) { return r.json(); })
     .then(function (d) {
       all = d; root.classList.add('ready');
-      paintChips(); paintSum();
+      paintChips(); paintSum(); paintPills(); paintOpenOnly();
       if (touched) render(true);
     })
     .catch(function () { /* 검색 폼 GET /all/ 은 그대로 둔다 */ });

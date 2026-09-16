@@ -234,7 +234,7 @@ def _cat_hook(name):
 # ── 홈·긴급·전체 ─────────────────────────────────────────────
 
 def home_title(today=None):
-    return with_brand(f"오늘 마감 정부지원사업 · 소상공인 보조금 {year(today)}")
+    return with_brand(f"오늘마감 정부지원사업 공고 · 소상공인 보조금 {year(today)}")
 
 
 def home_desc(items=None):
@@ -245,8 +245,8 @@ def home_desc(items=None):
     else:
         head = "오늘마감·이번 주 마감 정부지원사업을 마감일 순으로 둡니다."
     return clip_desc(
-        f"{head} 오늘마감 공고를 소상공인·중소기업이 회원가입 없이 지역·분야로 "
-        f"좁혀 {year()}년 목록에서 확인하세요."
+        f"{head} 오늘마감부터 소상공인·중소기업이 회원가입 없이 지역·분야로 "
+        f"좁혀 {year()}년 원문에서 신청하세요."
     )
 
 
@@ -263,10 +263,10 @@ def urgent_title(items=None):
     n = c["n"] or c["week"]
     if c["today"]:
         return with_brand(_join(
-            _named("오늘 마감", c["today"]),
+            _named("오늘마감", c["today"]),
             _named("이번 주 지원사업", n),
         ))
-    return with_brand(_join("오늘 마감 확인", _named("이번 주 지원사업", n), "D-7"))
+    return with_brand(_join("오늘마감 확인", _named("이번 주 지원사업", n), "D-7"))
 
 
 def urgent_desc(items=None):
@@ -279,7 +279,7 @@ def urgent_desc(items=None):
     else:
         head = "오늘마감·이번 주 마감 지원사업만 모았습니다."
     return clip_desc(
-        f"{head} 소상공인·중소기업 지원금·보조금을 마감일 순으로 보고, 오늘마감부터 원문으로 가세요."
+        f"{head} 소상공인·중소기업 보조금을 마감일 순으로 보고, 오늘마감부터 원문에서 바로 신청하세요."
     )
 
 
@@ -440,29 +440,42 @@ def category_lede(name, cat=None):
 
 # ── 지역 ────────────────────────────────────────────────────
 
-def _region_core(region, n):
+def _region_hook(kind, c=None):
+    """지역 제목 뒷말. 검색어 앞머리를 해치지 않고 오늘마감을 붙인다."""
+    c = c or {}
+    if kind == "nation":
+        return "소재지 제한 없음"
+    if kind == "united":
+        return "통합특별시"
+    if kind == "city":
+        return "시 단위"
+    if kind == "island":
+        return "도 단위"
+    if c.get("today"):
+        return f"오늘마감 {c['today']}건"
+    if kind == "wide":
+        return "시·군 오늘마감"
+    return "오늘마감부터"
+
+
+def _region_core(region, n, c=None):
     """GSC 쿼리 '{지역} 2026 기업 지원사업 공고'를 앞에 둔다."""
     y = year()
     q = _region_query(region)
     kind = _REGION_KIND.get(region, "do")
+    hook = _region_hook(kind, c)
     if kind == "nation":
-        return _join(_named(f"전국 {y} 기업 지원사업 공고", n), "소재지 제한 없음")
+        return _join(_named(f"전국 {y} 기업 지원사업 공고", n), hook)
     if kind == "united":
-        return _join(_named(f"전남광주 {y} 기업 지원사업 공고", n), "통합특별시")
+        return _join(_named(f"전남광주 {y} 기업 지원사업 공고", n), hook)
     if kind == "wide":
-        return _join(_named(f"경기 {y} 기업 지원사업 공고", n), "시·군 마감일순")
-    if kind == "metro":
-        return _join(_named(f"{q} {y} 기업 지원사업 공고", n), "마감일 순")
-    if kind == "city":
-        return _join(_named(f"{q} {y} 기업 지원사업 공고", n), "시 단위")
-    if kind == "island":
-        return _join(_named(f"{q} {y} 기업 지원사업 공고", n), "도 단위")
-    return _join(_named(f"{q} {y} 기업 지원사업 공고", n), "마감일 순")
+        return _join(_named(f"경기 {y} 기업 지원사업 공고", n), hook)
+    return _join(_named(f"{q} {y} 기업 지원사업 공고", n), hook)
 
 
 def region_title(region, items=None):
     c = counts_of(items)
-    return with_brand(_region_core(region, c["n"]))
+    return with_brand(_region_core(region, c["n"], c))
 
 
 def region_desc(region, items=None):
@@ -489,7 +502,7 @@ def region_desc(region, items=None):
     clock = _count_clause(c)
     extra = f" {clock}." if clock and clock not in head else ""
     return clip_desc(
-        f"{head}{extra} 소상공인·중소기업 보조금을 마감일 순으로 확인하고 원문으로 접수하세요."
+        f"{head}{extra} 오늘마감부터 소상공인·중소기업 보조금을 확인하고 원문에서 신청하세요."
     )
 
 
@@ -664,7 +677,7 @@ def notice_title(row):
         return with_brand(f"{title} · 상시 접수")
     d = row.get("dday")
     if d == 0:
-        return with_brand(f"오늘 마감 · {title}")
+        return with_brand(f"오늘마감 · {title}")
     if isinstance(d, int) and 0 < d <= 7:
         return with_brand(f"이번 주 마감 D-{d} · {title}")
     return with_brand(title)
@@ -691,7 +704,7 @@ def notice_desc(row, limit=150):
         raw = (row.get("period_raw") or "상시 접수").strip()
         lead = f"상시 접수('{raw}'). 예산이 끝나면 닫힙니다."
     elif d == 0:
-        lead = "오늘 마감."
+        lead = "오늘마감."
     elif isinstance(d, int) and 0 < d <= 7:
         lead = f"이번 주 마감 D-{d}" + (f"({end})." if end else ".")
     elif end:
@@ -730,9 +743,9 @@ def notice_desc(row, limit=150):
             mid_s = f"{mid_s} {extra}".strip() if mid_s else extra
 
     if closed:
-        cta = "신청자격·지원내용을 보고, 비슷한 공고는 지역·분야 목록에서 확인하세요."
+        cta = "자격·지원내용을 보고, 비슷한 공고는 지역·분야 목록에서 확인하세요."
     else:
-        cta = "신청자격·마감일을 확인하고 원문으로 접수하세요."
+        cta = "자격·마감일을 보고 원문에서 바로 신청하세요."
     return clip_desc(" ".join(p for p in (lead, mid_s, cta) if p), lo=70, hi=limit)
 
 

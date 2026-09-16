@@ -1,0 +1,8 @@
+# Cloudflare Pages. ads.txt 는 항상 text/plain 이고 HTML 404 가 되면 안 된다.
+/ads.txt
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=86400
+  X-Content-Type-Options: nosniff
+
+/rss.xml
+  X-Robots-Tag: noindex

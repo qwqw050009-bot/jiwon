@@ -53,6 +53,50 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
 SITE = config.SITE
 
+# ads.txt 는 애드센스 심사에 쓰이는 루트 파일이라 dist/ 최상단에 항상 둔다.
+# pub id 는 config.SITE['adsense_client'] 와 같고, 다른 값을 만들지 않는다.
+ADS_TXT_LINE = "google.com, pub-2738052782253666, DIRECT, f08c47fec0942fa0"
+STATIC_ROOT_FILES = ("ads.txt", "_headers")
+
+
+def ads_txt_contents(site=None):
+    """루트 /ads.txt 본문. 항상 개행으로 끝낸다."""
+    src = os.path.join(ROOT, "static", "ads.txt")
+    if os.path.exists(src):
+        body = open(src, encoding="utf-8").read()
+    else:
+        site = site or SITE
+        pub = (site.get("adsense_client") or "").removeprefix("ca-") or "pub-2738052782253666"
+        body = f"google.com, {pub}, DIRECT, f08c47fec0942fa0\n"
+    if not body.endswith("\n"):
+        body += "\n"
+    return body
+
+
+def cf_headers_contents():
+    """Cloudflare Pages _headers. ads.txt 를 text/plain 으로 캐시 가능하게."""
+    src = os.path.join(ROOT, "static", "_headers")
+    if os.path.exists(src):
+        body = open(src, encoding="utf-8").read()
+        if not body.endswith("\n"):
+            body += "\n"
+        return body
+    return (
+        "/ads.txt\n"
+        "  Content-Type: text/plain; charset=utf-8\n"
+        "  Cache-Control: public, max-age=86400\n"
+        "  X-Content-Type-Options: nosniff\n"
+        "\n"
+        "/rss.xml\n"
+        "  X-Robots-Tag: noindex\n"
+    )
+
+
+def emit_root_text_files(dist):
+    """ads.txt·_headers 를 dist 루트에 항상 쓴다. static/ 아래로 넣지 않는다."""
+    open(os.path.join(dist, "ads.txt"), "w", encoding="utf-8").write(ads_txt_contents())
+    open(os.path.join(dist, "_headers"), "w", encoding="utf-8").write(cf_headers_contents())
+
 env = Environment(
     loader=FileSystemLoader(os.path.join(ROOT, "templates")),
     autoescape=select_autoescape(["html"]),
@@ -355,7 +399,11 @@ def main():
     if os.path.exists(DIST):
         shutil.rmtree(DIST)
     os.makedirs(DIST)
-    shutil.copytree(os.path.join(ROOT, "static"), os.path.join(DIST, "static"))
+    shutil.copytree(
+        os.path.join(ROOT, "static"), os.path.join(DIST, "static"),
+        ignore=shutil.ignore_patterns(*STATIC_ROOT_FILES),
+    )
+    emit_root_text_files(DIST)
 
     # 키가 있으면 실데이터, 없으면 목업으로 자동 전환.
     # 로컬에서 키 없이 돌려도 그대로 빌드된다.
@@ -444,6 +492,8 @@ def main():
         ics_url="/calendar/all.ics", sections=sections, more_href="/all/",
         tally_items=rows, beginner_cta=True, website_jsonld=website_ld(),
         home_guides=intros.HOME_GUIDES,
+        faqs=intros.home_faqs(today_n, week_n, open_n),
+        faq_jsonld=intros.faq_jsonld(intros.home_faqs(today_n, week_n, open_n)),
     )
 
     # 전체 목록
@@ -676,9 +726,7 @@ def main():
 
     # 공고 상세 (접수 중 + 마감 후 최근 것)
     def render_notice(a, pool):
-        rel = [x for x in pool
-               if x["id"] != a["id"] and x["region"] == a["region"]
-               and x["category"] == a["category"]][:5]
+        rel = filt.related_notices(a, pool, limit=5)
         ld = json.dumps({
             "@context": "https://schema.org", "@type": "GovernmentService",
             "name": a["title"], "provider": {"@type": "GovernmentOrganization", "name": a["org"]},
@@ -836,11 +884,8 @@ def main():
         )
     rss.append("</channel></rss>")
     open(os.path.join(DIST, "rss.xml"), "w", encoding="utf-8").write("\n".join(rss))
-    # rss.xml은 sitemap에 넣지 않는다. 피드 URL이 HTML 페이지처럼 크롤되면
-    # 중복 신호가 되므로 noindex 헤더만 붙인다.
-    open(os.path.join(DIST, "_headers"), "w", encoding="utf-8").write(
-        "/rss.xml\n  X-Robots-Tag: noindex\n"
-    )
+    # rss.xml noindex 와 ads.txt Content-Type 은 emit_root_text_files() 가
+    # 빌드 초반에 dist/_headers 로 이미 쓴다. 여기서 덮어쓰지 않는다.
 
     # 필터용 데이터 (압축 키)
     feed = [filt.compact(a) for a in rows]
@@ -883,14 +928,9 @@ def main():
         robots = "User-agent: *\nDisallow: /\n"
     open(os.path.join(DIST, "robots.txt"), "w", encoding="utf-8").write(robots)
 
-    # ads.txt: 애드센스 심사·수익 인증에 필요한 표준 파일.
-    # pub-XXXX 부분은 adsense_client("ca-pub-XXXX")에서 "ca-" 접두만 뗀 값이고,
-    # 뒤의 f08c47fec0942fa0은 구글이 모든 퍼블리셔 공통으로 쓰는 고정 인증값이다
-    # (비밀값 아님 — 구글 자체 문서에 실린 표준 상수).
-    if SITE.get("adsense_client"):
-        pub_id = SITE["adsense_client"].removeprefix("ca-")
-        open(os.path.join(DIST, "ads.txt"), "w", encoding="utf-8").write(
-            f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n")
+    # ads.txt·_headers 는 빌드 초반 emit_root_text_files() 가 이미 썼다.
+    # 키가 비어도 /ads.txt 를 빼지 않는다 — HTML 404 가 되면 애드센스 심사가 막힌다.
+    emit_root_text_files(DIST)
 
     # 네이버 서치어드바이저 HTML 파일 소유확인. 사이트 루트에 그대로 둔다.
     naver_html = "naver0defc699223f8ffa807d6d0bc99bb36c.html"

@@ -238,6 +238,13 @@ def test_home_and_category_search_copy():
     assert "2건" in html and "11건" in html and "40건" in html
     assert "회원가입 없이" in html
     assert "/urgent/" in html
+    assert "/guide/start/" in html
+    faqs = intros.home_faqs(2, 11, 40)
+    assert any("신청" in f["q"] for f in faqs)
+    assert "2건" in faqs[1]["a"]
+    ld = intros.faq_jsonld(faqs)
+    assert "정부지원사업은 어떻게 신청하나요?" in ld
+    assert "오늘 마감" in ld
     hrefs = [g["href"] for g in intros.HOME_GUIDES]
     assert hrefs == [
         "/guide/find-by-deadline/",

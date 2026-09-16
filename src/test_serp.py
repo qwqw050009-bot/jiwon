@@ -44,21 +44,23 @@ def test_home_urgent_all_have_magnets():
         _item(dday=20, title="여유A"),
     ]
     ht = _branded(serp.home_title())
-    assert ht.startswith("오늘 마감 정부지원사업")
+    assert ht.startswith("오늘마감 정부지원사업")
     assert "2026" in ht
     hd = serp.home_desc(rows)
     assert "오늘 마감 1건" in hd
     assert "오늘마감" in hd
     assert "이번 주 마감 2건" in hd
+    assert "원문" in hd
     assert 70 <= len(hd) <= 120, (len(hd), hd)
     assert serp.home_h1().startswith("오늘 마감")
 
     urgent = [a for a in rows if 0 <= a["dday"] <= 7]
     ut = _branded(serp.urgent_title(urgent))
-    assert ut.startswith("오늘 마감")
+    assert ut.startswith("오늘마감")
     assert "2건" in ut
     ud = serp.urgent_desc(urgent)
     assert "오늘마감" in ud and "2건" in ud
+    assert "원문" in ud
     assert 70 <= len(ud) <= 120, (len(ud), ud)
     assert serp.urgent_h1().startswith("오늘 마감")
 
@@ -178,16 +180,18 @@ def test_notice_urgency_prefix_only_within_week():
                    dday=99, title="소상공인 특례보증")
     closed = _item(dday=-3, is_closed=True, is_open=False, title="소상공인 특례보증",
                    apply_end="2026-09-13")
-    assert _branded(serp.notice_title(today)).startswith("오늘 마감 ·")
+    assert _branded(serp.notice_title(today)).startswith("오늘마감 ·")
     assert _branded(serp.notice_title(week)).startswith("이번 주 마감 D-3 ·")
     assert "이번 주 마감" not in serp.notice_title(later)
+    assert "오늘마감" not in serp.notice_title(later)
     assert "오늘 마감" not in serp.notice_title(later)
     assert "상시 접수" in serp.notice_title(always)
     assert "마감된 공고" not in serp.notice_title(closed)
     assert "소상공인 특례보증" in serp.notice_title(closed)
     assert serp.notice_title(later).startswith("소상공인 특례보증")
-    assert serp.notice_desc(today).startswith("오늘 마감")
+    assert serp.notice_desc(today).startswith("오늘마감")
     assert "특례보증" in serp.notice_desc(today) or "소상공인" in serp.notice_desc(today)
+    assert "원문" in serp.notice_desc(today)
     assert "접수 마감" in serp.notice_desc(closed)
     assert "마감일 2026-09-19" in serp.notice_desc(later) or "2026-09-19" in serp.notice_desc(later)
 
@@ -233,8 +237,10 @@ def test_gsc_region_and_nationwide_copy():
     bt = _branded(serp.region_title("부산", items))
     assert bt.startswith("부산시 2026 기업 지원사업 공고")
     assert "3건" in bt
+    assert "오늘마감" in bt
     bd = serp.region_desc("부산", items)
     assert "부산시 2026 기업 지원사업 공고" in bd
+    assert "오늘마감" in bd or "원문" in bd
     nt = _branded(serp.region_title("전국", items))
     assert nt.startswith("전국 2026 기업 지원사업 공고")
     assert "소재지 제한 없음" in nt
@@ -293,6 +299,22 @@ def test_gsc_notice_longtail_keeps_keywords():
     assert "소재지 제한" in ld
 
 
+def test_ctr_magnets_keep_gsc_heads():
+    """클릭용 뒷말을 붙여도 검색어 앞머리와 브랜드 접미사는 유지한다."""
+    rows = [_item(dday=0) for _ in range(2)]
+    ht = _branded(serp.home_title())
+    assert ht.startswith("오늘마감 정부지원사업 공고")
+    assert "보조금" in ht
+    ut = _branded(serp.urgent_title(rows))
+    assert ut.startswith("오늘마감 2건")
+    seoul = _branded(serp.region_title("서울", rows))
+    assert seoul.startswith("서울시 2026 기업 지원사업 공고")
+    assert "오늘마감" in seoul
+    nd = serp.notice_desc(_item(dday=0, title="소상공인 특례보증"))
+    assert nd.startswith("오늘마감")
+    assert "바로 신청" in nd
+
+
 def test_clip_and_counts():
     assert serp.counts_of([
         _item(dday=0), _item(dday=5), _item(period_type="always", dday=99),
@@ -308,8 +330,8 @@ def test_mock_build_html_titles():
     """목업 빌드가 있으면 대표 URL의 title·desc를 읽는다."""
     root = os.path.join(os.path.dirname(__file__), "..", "dist")
     samples = {
-        "index.html": ("오늘 마감 정부지원사업", "오늘마감"),
-        "urgent/index.html": ("오늘 마감", "오늘마감"),
+        "index.html": ("오늘마감 정부지원사업", "오늘마감"),
+        "urgent/index.html": ("오늘마감", "오늘마감"),
         "all/index.html": ("정부지원사업 전체", "마감일"),
         "region/index.html": ("지역별 정부지원사업", "사업장"),
         "category/index.html": ("분야별 정부지원사업", "8종"),
@@ -341,6 +363,18 @@ def test_mock_build_html_titles():
         assert "이(가)" not in title + desc
         if rel.startswith("bid/"):
             assert "지원금" not in title and "바우처" not in title
+    ads = os.path.join(root, "ads.txt")
+    if os.path.exists(ads):
+        body = open(ads, encoding="utf-8").read()
+        assert body.endswith("\n"), repr(body)
+        assert body.splitlines()[0] == "google.com, pub-2738052782253666, DIRECT, f08c47fec0942fa0"
+    headers = os.path.join(root, "_headers")
+    if os.path.exists(headers):
+        h = open(headers, encoding="utf-8").read()
+        assert "/ads.txt" in h
+        assert "text/plain" in h
+        assert "Cache-Control" in h
+        assert "/rss.xml" in h
 
 
 if __name__ == "__main__":
@@ -355,6 +389,7 @@ if __name__ == "__main__":
     test_static_and_guide_pages()
     test_gsc_region_and_nationwide_copy()
     test_gsc_notice_longtail_keeps_keywords()
+    test_ctr_magnets_keep_gsc_heads()
     test_clip_and_counts()
     test_mock_build_html_titles()
     print("serp tests ok")
