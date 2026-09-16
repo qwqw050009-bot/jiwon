@@ -51,6 +51,7 @@ import districts as distmod
 import bid_build
 import filters as filt
 import landing
+import detail_faq
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -349,29 +350,8 @@ def howto_jsonld(h1, desc, content_html):
 
 
 def faq_jsonld(a):
-    """
-    공고 상세 페이지에 이미 보이는 문구(ai.fit/caution/checklist, 접수기간, 지원규모)를
-    그대로 질문-답변으로 재구성한다. 화면에 없는 내용을 만들어 넣지 않는다
-    (구글 FAQ 구조화데이터 가이드라인 — 페이지에 보이지 않는 답변은 안 됨).
-    """
-    period = (a.get("period_raw") or "상시 접수") if a.get("period_type") == "always" \
-        else f"{a.get('apply_start')} ~ {a.get('apply_end')}"
-    qa = []
-    if a.get("ai", {}).get("fit"):
-        qa.append(("어떤 기업이 신청할 수 있나요?", " ".join(a["ai"]["fit"])))
-    qa.append(("접수기간과 지원규모는 어떻게 되나요?",
-               f"접수기간은 {period}이며, 지원규모는 {a.get('amount') or '공고문 참조'}입니다."))
-    if a.get("ai", {}).get("caution"):
-        qa.append(("신청 전 확인해야 할 점은 무엇인가요?", " ".join(a["ai"]["caution"])))
-    if a.get("ai", {}).get("checklist"):
-        qa.append(("신청 시 준비해야 할 서류는 무엇인가요?", " ".join(a["ai"]["checklist"])))
-    return json.dumps({
-        "@context": "https://schema.org", "@type": "FAQPage",
-        "mainEntity": [{
-            "@type": "Question", "name": q,
-            "acceptedAnswer": {"@type": "Answer", "text": ans},
-        } for q, ans in qa],
-    }, ensure_ascii=False)
+    """공고 상세 FAQPage. 화면에 보이는 notice_faqs 문구와 같다."""
+    return intros.faq_jsonld(detail_faq.notice_faqs(a))
 
 
 SLUGMAP = json.dumps({
@@ -426,6 +406,12 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
     crumbs = crumbs or []
     pool = tally_items if tally_items is not None else items
+    today_items = filt.today_rail(pool)
+    week_rail = [a for a in filt.urgent_rail(pool) if a.get("dday") != 0]
+    today_n = today or sum(1 for a in pool if a.get("dday") == 0)
+    related = intros.related_hubs(
+        path=path, region=sel_region, category=sel_category, district=sel_district,
+    )
     html = env.get_template("list.html").render(
         site=SITE, path=path, section="support",
         page="home" if path == "/" else "list",
@@ -438,12 +424,14 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         all_regions=config.REGIONS, all_categories=config.CATEGORIES,
         sel_region=sel_region, sel_category=sel_category,
         sel_district=sel_district, slugmap=SLUGMAP,
-        today=today, new_cnt=new_cnt, ics_url=ics_url,
+        today=today_n, new_cnt=new_cnt, ics_url=ics_url,
         limit=limit or 0, more_href=more_href or "", sections=sections or [],
         beginner_cta=beginner_cta, crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
         website_jsonld=website_jsonld or "", home_guides=home_guides or [],
         list_guides=list_guides or [],
-        urgent_rail=filt.urgent_rail(pool),
+        urgent_rail=week_rail,
+        today_rail=today_items,
+        related_hubs=related,
         source_tally=filt.source_tally(pool),
         collected_at=env.globals.get("collected_at") or "",
         alert_email=SITE.get("email") or "",
@@ -576,7 +564,9 @@ def main():
     write("/scrap/", env.get_template("scrap.html").render(
         site=SITE, path="/scrap/", page="scrap", section="support",
         title=serp.scrap_title(),
-        desc=serp.scrap_desc()))
+        desc=serp.scrap_desc(),
+        crumbs=[{"name": "홈", "url": "/"}, {"name": "스크랩", "url": "/scrap/"}],
+    ))
     URLS.pop()   # sitemap에서 제외 (개인화 페이지)
 
     # 마감임박
@@ -630,7 +620,7 @@ def main():
         other_cats = [x for x in cat_chips if x["name"] != name]
         render_list(
             f"/category/{c['slug']}/", serp.category_h1(name),
-            serp.category_lede(name, c),
+            serp.category_lede(name, c, items),
             items,
             title=serp.category_title(name, items),
             desc=serp.category_desc(name, c, items),
@@ -667,7 +657,7 @@ def main():
         sido_blocks.append({"title": "분야로 좁히기", "items": sub})
         render_list(
             f"/region/{r['slug']}/", serp.region_h1(rname),
-            serp.region_lede(rname),
+            serp.region_lede(rname, items),
             items,
             title=serp.region_title(rname, items),
             desc=serp.region_desc(rname, items),
@@ -693,7 +683,7 @@ def main():
             ]
             render_list(
                 f"/region/{r['slug']}/{c['slug']}/", serp.combo_h1(rname, cn),
-                serp.combo_lede(rname, cn),
+                serp.combo_lede(rname, cn, cross),
                 cross,
                 title=serp.combo_title(rname, cn, cross),
                 desc=serp.combo_desc(rname, cn, c, cross),
@@ -742,7 +732,7 @@ def main():
             d_faqs = intros.district_page_faqs(rname, dname, ditems)
             render_list(
                 dpath, serp.district_h1(rname, dname),
-                serp.district_lede(rname, dname),
+                serp.district_lede(rname, dname, ditems),
                 ditems,
                 title=serp.district_title(rname, dname, ditems),
                 desc=serp.district_desc(rname, dname, ditems),
@@ -768,7 +758,7 @@ def main():
                     combo_blocks.append({"title": f"{rname} 다른 시군구", "items": other_d})
                 render_list(
                     f"{dpath}{c['slug']}/", serp.district_combo_h1(rname, dname, cn),
-                    serp.district_combo_lede(rname, dname, cn),
+                    serp.district_combo_lede(rname, dname, cn, cross),
                     cross,
                     title=serp.district_combo_title(rname, dname, cn, cross),
                     desc=serp.district_combo_desc(rname, dname, cn, c, cross),
@@ -816,11 +806,17 @@ def main():
             crumbs.append({"name": a.get("category") or "분야",
                            "url": f"/region/{rslug}/{cslug}/"})
         crumbs.append({"name": a.get("title") or "공고", "url": npath})
+        faqs = detail_faq.notice_faqs(a)
+        howto = detail_faq.notice_howto(a)
         html = env.get_template("detail.html").render(
             site=SITE, path=npath, page="detail", section="support",
             title=serp.notice_title(a),
             desc=serp.notice_desc(a), a=a, related=rel,
-            jsonld=ld, faq_jsonld=faq_jsonld(a),
+            jsonld=ld, faq_jsonld=intros.faq_jsonld(faqs),
+            faqs=faqs, howto=howto,
+            howto_jsonld=detail_faq.howto_jsonld(
+                f"{a.get('title') or '지원사업'} 신청 순서",
+                serp.notice_desc(a), howto),
             crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
             collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )

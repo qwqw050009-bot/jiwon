@@ -3,7 +3,8 @@
 {% from "_ad.html" import ad_slot with context %}
 {% block jsonld %}
 <script type="application/ld+json">{{ jsonld|safe }}</script>
-<script type="application/ld+json">{{ faq_jsonld|safe }}</script>
+{% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
+{% if howto_jsonld %}<script type="application/ld+json">{{ howto_jsonld|safe }}</script>{% endif %}
 {% endblock %}
 {% block body %}
 <article class="notice">
@@ -61,6 +62,23 @@
     {% if a.contact %}<div><dt>문의처</dt><dd>{{ a.contact }}</dd></div>{% endif %}
   </dl>
 
+  {% if howto %}
+  <section class="howto" id="howto">
+    <h2>신청하는 순서</h2>
+    <ol class="how how--detail" aria-label="신청 순서">
+      {% for s in howto %}
+      <li>
+        <span class="how-n" aria-hidden="true">{{ loop.index }}</span>
+        <div>
+          <b>{{ s.name }}</b>
+          <span>{{ s.text }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
   {% if a.points %}
   <div class="sec">
     <h2>공고 주요 내용</h2>
@@ -85,6 +103,18 @@
     <ul>{% for x in a.ai.checklist %}<li>{{ x }}</li>{% endfor %}</ul>
     <p class="note"><a href="/guide/docs-checklist/">정부지원사업 공통 준비서류와 발급처 총정리 →</a></p>
   </div>
+
+  {% if faqs %}
+  <section class="faq" id="faq">
+    <h2>자주 묻는 질문</h2>
+    <dl>
+      {% for f in faqs %}
+      <dt>{{ f.q }}</dt>
+      <dd>{{ f.a }}</dd>
+      {% endfor %}
+    </dl>
+  </section>
+  {% endif %}
 
   <div class="cta-bar cta-bar--end">
     <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문 공고 보기</a>

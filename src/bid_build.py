@@ -14,6 +14,7 @@ import filters as filt
 import intros
 import serp
 import deadline as dl
+import detail_faq
 
 BID_KINDS = config.BID_KINDS
 BID_REGIONS = config.BID_REGIONS
@@ -173,6 +174,10 @@ def build(env, write, site, urls, dist):
             limit=0 if bid_empty else limit,
             collected_at=env.globals.get("collected_at") or "",
             alert_email=site.get("email") or "",
+            today_rail=[] if bid_empty else filt.today_rail(items),
+            related_hubs=[] if bid_empty else intros.bid_related_hubs(
+                path=path, kind_slug=sel_kind,
+                region_slug=(REGS.get(sel_region) or {}).get("slug", "")),
         )
         write(path, html)
 
@@ -233,8 +238,13 @@ def build(env, write, site, urls, dist):
         kt = tally(items)
         kfaqs = kind_faqs(kind, items, kt)
         render_list(
-            f"/bid/kind/{kind['slug']}/", f"{kind['name']} 입찰공고",
-            f"{kind['desc']}. 마감일시가 가까운 순입니다.",
+            f"/bid/kind/{kind['slug']}/",             f"{kind['name']} 입찰공고",
+            (
+                f"{kind['desc']}. 마감일시가 가까운 순입니다. "
+                + (f"오늘 마감 {kt['today']}건입니다." if kt.get("today") else
+                   f"이번 주 마감 {kt['urgent']}건입니다." if kt.get("urgent") else
+                   f"진행 중 {kt['open']}건입니다.")
+            ),
             items,
             title=serp.bid_kind_title(kind["name"], kt["open"]),
             desc=serp.bid_kind_desc(kind["name"], kt["open"], kind.get("desc") or ""),
@@ -320,6 +330,8 @@ def build(env, write, site, urls, dist):
         if a.get("detail_url"):
             ld_obj["sameAs"] = a["detail_url"]
         ld_obj["isBasedOn"] = "나라장터"
+        faqs = detail_faq.bid_notice_faqs(a)
+        howto = detail_faq.bid_notice_howto(a)
         html = env.get_template("bid_detail.html").render(
             site=site, path=npath, section="bid", page="bid-detail",
             title=serp.bid_notice_title(a),
@@ -327,8 +339,11 @@ def build(env, write, site, urls, dist):
             a=a, related=rel,
             crumbs=crumbs, crumb_jsonld=_crumb_ld(crumbs, site),
             jsonld=json.dumps(ld_obj, ensure_ascii=False),
-            faq_jsonld=intros.faq_jsonld(notice_faqs(a)),
-            faqs=notice_faqs(a),
+            faq_jsonld=intros.faq_jsonld(faqs),
+            faqs=faqs, howto=howto,
+            howto_jsonld=detail_faq.howto_jsonld(
+                f"{a.get('title') or '입찰'} 투찰 순서",
+                serp.bid_notice_desc(a), howto),
             bid_kinds=BID_KINDS,
             collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )
@@ -359,19 +374,5 @@ def build(env, write, site, urls, dist):
 
 
 def notice_faqs(a):
-    close = a.get("close_dt") or "원문 확인"
-    org = a.get("org") or "수요기관 원문 확인"
-    qa = [
-        {"q": "마감일시는 언제인가요?",
-         "a": f"마감일시는 {close}입니다. 창구 마감은 나라장터 원문을 따릅니다."},
-        {"q": "수요기관은 어디인가요?",
-         "a": f"수요기관은 {org}입니다."},
-    ]
-    if a.get("budget"):
-        qa.append({"q": "추정가격은 얼마인가요?",
-                   "a": f"나라장터에 적힌 추정가격은 {a['budget']}입니다. "
-                        "이 숫자가 아니면 원문을 따르세요."})
-    else:
-        qa.append({"q": "추정가격은 얼마인가요?",
-                   "a": "이 공고는 나라장터 응답에 추정가격이 없습니다. 원문에서 확인하세요."})
-    return qa
+    """입찰 상세 FAQ. 화면에 보이는 필드만. 지원금 어휘 없음."""
+    return detail_faq.bid_notice_faqs(a)

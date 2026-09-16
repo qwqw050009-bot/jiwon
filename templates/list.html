@@ -169,6 +169,14 @@
 {% include "_mid_cta.html" %}
 {% endif %}
 
+{% if related_hubs %}
+<nav class="related-hubs" aria-label="이어서 볼 목록">
+  {% for h in related_hubs %}
+  <a href="{{ h.href }}">{{ h.name }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+
 {% if faqs %}
 <section class="faq" id="faq">
   <h2>자주 묻는 질문</h2>
@@ -185,8 +193,28 @@
 
 </div>
 
-{% if urgent_rail %}
-<aside class="rail" aria-label="마감 임박">
+{% if today_rail or urgent_rail %}
+<aside class="rail" aria-label="오늘 마감과 마감 임박">
+  {% if today_rail %}
+  <div class="rail-card rail-card--today">
+    <div class="rail-head">
+      <h2>오늘 마감</h2>
+      <a href="/urgent/">전체</a>
+    </div>
+    <ol class="rail-list">
+      {% for a in today_rail %}
+      <li>
+        <a href="/notice/{{ a.id }}/">
+          <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+          <span class="rail-title">{{ a.title }}</span>
+          <span class="rail-meta">{{ a.category }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+  {% if urgent_rail %}
   <div class="rail-card">
     <div class="rail-head">
       <h2>마감 임박</h2>
@@ -204,6 +232,7 @@
       {% endfor %}
     </ol>
   </div>
+  {% endif %}
 </aside>
 {% endif %}
 </div>

@@ -1,5 +1,11 @@
 {% macro row(a) %}
-<article class="row">
+<article class="row" data-kind="grant" data-id="{{ a.id }}"
+  data-title="{{ a.title }}" data-org="{{ a.org or '' }}"
+  data-due="{{ a.deadline_line or a.dsub or '' }}"
+  data-amt="{{ a.amount_card or '' }}"
+  data-src="{{ a.source_label or '기업마당' }}">
+  <button type="button" class="cmp" data-id="{{ a.id }}" data-kind="grant"
+    aria-pressed="false" aria-label="비교에 넣기"></button>
   <a class="row-body" href="/notice/{{ a.id }}/">
     <div class="row-tags">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
@@ -18,6 +24,6 @@
       <span class="when">{{ a.deadline_line or a.dsub }}</span>
     </div>
   </a>
-  <button type="button" class="star" data-id="{{ a.id }}" aria-pressed="false" aria-label="스크랩"></button>
+  <button type="button" class="star" data-id="{{ a.id }}" data-kind="grant" aria-pressed="false" aria-label="스크랩"></button>
 </article>
 {% endmacro %}

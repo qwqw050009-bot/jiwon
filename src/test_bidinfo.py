@@ -48,6 +48,9 @@ def test_normalize_id_and_kind():
     redo = bidinfo.normalize(_item(bidNtceOrd="001"), "물품", now=NOW)
     assert redo["id"] == "20260915099-001"
     assert redo["kind_slug"] == "goods"
+    assert redo["is_correction"] is True
+    first = bidinfo.normalize(_item(bidNtceOrd="000"), "용역", now=NOW)
+    assert first["is_correction"] is False
 
 
 def test_kind_routing():
@@ -340,6 +343,8 @@ def test_list_and_detail_wework_chrome():
     detail = env.get_template("detail.html").render(
         site=config.SITE, path="/notice/abc/", page="detail", section="support",
         title="t", desc="d", a=item, related=[], jsonld="{}", faq_jsonld="{}",
+        faqs=__import__("detail_faq").notice_faqs(item),
+        howto=__import__("detail_faq").notice_howto(item),
         crumbs=[], crumb_jsonld="",
     )
     assert 'class="notice-head"' in detail
@@ -352,6 +357,10 @@ def test_list_and_detail_wework_chrome():
     assert "공고번호" in detail
     assert "trust-facts" in detail
     assert "원문 공고 보기" in detail
+    assert "자주 묻는 질문" in detail
+    assert "신청하는 순서" in detail
+    assert "누가 신청할 수 있나요?" in detail
+    assert "소상공인" in detail
     assert "onboard" in home
     assert "건너뛰기" in home
     assert "필터 완화" in open(os.path.join(root, "static", "filter.js"), encoding="utf-8").read()
@@ -361,6 +370,13 @@ def test_list_and_detail_wework_chrome():
     card_js = open(os.path.join(root, "static", "card.js"), encoding="utf-8").read()
     assert "시간 미상" in card_js
     assert "pill-src" in card_js
+    assert "비교에 넣기" in card_js
+    base = open(os.path.join(root, "templates", "base.html"), encoding="utf-8").read()
+    assert 'rel="icon"' in base
+    assert "favicon.svg" in base
+    assert "compare.js" in base
+    assert "scrap.js" in base
+    assert "pretendard-dynamic-subset.css" in base
 
 
 def test_row_templates_do_not_cross_link():
@@ -391,6 +407,10 @@ def test_row_templates_do_not_cross_link():
     assert "원문" in row_b
     assert "www.g2b.go.kr" in row_b
     assert "나라장터" in row_b
+    assert 'class="cmp"' in row_s
+    assert 'class="cmp"' in row_b
+    assert 'data-kind="bid"' in row_b
+    assert 'data-kind="grant"' in row_s
 
 
 def test_gha_without_key_returns_empty_not_mock():
@@ -636,6 +656,8 @@ def test_bid_list_wework_chips_and_detail_cta():
         "ntce_org": "중구청", "budget": "8,500만원", "open_dt": "2026-09-01 09:00",
         "close_dt": "2026-09-15 23:00", "method": "전자입찰", "contract": "일반경쟁",
         "blurb": "중구청 · 물품", "detail_url": "https://www.g2b.go.kr/",
+        "seq": "001", "is_correction": True, "is_new": False,
+        "deadline_line": "2026-09-15 23:00 (KST)", "notice_no": "20260915001",
     }
     listing = env.get_template("bid_list.html").render(
         site=config.SITE, path="/bid/", page="list", section="bid",
@@ -684,7 +706,8 @@ def test_bid_list_wework_chips_and_detail_cta():
     assert "is-on" in urgent
     detail = env.get_template("bid_detail.html").render(
         site=config.SITE, path="/bid/notice/x/", page="bid-detail", section="bid",
-        title="t", desc="d", a=item, related=[], faqs=[], faq_jsonld="",
+        title="t", desc="d", a=item, related=[], faqs=bid_build.notice_faqs(item),
+        faq_jsonld="", howto=__import__("detail_faq").bid_notice_howto(item),
         crumbs=[], crumb_jsonld="",
     )
     assert "cta-bar--lead" in detail
@@ -693,6 +716,13 @@ def test_bid_list_wework_chips_and_detail_cta():
     assert "같은 종류의 다른 진행 중 입찰이 없습니다" in detail
     assert "지원금" not in detail
     assert "마지막 수집" in detail
+    assert "공고번호" in detail
+    assert "trust-facts" in detail
+    assert "정정공고" in detail
+    assert "자주 묻는 질문" in detail
+    assert "투찰하는 순서" in detail
+    assert "누가 신청할 수 있나요?" not in detail
+    assert 'data-kind="bid"' in detail
     assert "공고번호" in detail
     assert "trust-facts" in detail
     assert "발주기관" in listing

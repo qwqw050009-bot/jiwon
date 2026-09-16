@@ -4,6 +4,7 @@
 {% block jsonld %}
 {% if jsonld %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endif %}
 {% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
+{% if howto_jsonld %}<script type="application/ld+json">{{ howto_jsonld|safe }}</script>{% endif %}
 {% endblock %}
 {% block body %}
 <article class="notice">
@@ -19,6 +20,7 @@
       {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
       <span class="pill pill-src">나라장터</span>
       {% if a.budget_card %}<span class="pill pill-amt">{{ a.budget_card }}</span>{% endif %}
+      {% if a.is_correction %}<span class="pill pill-corr">정정공고</span>{% elif a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
     </div>
     <p class="notice-kicker">{{ a.deadline_line or a.dsub }}</p>
     <h1>{{ a.title }}</h1>
@@ -33,6 +35,7 @@
         {% else %}
         <a class="cta" href="https://www.g2b.go.kr/" rel="noopener noreferrer" target="_blank">나라장터에서 찾기</a>
         {% endif %}
+        <button type="button" class="cta-star" id="scrap-btn" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false"><span>스크랩</span></button>
       </div>
       <dl class="trust-facts">
         <div><dt>공고번호</dt><dd>{{ a.notice_no or a.bid_no or a.id or '원문 확인' }}</dd></div>
@@ -71,6 +74,23 @@
     {% endif %}
   </dl>
 
+  {% if howto %}
+  <section class="howto" id="howto">
+    <h2>투찰하는 순서</h2>
+    <ol class="how how--detail" aria-label="투찰 순서">
+      {% for s in howto %}
+      <li>
+        <span class="how-n" aria-hidden="true">{{ loop.index }}</span>
+        <div>
+          <b>{{ s.name }}</b>
+          <span>{{ s.text }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
   {{ ad_slot('detail_mid') }}
 
   {% if faqs %}
@@ -88,6 +108,7 @@
   {% if a.detail_url %}
   <div class="cta-bar cta-bar--end">
     <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">나라장터 원문 보기</a>
+    <button type="button" class="cta-star" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false"><span>스크랩</span></button>
   </div>
   {% endif %}
   <p class="note">공고 정보는 나라장터 자료를 정리한 것입니다. 추정가격과 참가지역은 응답에 값이 있을 때만 옮기며, 없는 숫자를 지어내지 않습니다. 투찰 전 반드시 원문을 확인하세요. 이 사이트에서 대신 접수하지 않습니다.</p>

@@ -31,6 +31,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import config
 import deadline as dl
+import detail_faq
 
 KST = timezone(timedelta(hours=9))
 
@@ -302,6 +303,9 @@ def decorate(row, now=None):
     row["blurb"] = card_line(row)
     row["region_slug"] = (REGION_BY_NAME.get(row.get("region") or "") or {}).get("slug", "")
     row["kind_slug"] = slug_of_kind(row.get("kind") or "")
+    row["is_correction"] = detail_faq.seq_is_correction(row.get("seq"))
+    posted = parse_dt(row.get("open_dt"))
+    row["is_new"] = (not row["is_correction"]) and bool(posted) and posted.date() == now.date()
     return row
 
 
