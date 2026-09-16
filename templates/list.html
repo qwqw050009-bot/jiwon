@@ -105,6 +105,11 @@
     {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
     {% else %}
     <p class="note">지금 접수 중인 공고가 없습니다. 새 공고는 매일 아침 갱신됩니다.</p>
+    <ul class="empty-actions">
+      <li><a class="cta empty-cta" href="/urgent/">이번 주 마감</a></li>
+      <li><a class="hero-secondary" href="/all/">전체 보기</a></li>
+      <li><a class="hero-secondary" href="/guide/start/">처음 안내</a></li>
+    </ul>
     {% endfor %}
     {% if items|length > (limit or 20) %}
     <button type="button" class="more" id="f-more-static">{{ items|length - (limit or 20) }}건 더 보기</button>
@@ -128,8 +133,8 @@
 {% endif %}
 
 {% if list_guides %}
-<nav class="list-guides" aria-label="이 목록과 같이 볼 가이드">
-  <p>이 목록과 같이 보면 좋은 글입니다.</p>
+<nav class="list-guides" aria-label="관련 가이드">
+  <p>관련 가이드</p>
   <ul>
     {% for g in list_guides %}
     <li><a href="{{ g.href }}">{{ g.name }}</a></li>

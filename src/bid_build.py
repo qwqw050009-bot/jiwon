@@ -303,8 +303,7 @@ def build(env, write, site, urls, dist):
             )
 
     def render_notice(a):
-        rel = [x for x in open_rows
-               if x["id"] != a["id"] and x.get("kind") == a.get("kind")][:5]
+        rel = filt.related_bids(a, open_rows, limit=6)
         npath = f"/bid/notice/{a['id']}/"
         kslug = a.get("kind_slug") or slug_of(a.get("kind"))
         crumbs = [{"name": "홈", "url": "/"},
@@ -347,7 +346,13 @@ def build(env, write, site, urls, dist):
             bid_kinds=BID_KINDS,
             collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )
-        write(npath, html)
+        lm = ""
+        for key in ("posted_at", "open_dt", "collected_at"):
+            lm = str(a.get(key) or "")[:10]
+            if len(lm) == 10 and lm[4] == "-" and lm[7] == "-":
+                break
+            lm = ""
+        write(npath, html, lastmod=lm or None, changefreq="weekly")
 
     def slug_of(name):
         return bidinfo.slug_of_kind(name)

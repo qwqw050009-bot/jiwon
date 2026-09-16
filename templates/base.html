@@ -33,14 +33,20 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
 .top{background:var(--sheet);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
 .top-row{display:flex;align-items:center;min-height:64px}
 .find{position:sticky;top:var(--top-h,64px);z-index:40;min-height:7.25rem;background:var(--paper)}
-@media(max-width:560px){.top{position:static}.find{top:0;min-height:6.25rem}}
+@media(max-width:560px){.top{position:sticky;top:0;z-index:55}.find{top:var(--top-h,56px);min-height:6.25rem}}
 </style>
+<link rel="preload" as="style" href="/static/style.css?v={{ asset_v }}">
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
-{% if site.adsense_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>{% endif %}
+{% if site.adsense_client %}
+<link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
+<link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>
+{% endif %}
 {% if crumb_jsonld %}<script type="application/ld+json">{{ crumb_jsonld|safe }}</script>{% endif %}
 {% block jsonld %}{% endblock %}
 <script src="/static/state.js?v={{ asset_v }}" defer></script>
+<script src="/static/suggest.js?v={{ asset_v }}" defer></script>
 {% if (section|default('support')) != 'bid' %}
 <script src="/static/card.js?v={{ asset_v }}" defer></script>
 {% endif %}
@@ -58,8 +64,8 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
       <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
       {% endif %}
       <nav class="mode-switch" aria-label="서비스 구분">
-        <a href="/"{% if (section|default('support')) != 'bid' %} class="is-on"{% endif %}>지원</a>
-        <a href="/bid/"{% if (section|default('support')) == 'bid' %} class="is-on"{% endif %}>입찰</a>
+        <a href="/" data-mode="support"{% if (section|default('support')) != 'bid' %} class="is-on" aria-current="page"{% endif %}>지원</a>
+        <a href="/bid/" data-mode="bid"{% if (section|default('support')) == 'bid' %} class="is-on" aria-current="page"{% endif %}>입찰</a>
       </nav>
     </div>
     <nav class="navbar" aria-label="주요 메뉴">

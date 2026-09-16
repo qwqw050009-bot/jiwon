@@ -239,8 +239,10 @@ def test_nav_split_templates():
     assert 'href="/urgent/"' not in bid.replace("/bid/urgent/", "")
     # 모드 스위치 활성
     assert support.split("mode-switch", 1)[1].split("</nav>", 1)[0].count("is-on") == 1
-    assert 'href="/" class="is-on"' in support.replace("\n", " ") or 'href="/" class="is-on"' in support
-    assert 'href="/bid/" class="is-on"' in bid or 'class="is-on">입찰' in bid
+    assert 'data-mode="support"' in support
+    assert 'class="is-on"' in support.split("mode-switch", 1)[1].split("</nav>", 1)[0]
+    assert 'href="/bid/"' in bid
+    assert 'class="is-on"' in bid.split("mode-switch", 1)[1].split("</nav>", 1)[0]
     assert "지원사업<b>마감판</b>" in support
     assert "지원·입찰<b>마감판</b>" in bid
     assert "지원·입찰<b>마감판</b>" not in support
@@ -358,6 +360,7 @@ def test_list_and_detail_wework_chrome():
     assert "trust-facts" in detail
     assert "원문 공고 보기" in detail
     assert "자주 묻는 질문" in detail
+    assert "이어서 볼 공고가 없습니다" in detail
     assert "신청하는 순서" in detail
     assert "누가 신청할 수 있나요?" in detail
     assert "소상공인" in detail
@@ -376,6 +379,8 @@ def test_list_and_detail_wework_chrome():
     assert "favicon.svg" in base
     assert "compare.js" in base
     assert "scrap.js" in base
+    assert "suggest.js" in base
+    assert 'data-mode="support"' in base
     assert "pretendard-dynamic-subset.css" in base
 
 

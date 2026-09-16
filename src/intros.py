@@ -1808,6 +1808,7 @@ def related_hubs(path="", region=None, category=None, district=None):
     add("/urgent/", "이번 주 마감")
     add("/all/", "전체 공고")
     add("/guide/start/", "처음 안내")
+    add("/guide/deadline-alert/", "마감 알림 안내")
     add("/region/", "지역별 목록")
     add("/category/", "분야별 목록")
     return out[:6]

@@ -88,11 +88,13 @@
   }
   function dlabel(a) {
     var st = a.st || (a.d < 0 ? 'closed' : 'open');
-    if (st === 'closed' || a.d < 0) return ['d-c', '마감'];
-    if (a.d === 0) return ['d-u', '오늘'];
-    if (a.d <= 7) return ['d-u', 'D-' + a.d];
-    if (a.d <= 14) return ['d-s', 'D-' + a.d];
-    return ['d-o', 'D-' + a.d];
+    var d = Number(a.d);
+    if (st === 'closed' || d < 0) return ['d-c', '마감'];
+    if (d === 0) return ['d-u', '오늘'];
+    if (!(d > 0)) return ['d-o', '접수중'];
+    if (d <= 7) return ['d-u', 'D-' + d];
+    if (d <= 14) return ['d-s', 'D-' + d];
+    return ['d-o', 'D-' + d];
   }
 
   function rowHTML(a) {
@@ -124,7 +126,7 @@
       '" data-d="' + esc(a.d) + '" data-region="' + esc(a.r || '') +
       '" data-amount="' + esc(a.b || '') + '">' +
       '<button type="button" class="cmp" data-id="' + esc(a.i) +
-      '" data-kind="bid" aria-pressed="false" aria-label="비교에 넣기"></button>' +
+      '" data-kind="bid" aria-pressed="false" aria-label="비교에 넣기" title="비교에 넣기"></button>' +
       '<a class="row-body" href="/bid/notice/' + esc(a.i) + '/">' +
       '<div class="row-tags">' + tags + '</div>' +
       '<h3>' + esc(a.t) + '</h3>' +
@@ -132,7 +134,8 @@
       '<div class="row-foot">' + amt + '<span class="when">' + esc(due) + '</span></div></a>' +
       '<button type="button" class="star" data-id="' + esc(a.i) +
       '" data-kind="bid" aria-pressed="' + (starred ? 'true' : 'false') +
-      '" aria-label="스크랩"></button>' +
+      '" aria-label="' + (starred ? '스크랩에서 빼기' : '스크랩에 넣기') +
+      '" title="' + (starred ? '스크랩에서 빼기' : '스크랩에 넣기') + '"></button>' +
       ext + '</article>';
   }
 
@@ -399,9 +402,15 @@
     } else if (kind === 'save' || kind === 'alert') {
       var desc = window.MagampanState ? MagampanState.describeBid(toURLState()) : '지금 조건';
       panelTitle.textContent = kind === 'alert' ? '이 조건 알림' : '조건 저장';
+      var pool = feed || [];
+      var hits = pool.filter(matchItem);
+      var preview = window.MagampanAlerts
+        ? MagampanAlerts.previewHTML(hits, { section: 'bid' })
+        : '';
       panelBody.innerHTML = '<div class="f-group"><p class="f-help">이 브라우저에만 저장됩니다. 로그인·결제는 없습니다.</p>' +
         '<p class="f-help">지금 조건: ' + esc(desc) + '</p>' +
-        '<input class="f-search" id="bid-save-name" value="' + esc(desc.slice(0, 40) || '지금 조건') + '" maxlength="40"></div>';
+        '<input class="f-search" id="bid-save-name" value="' + esc(desc.slice(0, 40) || '지금 조건') + '" maxlength="40">' +
+        preview + '</div>';
       document.getElementById('bid-panel-apply').textContent = kind === 'alert' ? '저장하고 메일 열기' : '저장';
       document.getElementById('bid-panel-reset').hidden = true;
     } else if (kind === 'load') {
@@ -450,20 +459,29 @@
     catch (e) {}
   }
 
+  var panelOpener = null;
   function openPanel(kind) {
     if (!overlay) return;
     draft = cloneDraft();
     fillPanel(kind);
     overlay.hidden = false;
+    overlay.setAttribute('aria-hidden', 'false');
     document.body.classList.add('f-lock');
+    panelOpener = document.activeElement;
     if (panel) panel.focus();
   }
   function closePanel() {
     if (!overlay) return;
     overlay.hidden = true;
+    overlay.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('f-lock');
     panelKind = '';
     draft = null;
+    if (panelOpener && panelOpener.focus) panelOpener.focus();
+    panelOpener = null;
+  }
+  if (window.MagampanState && MagampanState.bindDialog) {
+    MagampanState.bindDialog(overlay, panel, closePanel);
   }
 
   function savePreset(andMail) {
@@ -472,9 +490,19 @@
     var list = readPresets().filter(function (x) { return x.name !== name; });
     list.unshift({ name: name, state: toURLState() });
     writePresets(list.slice(0, 8));
+    var freq = window.MagampanAlerts ? MagampanAlerts.freqOf(panelBody) : 'daily';
+    if (window.MagampanAlerts) {
+      MagampanAlerts.save({
+        name: name, section: 'bid', q: picked.q, freq: freq,
+        href: location.pathname + (window.MagampanState ? MagampanState.serializeBid(toURLState(), lockedKeys()) : ''),
+        kind: [...picked.kind], deadline: [...picked.deadline],
+        org: [...picked.org], amount: [...picked.amount], region: [...picked.region]
+      });
+    }
     if (andMail) {
       var desc = window.MagampanState ? MagampanState.describeBid(toURLState()) : name;
       var body = '아래 입찰 조건으로 마감 알림을 받고 싶습니다.\n\n' + desc +
+        '\n빈도: ' + ((window.MagampanAlerts && MagampanAlerts.FREQ[freq]) || freq) +
         '\n\n페이지: ' + location.href + '\n\n(로그인·결제는 없습니다.)';
       location.href = 'mailto:' + EMAIL + '?subject=' +
         encodeURIComponent('[마감판] 입찰 조건 알림') + '&body=' + encodeURIComponent(body);
@@ -618,6 +646,17 @@
     picked.open = e.target.checked; shown = PAGE; apply();
   });
 
+  var bidSuggest = null;
+  if (window.MagampanSuggest) {
+    bidSuggest = MagampanSuggest.bind(input, {
+      onPick: function (v) {
+        picked.q = (v || '').trim().toLowerCase();
+        shown = PAGE;
+        apply();
+      }
+    });
+  }
+
   var timer;
   input.addEventListener('input', function () {
     clearTimeout(timer);
@@ -635,6 +674,11 @@
     .then(function (r) { return r.json(); })
     .then(function (d) {
       feed = d;
+      if (bidSuggest) {
+        var orgs = {};
+        d.forEach(function (a) { if (a.o) orgs[a.o] = 1; });
+        bidSuggest.add(Object.keys(orgs), '발주기관');
+      }
       if (hub || (urlSt && urlSt.q) || filtered()) {
         shown = PAGE;
         apply();

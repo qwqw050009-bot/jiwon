@@ -123,6 +123,37 @@ def districts_of(row):
     return out
 
 
+def is_correction(row):
+    """원문 제목·플래그에 정정이 있을 때만. 없는 정정을 만들지 않는다."""
+    row = row or {}
+    if row.get("is_correction"):
+        return True
+    title = row.get("title") or ""
+    return "정정" in title
+
+
+def title_tokens(title):
+    """제목 유사도용 토큰. 연도·공고 껍질은 빼고 실단어만."""
+    raw = (title or "").replace("\xa0", " ")
+    parts = re.split(r"[\[\]()（）【】『』「」·,./\s~\-–—]+", raw)
+    stop = {
+        "년", "공고", "지원", "사업", "모집", "안내", "및", "등", "위한", "관련",
+        "재공고", "추가", "연장", "차", "건",
+    }
+    out = []
+    seen = set()
+    for p in parts:
+        p = p.strip()
+        if len(p) < 2 or p in stop:
+            continue
+        if re.fullmatch(r"20\d{2}", p):
+            continue
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
 def compact(row):
     """notices.json 한 줄. 키를 짧게 유지한다."""
     st = row.get("status") or dl.status_of(row)
@@ -147,6 +178,8 @@ def compact(row):
         "tm": 1 if dl.time_known(row.get("apply_end") or "") else 0,
         "no": notice_no(row),
     }
+    if is_correction(row):
+        rec["corr"] = 1
     pd = posted_at(row)
     if pd:
         rec["pd"] = pd
@@ -224,7 +257,7 @@ def compact_bid(row):
         rec["col"] = col
     if row.get("is_new"):
         rec["n"] = 1
-    if row.get("is_correction"):
+    if is_correction(row):
         rec["corr"] = 1
     return rec
 
@@ -250,12 +283,8 @@ def source_tally(items):
     }
 
 
-def related_notices(row, pool, limit=5):
-    """같은 지역·분야를 우선하고, 부족하면 지역 또는 분야로 채운다. 가짜 공고는 없다."""
-    row = row or {}
-    rid = row.get("id")
-    region = row.get("region")
-    cat = row.get("category")
+def _open_others(row, pool):
+    rid = (row or {}).get("id")
     others = []
     for x in pool or []:
         if x.get("id") == rid:
@@ -266,11 +295,56 @@ def related_notices(row, pool, limit=5):
         if isinstance(d, int) and d < 0:
             continue
         others.append(x)
+    return others
 
-    def dkey(x):
-        d = x.get("dday")
-        return d if isinstance(d, int) else 9999
 
+def _dday_key(x):
+    d = x.get("dday")
+    return d if isinstance(d, int) else 9999
+
+
+def _title_rank(row, others):
+    tokens = set(title_tokens((row or {}).get("title") or ""))
+    if not tokens:
+        return []
+    scored = []
+    for x in others:
+        shared = tokens.intersection(title_tokens(x.get("title") or ""))
+        if shared:
+            scored.append((-len(shared), _dday_key(x), x))
+    scored.sort(key=lambda t: (t[0], t[1]))
+    return [t[2] for t in scored]
+
+
+def _fill_related(groups, others, limit):
+    """그룹 우선순위로 3~limit건. 가짜 공고는 넣지 않는다."""
+    limit = max(0, min(int(limit or 0), 6) or 6)
+    out, seen = [], set()
+
+    def take(seq):
+        for x in seq:
+            xid = x.get("id")
+            if not xid or xid in seen:
+                continue
+            seen.add(xid)
+            out.append(x)
+            if len(out) >= limit:
+                return True
+        return False
+
+    for group in groups:
+        if take(group):
+            return out
+    if len(out) < min(3, limit):
+        take(sorted(others, key=_dday_key))
+    return out
+
+
+def related_notices(row, pool, limit=6):
+    """같은 지역·분야, 이어서 지역/분야, 제목 토큰 겹침. 3~6건. 가짜 공고는 없다."""
+    others = _open_others(row, pool)
+    region = (row or {}).get("region")
+    cat = (row or {}).get("category")
     both, by_reg, by_cat = [], [], []
     for x in others:
         same_r = region and x.get("region") == region
@@ -281,13 +355,35 @@ def related_notices(row, pool, limit=5):
             by_reg.append(x)
         elif same_c:
             by_cat.append(x)
-    out = []
-    for group in (both, by_reg, by_cat):
-        for x in sorted(group, key=dkey):
-            out.append(x)
-            if len(out) >= limit:
-                return out
-    return out
+    by_title = _title_rank(row, others)
+    return _fill_related(
+        [sorted(both, key=_dday_key), sorted(by_reg, key=_dday_key),
+         sorted(by_cat, key=_dday_key), by_title],
+        others, limit,
+    )
+
+
+def related_bids(row, pool, limit=6):
+    """같은 종류·참가지역을 우선하고, 부족하면 제목 유사·마감순으로 채운다."""
+    others = _open_others(row, pool)
+    kind = (row or {}).get("kind")
+    region = (row or {}).get("region")
+    both, by_kind, by_reg = [], [], []
+    for x in others:
+        same_k = kind and x.get("kind") == kind
+        same_r = region and x.get("region") == region
+        if same_k and same_r:
+            both.append(x)
+        elif same_k:
+            by_kind.append(x)
+        elif same_r:
+            by_reg.append(x)
+    by_title = _title_rank(row, others)
+    return _fill_related(
+        [sorted(both, key=_dday_key), sorted(by_kind, key=_dday_key),
+         sorted(by_reg, key=_dday_key), by_title],
+        others, limit,
+    )
 
 
 def urgent_rail(items, limit=8):

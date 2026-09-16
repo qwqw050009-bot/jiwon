@@ -96,6 +96,9 @@ def cf_headers_contents():
         "/app-ads.txt\n" + block + "\n"
         "/rss.xml\n"
         "  X-Robots-Tag: noindex\n"
+        "\n"
+        "/static/*\n"
+        "  Cache-Control: public, max-age=86400\n"
     )
 
 
@@ -175,7 +178,8 @@ def _static_version():
     URL도 바뀌게 해 캐시를 자연스럽게 무효화한다.
     """
     h = hashlib.md5()
-    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js", "card.js", "state.js", "alert.js"):
+    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js", "card.js",
+                 "state.js", "alert.js", "suggest.js", "compare.js"):
         p = os.path.join(ROOT, "static", name)
         if os.path.exists(p):
             with open(p, "rb") as f:
@@ -190,16 +194,42 @@ env.globals["amount_bands"] = filt.AMOUNT_BANDS
 env.globals["landing"] = landing.context()
 
 URLS = []
+URL_META = {}
 
 
-def write(path, html):
+def write(path, html, index=True, lastmod=None, changefreq=None, priority=None):
     """path='/region/seoul/' → dist/region/seoul/index.html"""
     out = os.path.join(DIST, path.strip("/"), "index.html") if path != "/" \
         else os.path.join(DIST, "index.html")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
-    URLS.append(path)
+    if index:
+        URLS.append(path)
+        URL_META[path] = {
+            "lastmod": lastmod,
+            "changefreq": changefreq,
+            "priority": priority,
+        }
+
+
+def _date_of(row, fallback=None):
+    """공고 날짜 필드에서 YYYY-MM-DD만. 없는 날짜를 짓지 않는다."""
+    for key in ("posted_at", "updated", "created", "open_dt",
+                "apply_end", "close_dt", "collected_at"):
+        v = str((row or {}).get(key) or "")[:10]
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+            return v
+    return fallback
+
+
+def minify_css(text):
+    """주석·중복 공백만 줄인다. calc() 수식 기호는 건드리지 않는다."""
+    text = re.sub(r"/\*.*?\*/", "", text or "", flags=re.S)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\s*", "\n", text)
+    text = re.sub(r"\s*([{}:;,])\s*", r"\1", text)
+    return text.strip() + "\n"
 
 
 def fill_defaults(a):
@@ -237,6 +267,7 @@ def decorate(a, collected_at=None, today=None):
     if collected_at:
         a["collected_at"] = collected_at
     a["cls"], a["dlabel"], a["dsub"] = dl.dday_badge(a)
+    a["is_correction"] = filt.is_correction(a)
     a["blurb"] = intros.blurb_of(a)
     a["signals"] = enrich.notice_signals(a)
     who = ((a.get("target") or "").splitlines() or [""])[0].strip()
@@ -447,6 +478,10 @@ def main():
         os.path.join(ROOT, "static"), os.path.join(DIST, "static"),
         ignore=shutil.ignore_patterns(*STATIC_ROOT_FILES),
     )
+    css_path = os.path.join(DIST, "static", "style.css")
+    if os.path.isfile(css_path):
+        raw = open(css_path, encoding="utf-8").read()
+        open(css_path, "w", encoding="utf-8").write(minify_css(raw))
     emit_root_text_files(DIST)
 
     collected_at = dl.collected_stamp()
@@ -560,14 +595,21 @@ def main():
                     desc=serp.new_desc(new_rows),
                     list_guides=intros.list_guides())
 
-    # 스크랩 페이지 (색인 제외)
+    # 스크랩·알림 조건 (색인 제외, 개인화)
     write("/scrap/", env.get_template("scrap.html").render(
         site=SITE, path="/scrap/", page="scrap", section="support",
         title=serp.scrap_title(),
         desc=serp.scrap_desc(),
+        noindex=True,
         crumbs=[{"name": "홈", "url": "/"}, {"name": "스크랩", "url": "/scrap/"}],
-    ))
-    URLS.pop()   # sitemap에서 제외 (개인화 페이지)
+    ), index=False)
+    write("/alerts/", env.get_template("alerts.html").render(
+        site=SITE, path="/alerts/", page="alerts", section="support",
+        title=serp.alerts_title(),
+        desc=serp.alerts_desc(),
+        noindex=True,
+        crumbs=[{"name": "홈", "url": "/"}, {"name": "알림 조건", "url": "/alerts/"}],
+    ), index=False)
 
     # 마감임박
     urgent = [a for a in rows if 0 <= a["dday"] <= 7]
@@ -776,7 +818,7 @@ def main():
 
     # 공고 상세 (접수 중 + 마감 후 최근 것)
     def render_notice(a, pool):
-        rel = filt.related_notices(a, pool, limit=5)
+        rel = filt.related_notices(a, pool, limit=6)
         npath = f"/notice/{a['id']}/"
         ld_obj = {
             "@context": "https://schema.org",
@@ -820,7 +862,7 @@ def main():
             crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
             collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )
-        write(npath, html)
+        write(npath, html, lastmod=_date_of(a), changefreq="weekly")
 
     for a in rows:
         render_notice(a, rows)
@@ -875,7 +917,8 @@ def main():
         site=SITE, path="/guide/", section="support",
         title=serp.guide_hub_title(),
         desc=serp.guide_hub_desc(),
-        h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'))
+        h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'),
+        changefreq="weekly")
     for slug, h1, desc, content in guide_list:
         jsonld = howto_jsonld(h1, desc, content) if slug in (
             "start", "find-by-deadline", "sme-apply", "deadline-alert",
@@ -886,7 +929,8 @@ def main():
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", section="support",
             title=serp.guide_title(h1),
-            desc=desc, h1=h1, content=content, jsonld=jsonld))
+            desc=desc, h1=h1, content=content, jsonld=jsonld),
+            changefreq="weekly")
 
     # 고정 페이지 (애드센스 심사 필수)
     site_stats = {
@@ -999,9 +1043,24 @@ def main():
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for u in URLS:
-        pr = "1.0" if u in ("/", "/bid/", "/pricing/") else ("0.8" if u.count("/") <= 3 else "0.6")
-        sm.append(f"<url><loc>{SITE['domain']}{u}</loc><lastmod>{today}</lastmod>"
-                  f"<changefreq>daily</changefreq><priority>{pr}</priority></url>")
+        meta = URL_META.get(u) or {}
+        lm = meta.get("lastmod") or today
+        if lm > today:
+            lm = today
+        if u.startswith("/guide/") or u in (
+            "/about/", "/privacy/", "/terms/", "/contact/", "/calendar/",
+        ):
+            freq = meta.get("changefreq") or "weekly"
+        elif u.startswith("/notice/") or u.startswith("/bid/notice/"):
+            freq = meta.get("changefreq") or "weekly"
+        else:
+            freq = meta.get("changefreq") or "daily"
+        pr = meta.get("priority") or (
+            "1.0" if u in ("/", "/bid/", "/pricing/") else
+            ("0.8" if u.count("/") <= 3 else "0.6")
+        )
+        sm.append(f"<url><loc>{SITE['domain']}{u}</loc><lastmod>{lm}</lastmod>"
+                  f"<changefreq>{freq}</changefreq><priority>{pr}</priority></url>")
     sm.append("</urlset>")
     open(os.path.join(DIST, "sitemap.xml"), "w", encoding="utf-8").write("\n".join(sm))
     # 도메인 연결 전에는 색인을 막는다.
@@ -1011,6 +1070,8 @@ def main():
             "User-agent: *\n"
             "Allow: /ads.txt\n"
             "Allow: /app-ads.txt\n"
+            "Disallow: /scrap/\n"
+            "Disallow: /alerts/\n"
             "Allow: /\n"
             f"Sitemap: {SITE['domain']}/sitemap.xml\n"
         )

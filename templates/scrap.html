@@ -4,7 +4,7 @@
   <h1>스크랩한 공고</h1>
   <p>별을 눌러 담아 둔 지원사업과 입찰입니다. 마감이 가까운 순서로 정렬됩니다. 로그인 없이 이 브라우저에만 저장됩니다.</p>
 </div>
-<p class="scrap-migrate">지금은 계정이 없습니다. 나중에 계정을 만들면 이 브라우저의 스크랩을 옮길 수 있게 안내할 예정입니다. 결제·카카오 로그인은 없습니다.</p>
+<p class="scrap-migrate">지금은 계정이 없습니다. 나중에 계정을 만들면 이 브라우저의 스크랩을 옮길 수 있게 안내할 예정입니다. 결제·카카오 로그인은 없습니다. 알림 조건은 <a href="/alerts/">알림 조건</a>에서 일시정지·삭제합니다.</p>
 <div class="scrap-tabs" role="tablist" aria-label="스크랩 구분">
   <button type="button" class="f-chip is-on" data-scrap-tab="grant" aria-pressed="true">지원사업</button>
   <button type="button" class="f-chip" data-scrap-tab="bid" aria-pressed="false">입찰</button>
@@ -13,6 +13,11 @@
 <div class="board" id="scrap-board">
   <p class="note">불러오는 중입니다.</p>
 </div>
+<section class="alerts-mini" aria-labelledby="alerts-mini-title">
+  <h2 id="alerts-mini-title">이 브라우저의 알림 조건</h2>
+  <p><a href="/alerts/">알림 조건 관리</a>에서 미리보기 빈도·일시정지·삭제를 합니다. 서버 푸시는 없습니다.</p>
+  <div id="alerts-board" data-compact="1"></div>
+</section>
 <p class="note">스크랩은 지금 쓰는 브라우저에만 저장됩니다. 다른 기기에서는 보이지 않고
 브라우저 기록을 지우면 함께 사라집니다. 비교는 한 번에 3건까지입니다.</p>
 {% endblock %}

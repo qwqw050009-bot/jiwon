@@ -35,7 +35,7 @@
         {% else %}
         <a class="cta" href="https://www.g2b.go.kr/" rel="noopener noreferrer" target="_blank">나라장터에서 찾기</a>
         {% endif %}
-        <button type="button" class="cta-star" id="scrap-btn" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false"><span>스크랩</span></button>
+        <button type="button" class="cta-star" id="scrap-btn" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false" aria-label="스크랩에 넣기" title="스크랩에 넣기"><span>스크랩</span></button>
       </div>
       <dl class="trust-facts">
         <div><dt>공고번호</dt><dd>{{ a.notice_no or a.bid_no or a.id or '원문 확인' }}</dd></div>
@@ -108,7 +108,7 @@
   {% if a.detail_url %}
   <div class="cta-bar cta-bar--end">
     <a class="cta" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">나라장터 원문 보기</a>
-    <button type="button" class="cta-star" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false"><span>스크랩</span></button>
+    <button type="button" class="cta-star" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false" aria-label="스크랩에 넣기" title="스크랩에 넣기"><span>스크랩</span></button>
   </div>
   {% endif %}
   <p class="note">공고 정보는 나라장터 자료를 정리한 것입니다. 추정가격과 참가지역은 응답에 값이 있을 때만 옮기며, 없는 숫자를 지어내지 않습니다. 투찰 전 반드시 원문을 확인하세요. 이 사이트에서 대신 접수하지 않습니다.</p>
@@ -123,8 +123,8 @@
 {% if related %}
 <section class="related">
   <div class="sec-head">
-    <h2>{{ a.kind }} 진행 중인 다른 입찰</h2>
-    <span>{{ related|length }}건</span>
+    <h2>{{ a.kind }}{% if a.region %} · {{ a.region }}{% endif %} 이어서 볼 입찰</h2>
+    <span>마감 가까운 순 {{ related|length }}건</span>
   </div>
   <div class="board">
     {% for x in related %}{{ row(x) }}{% endfor %}

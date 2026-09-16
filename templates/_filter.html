@@ -11,7 +11,7 @@
   <p class="find-hint">회원가입 없이 · 마감일 순 · 기본은 접수 중인 공고만</p>
 
   <div class="find-tools" role="toolbar" aria-label="검색 도구">
-    <button type="button" class="f-chip f-chip--sheet" id="f-sheet" data-panel="all" aria-expanded="false" aria-haspopup="dialog">필터</button>
+    <button type="button" class="f-chip f-chip--sheet" id="f-sheet" data-panel="all" aria-expanded="false" aria-haspopup="dialog" aria-controls="f-panel">필터</button>
     <label class="sr-only" for="f-sort">정렬</label>
     <select id="f-sort" class="f-sort">
       <option value="dday">마감 임박순</option>
@@ -60,7 +60,7 @@
   <p class="f-count" id="f-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>
   <p class="sr-only" id="f-live" aria-live="assertive" aria-atomic="true"></p>
 
-  <div class="f-overlay" id="f-overlay" hidden>
+  <div class="f-overlay" id="f-overlay" hidden aria-hidden="true">
     <div class="f-panel" id="f-panel" role="dialog" aria-modal="true" aria-labelledby="f-panel-title" tabindex="-1">
       <div class="f-panel-head">
         <h2 id="f-panel-title">필터</h2>

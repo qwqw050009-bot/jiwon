@@ -13,7 +13,7 @@
    data-region="{{ a.region or '' }}"
    data-amount="{{ a.amount_band or '' }}">
   <button type="button" class="cmp" data-id="{{ a.id }}" data-kind="bid"
-    aria-pressed="false" aria-label="비교에 넣기"></button>
+    aria-pressed="false" aria-label="비교에 넣기" title="비교에 넣기"></button>
   <a class="row-body" href="/bid/notice/{{ a.id }}/">
     <div class="row-tags">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
@@ -30,7 +30,7 @@
       <span class="when">{{ a.deadline_line or a.dsub }}</span>
     </div>
   </a>
-  <button type="button" class="star" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false" aria-label="스크랩"></button>
+  <button type="button" class="star" data-id="{{ a.id }}" data-kind="bid" aria-pressed="false" aria-label="스크랩에 넣기" title="스크랩에 넣기"></button>
   {% if a.detail_url %}
   <a class="row-ext" href="{{ a.detail_url }}" rel="nofollow noopener" target="_blank">원문</a>
   {% endif %}
