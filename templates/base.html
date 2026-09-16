@@ -25,6 +25,7 @@
 {% if site.adsense_client %}<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ site.adsense_client }}" crossorigin="anonymous"></script>{% endif %}
 {% if crumb_jsonld %}<script type="application/ld+json">{{ crumb_jsonld|safe }}</script>{% endif %}
 {% block jsonld %}{% endblock %}
+<script src="/static/state.js?v={{ asset_v }}" defer></script>
 {% if (section|default('support')) != 'bid' %}
 <script src="/static/card.js?v={{ asset_v }}" defer></script>
 {% endif %}
@@ -101,10 +102,12 @@
     <a href="/bid/">입찰공고</a>
     <a href="/pricing/">요금제</a>
     <a href="/about/">사이트 소개</a>
+    <a href="/about/#operator">운영 주체</a>
     <a href="/privacy/">개인정보처리방침</a>
     <a href="/terms/">이용약관</a>
     <a href="/contact/">문의</a>
   </nav>
+  <p class="src-legend">데이터 출처: 기업마당(지원사업) · K-Startup(키가 있을 때만) · 나라장터(입찰, /bid/). 없는 숫자·사업자등록번호는 만들지 않습니다.</p>
   {% set biz = site.business|default({}) %}
   <dl class="biz">
     <div><dt>상호</dt><dd>{{ site.name }}</dd></div>
@@ -114,7 +117,7 @@
     {% if biz.address %}<div><dt>사업장 주소</dt><dd>{{ biz.address }}</dd></div>{% endif %}
     {% if site.email %}<div><dt>고객센터</dt><dd><a href="mailto:{{ site.email }}">{{ site.email }}</a></dd></div>{% endif %}
   </dl>
-  <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.</p>
+  <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.{% if collected_at %} 이 빌드 수집 {{ collected_at }} (KST).{% endif %}</p>
   <p>© {{ site.name }}. All rights reserved.</p>
 </div></footer>
 {% if (section|default('support')) != 'bid' %}

@@ -79,13 +79,27 @@
 <section class="find find--static" id="bid-find" aria-label="입찰 검색"
   data-kind="{{ sel_kind or '' }}"
   data-due="{{ sel_due or '' }}"
-  data-region="{{ sel_region or '' }}">
-  <div class="find-search">
+  data-region="{{ sel_region or '' }}"
+  data-email="{{ alert_email or site.email or '' }}">
+  <form class="find-search" action="/bid/" method="get" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
     <label class="sr-only" for="bid-q">입찰 공고명·수요기관 검색</label>
-    <input type="search" id="bid-q" placeholder="공고명·수요기관으로 검색" autocomplete="off">
-  </div>
+    <input type="search" id="bid-q" name="q" placeholder="공고명·수요기관으로 검색" autocomplete="off">
+  </form>
   <p class="find-hint">로그인 없이 · 마감일시 순 · 나라장터 원문</p>
+  <div class="find-tools" role="toolbar" aria-label="입찰 검색 도구">
+    <button type="button" class="f-chip f-chip--sheet" id="bid-sheet" data-bid-panel="all" aria-expanded="false" aria-haspopup="dialog">필터</button>
+    <label class="sr-only" for="bid-sort">정렬</label>
+    <select id="bid-sort" class="f-sort">
+      <option value="dday">마감 임박순</option>
+      <option value="new">최근 공고순</option>
+    </select>
+    <label class="f-chip f-chip--check is-on">
+      <input type="checkbox" id="bid-openonly" checked> 진행 중만
+    </label>
+    <button type="button" class="f-chip f-chip--ghost" data-bid-panel="save">조건 저장</button>
+    <button type="button" class="f-chip f-chip--ghost" id="bid-alert" data-bid-panel="alert">알림</button>
+  </div>
   <div class="find-chips find-chips--bid" role="toolbar" aria-label="입찰 필터">
     {% for k in bid_kinds|default([]) %}
     <a class="f-chip{% if sel_kind == k.slug %} is-on{% endif %}"
@@ -93,15 +107,40 @@
        data-bid-kind="{{ k.slug }}"
        {% if sel_kind == k.slug %}aria-current="page"{% endif %}>{{ k.name }}</a>
     {% endfor %}
+    <button type="button" class="f-chip" data-bid-panel="org" aria-haspopup="dialog">발주기관 <span class="f-caret" aria-hidden="true"></span></button>
     <button type="button" class="f-chip{% if sel_due == 'today' %} is-on{% endif %}" data-bid-due="today" aria-pressed="{{ 'true' if sel_due == 'today' else 'false' }}">오늘 마감</button>
     <button type="button" class="f-chip{% if sel_due == 'week' %} is-on{% endif %}" data-bid-due="week" aria-pressed="{{ 'true' if sel_due == 'week' else 'false' }}">이번 주</button>
+    <button type="button" class="f-chip" data-bid-panel="amount" aria-haspopup="dialog">추정가격 <span class="f-caret" aria-hidden="true"></span></button>
+    <button type="button" class="f-chip f-chip--ghost" data-bid-panel="load">조건 불러오기</button>
   </div>
+  <div class="active-pills" id="bid-pills" hidden></div>
   <p class="f-count" id="bid-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>
   <p class="sr-only" id="bid-live" aria-live="assertive" aria-atomic="true"></p>
+
+  <div class="f-overlay" id="bid-overlay" hidden>
+    <div class="f-panel" id="bid-panel" role="dialog" aria-modal="true" aria-labelledby="bid-panel-title" tabindex="-1">
+      <div class="f-panel-head">
+        <h2 id="bid-panel-title">필터</h2>
+        <button type="button" class="f-panel-x" id="bid-panel-x" aria-label="닫기">×</button>
+      </div>
+      <div class="f-panel-body" id="bid-panel-body"></div>
+      <div class="f-panel-foot" id="bid-panel-foot">
+        <button type="button" class="f-text" id="bid-panel-reset">재설정</button>
+        <button type="button" class="f-apply" id="bid-panel-apply">적용</button>
+      </div>
+    </div>
+  </div>
+  <template id="bid-opt-amount">
+    {% for b in amount_bands|default([]) %}
+    <button type="button" class="f-opt" data-k="amount" data-v="{{ b.id }}">
+      <b>{{ b.name }}</b><span>{{ b.desc }}</span>
+    </button>
+    {% endfor %}
+  </template>
 </section>
 
 {% if items or sections %}
-<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>은 마감일시 기준입니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다.</p>
+<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>은 마감일시 기준입니다. 시각이 없으면 <b>시간 미상</b>입니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다. 출처는 나라장터.{% if collected_at %} 마지막 수집 {{ collected_at }} (KST).{% endif %}</p>
 {% endif %}
 
 {% if ad_top %}{{ ad_slot('list_top') }}{% endif %}

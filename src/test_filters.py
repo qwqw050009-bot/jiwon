@@ -62,13 +62,20 @@ def test_source_and_compact_keys():
     rec = filters.compact(row)
     assert rec["i"] == "abc"
     assert rec["src"] == "bizinfo"
+    assert rec["sn"] == "기업마당"
     assert rec["b"] == "10to50"
     assert rec["g"] == ["천안시"]
     assert rec["n"] == 1
     assert rec["w"] == "소상공인"
     assert rec["sg"][0]["k"] == "loan"
+    assert rec["st"] == "open"
+    assert rec["sl"] == "진행"
+    assert "시간 미상" in rec["du"]
+    assert rec["no"] == "abc"
+    assert rec["tm"] == 0
     ks = filters.compact({**row, "source": "kstartup", "tags": []})
     assert ks["src"] == "kstartup"
+    assert ks["sn"] == "K-Startup"
     assert "g" not in ks
 
 
@@ -106,6 +113,27 @@ def test_related_notices_prefer_same_region_category():
     assert empty == []
 
 
+def test_compact_bid_has_source_deadline_and_원문():
+    row = {
+        "id": "20260915001-000", "title": "사무용 가구", "kind": "물품",
+        "kind_slug": "goods", "org": "중구청", "budget_card": "8,500만원",
+        "budget_raw": 85_000_000, "close_dt": "2026-09-15 23:00",
+        "dday": 0, "region": "서울", "status": "open", "status_label": "진행",
+        "bid_no": "20260915001", "detail_url": "https://www.g2b.go.kr/n",
+        "open_dt": "2026-09-01 09:00",
+    }
+    rec = filters.compact_bid(row)
+    assert rec["src"] == "g2b"
+    assert rec["sn"] == "나라장터"
+    assert rec["no"] == "20260915001"
+    assert rec["u"] == "https://www.g2b.go.kr/n"
+    assert rec["tm"] == 1
+    assert rec["b"] == "50to100"
+    assert rec["st"] == "open"
+    unk = filters.compact_bid({**row, "budget_raw": None, "budget_card": "", "budget": ""})
+    assert unk["b"] == "unk"
+
+
 if __name__ == "__main__":
     test_amount_won_reads_korean_units()
     test_amount_band_uses_amount_of_not_placeholder()
@@ -113,4 +141,5 @@ if __name__ == "__main__":
     test_source_and_compact_keys()
     test_tally_and_rail_deadline_first()
     test_related_notices_prefer_same_region_category()
+    test_compact_bid_has_source_deadline_and_원문()
     print("filters tests ok")

@@ -348,6 +348,19 @@ def test_list_and_detail_wework_chrome():
     assert "cta-bar--lead" in detail
     assert "요약" in detail
     assert "이(가)" not in detail
+    assert "마지막 수집" in detail
+    assert "공고번호" in detail
+    assert "trust-facts" in detail
+    assert "원문 공고 보기" in detail
+    assert "onboard" in home
+    assert "건너뛰기" in home
+    assert "필터 완화" in open(os.path.join(root, "static", "filter.js"), encoding="utf-8").read()
+    state_js = open(os.path.join(root, "static", "state.js"), encoding="utf-8").read()
+    assert "field" in state_js and "deadline" in state_js
+    assert "serializeGrant" in state_js
+    card_js = open(os.path.join(root, "static", "card.js"), encoding="utf-8").read()
+    assert "시간 미상" in card_js
+    assert "pill-src" in card_js
 
 
 def test_row_templates_do_not_cross_link():
@@ -366,6 +379,8 @@ def test_row_templates_do_not_cross_link():
         "id": "2026-000", "cls": "d-u", "dlabel": "오늘", "dsub": "18:00 마감",
         "title": "용역 입찰", "org": "조달청", "kind": "용역", "kind_slug": "service",
         "region": "", "budget_card": "", "blurb": "조달청 · 용역", "dday": 0,
+        "detail_url": "https://www.g2b.go.kr/notice", "notice_no": "2026-000",
+        "status_label": "진행", "deadline_line": "2026-09-16 18:00 (KST)",
     })
     assert "/notice/abc/" in row_s
     assert "/bid/notice/" not in row_s
@@ -373,6 +388,9 @@ def test_row_templates_do_not_cross_link():
     assert 'href="/notice/' not in row_b
     assert 'data-kind="용역"' in row_b
     assert 'data-kind-slug="service"' in row_b
+    assert "원문" in row_b
+    assert "www.g2b.go.kr" in row_b
+    assert "나라장터" in row_b
 
 
 def test_gha_without_key_returns_empty_not_mock():
@@ -674,6 +692,12 @@ def test_bid_list_wework_chips_and_detail_cta():
     assert "나라장터 원문 보기" in detail
     assert "같은 종류의 다른 진행 중 입찰이 없습니다" in detail
     assert "지원금" not in detail
+    assert "마지막 수집" in detail
+    assert "공고번호" in detail
+    assert "trust-facts" in detail
+    assert "발주기관" in listing
+    assert "추정가격" in listing
+    assert "조건 저장" in listing
     css = open(os.path.join(root, "static", "style.css"), encoding="utf-8").read()
     assert ".find-chips--bid" in css
     assert ".skip" in css
@@ -685,6 +709,10 @@ def test_bid_list_wework_chips_and_detail_cta():
     assert "data-bid-kind" in js
     assert "data-bid-due" in js
     assert "지원금" not in js
+    assert "MagampanState" in js
+    assert "serializeBid" in open(os.path.join(root, "static", "state.js"), encoding="utf-8").read()
+    assert "필터 완화" in js
+    assert "이 조건 알림" in js
 
 
 def test_contact_email_is_real_not_example():
@@ -695,6 +723,10 @@ def test_contact_email_is_real_not_example():
     assert "qwqw050009@gmail.com" in about
     assert "contact@example.com" not in about
     assert "순위를 매기거나 선정을 보장하지 않습니다" in about
+    assert "운영 주체" in about
+    assert "사업자등록번호는 아직 게시하지 않" in about
+    assert "기업마당" in about
+    assert "나라장터" in about
 
 
 def test_guide_start_has_next_cta():

@@ -1,10 +1,12 @@
 {% macro row(a) %}
-<a class="row" href="/notice/{{ a.id }}/">
-  <div class="row-body">
+<article class="row">
+  <a class="row-body" href="/notice/{{ a.id }}/">
     <div class="row-tags">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+      {% if a.status_label and a.dlabel != a.status_label %}<span class="pill pill-st">{{ a.status_label }}</span>{% endif %}
       {% if a.category %}<span class="pill">{{ a.category }}</span>{% endif %}
       {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
+      {% if a.source_label %}<span class="pill pill-src">{{ a.source_label }}</span>{% endif %}
       {% if a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
       {% for s in a.signals %}<span class="pill sig-{{ s.cls }}">{{ s.label }}</span>{% endfor %}
     </div>
@@ -13,9 +15,9 @@
     {% if a.blurb %}<p class="blurb">{{ a.blurb }}</p>{% endif %}
     <div class="row-foot">
       {% if a.amount_card %}<span class="amt">{{ a.amount_card }}</span>{% else %}<span class="amt amt-empty">규모는 원문 확인</span>{% endif %}
-      {% if a.dsub %}<span class="when">{{ a.dsub }}</span>{% endif %}
+      <span class="when">{{ a.deadline_line or a.dsub }}</span>
     </div>
-  </div>
+  </a>
   <button type="button" class="star" data-id="{{ a.id }}" aria-pressed="false" aria-label="스크랩"></button>
-</a>
+</article>
 {% endmacro %}
