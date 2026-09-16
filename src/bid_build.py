@@ -11,6 +11,7 @@ import os
 import config
 import bidinfo
 import intros
+import serp
 
 BID_KINDS = config.BID_KINDS
 BID_REGIONS = config.BID_REGIONS
@@ -202,8 +203,8 @@ def build(env, write, site, urls, dist):
         "/bid/", "나라장터 입찰, 마감일시 순",
         lede,
         [],
-        title=f"나라장터 입찰공고 마감일시 | {site['name']}",
-        desc="나라장터 입찰공고를 마감일시 순으로 정리합니다. 물품·용역·공사·외자, 수요기관, 추정가격을 확인할 수 있습니다.",
+        title=serp.bid_hub_title(),
+        desc=serp.bid_hub_desc(None if hub_empty else t_all),
         intro=intro, faqs=faqs, beginner=not hub_empty,
         sections=hub_sections, blocks=hub_blocks,
         crumbs=[{"name": "홈", "url": "/"}, {"name": "입찰", "url": "/bid/"}],
@@ -216,8 +217,8 @@ def build(env, write, site, urls, dist):
         "/bid/urgent/", "이번 주 마감 입찰",
         "7일 안에 마감일시가 있는 입찰만 모았습니다.",
         week,
-        title=f"이번 주 마감 입찰공고 | {site['name']}",
-        desc=f"나라장터 입찰 중 7일 안에 마감되는 공고 {len(week)}건을 마감일시 순으로 정리했습니다.",
+        title=serp.bid_urgent_title(len(week)),
+        desc=serp.bid_urgent_desc(len(week)),
         faqs=[
             {"q": "이번 주 마감 입찰은 몇 건인가요?",
              "a": f"이 목록 기준으로 {len(week)}건입니다. 마감일시는 나라장터 원문을 따릅니다."},
@@ -239,8 +240,8 @@ def build(env, write, site, urls, dist):
             f"/bid/kind/{kind['slug']}/", f"{kind['name']} 입찰공고",
             f"{kind['desc']}. 마감일시가 가까운 순입니다.",
             items,
-            title=f"{kind['name']} 입찰공고 마감일시 | {site['name']}",
-            desc=f"나라장터 {kind['name']} 입찰 {len([a for a in items if a.get('is_open')])}건을 마감일시 순으로 정리했습니다.",
+            title=serp.bid_kind_title(kind["name"], kt["open"]),
+            desc=serp.bid_kind_desc(kind["name"], kt["open"], kind.get("desc") or ""),
             intro=(f"<p>{kind['desc']}입니다. 이 목록 기준으로 진행 중 {kt['open']}건, "
                    f"이번 주 마감 {kt['urgent']}건입니다. "
                    "추정가격은 나라장터에 값이 있을 때만 보여 줍니다.</p>"),
@@ -257,8 +258,8 @@ def build(env, write, site, urls, dist):
             "/bid/region/", "참가지역으로 찾기",
             "나라장터 참가제한·참가가능 지역 표기가 허용 목록과 정확히 같은 공고만 모았습니다.",
             [a for a in rows if a.get("region")],
-            title=f"지역별 입찰공고 | {site['name']}",
-            desc="나라장터 참가지역 표기가 확인된 입찰공고를 마감일시 순으로 정리합니다.",
+            title=serp.bid_region_hub_title(),
+            desc=serp.bid_region_hub_desc(),
             faqs=[
                 {"q": "왜 모든 시·도가 없나요?",
                  "a": "참가제한·참가가능 지역 필드가 허용 목록과 정확히 같은 공고만 지역 페이지를 만듭니다. "
@@ -281,8 +282,8 @@ def build(env, write, site, urls, dist):
                 f"/bid/region/{r['slug']}/", f"{r['name']} 참가지역 입찰",
                 f"참가지역 표기가 {r['name']}과 정확히 같은 공고입니다.",
                 items,
-                title=f"{r['name']} 입찰공고 마감일시 | {site['name']}",
-                desc=f"나라장터 참가지역이 {r['name']}인 입찰 {len(items)}건을 마감일시 순으로 정리했습니다.",
+                title=serp.bid_region_title(r["name"], len(items)),
+                desc=serp.bid_region_desc(r["name"], len(items)),
                 faqs=region_faqs(r["name"], items, rt),
                 blocks=[{"title": "다른 지역", "items": [c for c in reg_chips if c["name"] != r["name"]]}],
                 crumbs=[{"name": "홈", "url": "/"},
@@ -305,8 +306,8 @@ def build(env, write, site, urls, dist):
         crumbs.append({"name": a.get("title") or "공고", "url": npath})
         html = env.get_template("bid_detail.html").render(
             site=site, path=npath, section="bid", page="bid-detail",
-            title=f"{a['title']} — 입찰 마감일시 | {site['name']}",
-            desc=(a.get("blurb") or a.get("title") or "")[:150],
+            title=serp.bid_notice_title(a),
+            desc=serp.bid_notice_desc(a),
             a=a, related=rel,
             crumbs=crumbs, crumb_jsonld=_crumb_ld(crumbs, site),
             faq_jsonld=intros.faq_jsonld(notice_faqs(a)),

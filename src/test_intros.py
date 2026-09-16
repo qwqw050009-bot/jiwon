@@ -244,9 +244,9 @@ def test_home_and_category_search_copy():
         "/guide/workplace-region/",
         "/guide/deadline-alert/",
     ]
-    assert intros.category_title("창업") == "창업 지원사업 마감일 | 지원사업 마감판"
+    assert intros.category_title("창업") == "창업 지원금·지원사업 마감일 · 예비·초기 | 지원사업 마감판"
     desc = intros.category_desc("금융", {"desc": "융자·보증·이차보전 등 자금 지원"})
-    assert desc.startswith("금융 분야 정부지원사업을 마감일 순으로")
+    assert desc.startswith("융자·보증·이차보전이 섞인 금융 공고")
     assert "회원가입 없이" in desc
     assert "지역별로" in desc
 
