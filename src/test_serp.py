@@ -44,7 +44,9 @@ def test_home_urgent_all_have_magnets():
         _item(dday=20, title="여유A"),
     ]
     ht = _branded(serp.home_title())
-    assert ht.startswith("오늘마감 정부지원사업")
+    assert ht.startswith("오늘마감")
+    assert "오늘 마감" in ht
+    assert "정부지원사업" in ht
     assert "2026" in ht
     hd = serp.home_desc(rows)
     assert "오늘 마감 1건" in hd
@@ -52,17 +54,21 @@ def test_home_urgent_all_have_magnets():
     assert "이번 주 마감 2건" in hd
     assert "원문" in hd
     assert 70 <= len(hd) <= 120, (len(hd), hd)
-    assert serp.home_h1().startswith("오늘 마감")
+    assert "오늘마감" in serp.home_h1()
+    assert "오늘 마감" in serp.home_h1()
 
     urgent = [a for a in rows if 0 <= a["dday"] <= 7]
     ut = _branded(serp.urgent_title(urgent))
     assert ut.startswith("오늘마감")
+    assert "오늘 마감" in ut
     assert "2건" in ut
     ud = serp.urgent_desc(urgent)
     assert "오늘마감" in ud and "2건" in ud
+    assert "오늘 마감" in ud
     assert "원문" in ud
     assert 70 <= len(ud) <= 120, (len(ud), ud)
-    assert serp.urgent_h1().startswith("오늘 마감")
+    assert "오늘마감" in serp.urgent_h1()
+    assert "오늘 마감" in serp.urgent_h1()
 
     at = _branded(serp.all_title(rows))
     assert at.startswith("정부지원사업 전체")
@@ -194,6 +200,18 @@ def test_notice_urgency_prefix_only_within_week():
     assert "원문" in serp.notice_desc(today)
     assert "접수 마감" in serp.notice_desc(closed)
     assert "마감일 2026-09-19" in serp.notice_desc(later) or "2026-09-19" in serp.notice_desc(later)
+    paid = _item(dday=14, apply_end="2026-10-02", target="창업벤처",
+                 amount="최대 1,000만원", region="인천")
+    pd = serp.notice_desc(paid)
+    assert pd.startswith("마감일 2026-10-02")
+    assert "대상 창업벤처" in pd
+    assert "1,000만원" in pd
+    assert "본문 기준" in pd
+    assert "본문 규모" not in pd
+    assert pd.find("마감일") < pd.find("대상")
+    assert pd.find("대상") < pd.find("1,000")
+    assert "AX 전환" not in pd
+    assert "마감일·신청자격" not in serp.notice_title(paid)
 
 
 def test_bid_copy_stays_off_support_words():
@@ -237,24 +255,35 @@ def test_gsc_region_and_nationwide_copy():
     bt = _branded(serp.region_title("부산", items))
     assert bt.startswith("부산시 2026 기업 지원사업 공고")
     assert "3건" in bt
-    assert "오늘마감" in bt
+    assert "이번 주 마감" in bt
+    assert "오늘마감부터" not in bt
     bd = serp.region_desc("부산", items)
     assert "부산시 2026 기업 지원사업 공고" in bd
-    assert "오늘마감" in bd or "원문" in bd
+    assert "광역시" in bd
+    assert "원문" in bd
     nt = _branded(serp.region_title("전국", items))
     assert nt.startswith("전국 2026 기업 지원사업 공고")
-    assert "소재지 제한 없음" in nt
+    assert "이번 주 마감" in nt
+    nd = serp.region_desc("전국", items)
+    assert "소재지 제한" in nd
+    assert nd.startswith("전국 어디서나")
     mgmt = [_item(region="전국", category="경영", dday=10) for _ in range(4)]
     ct = _branded(serp.combo_title("전국", "경영", mgmt))
     assert ct.startswith("전국 경영 지원사업 공고 2026")
     assert "소재지 제한 없음" in ct
+    assert "컨설팅" in ct
     cd = serp.combo_desc("전국", "경영", {"desc": "컨설팅·경영개선·시설 지원"}, mgmt)
     assert cd.startswith("전국에서")
     assert "소재지 제한" in cd
+    assert "컨설팅" in cd
+    assert cd.find("컨설팅") < cd.find("원문")
     etc = serp.combo_title("전국", "기타", mgmt)
     assert "전국 기타 지원사업 공고" in etc
     jeonbuk = serp.combo_title("전북", "기술", [_item(region="전북", category="기술", dday=2)])
     assert jeonbuk.startswith("전북 기술 지원사업 공고 2026")
+    empty_busan = _branded(serp.region_title("부산", []))
+    assert "오늘마감" not in empty_busan
+    assert "광역시" in empty_busan
 
 
 def test_gsc_notice_longtail_keeps_keywords():
@@ -299,20 +328,59 @@ def test_gsc_notice_longtail_keeps_keywords():
     assert "소재지 제한" in ld
 
 
+def test_region_and_combo_openings_differ():
+    """17개 지역 스니펫 둘째 문장과 지역/조합 앞머리가 같은 틀이 아니어야 한다."""
+    items = [_item(dday=4) for _ in range(5)]
+    seconds = []
+    for r in config.REGIONS:
+        d = serp.region_desc(r["name"], items)
+        assert "2026 기업 지원사업 공고" in d, (r["name"], d)
+        assert "이(가)" not in d
+        bits = [p.strip() for p in d.split(".") if p.strip()]
+        assert len(bits) >= 2, (r["name"], d)
+        seconds.append(bits[1])
+        t = serp.region_title(r["name"], items)
+        assert "오늘마감부터" not in t
+        assert "오늘마감" not in t, (r["name"], t)
+    assert len(seconds) == len(set(seconds)), seconds
+    busan_r = serp.region_desc("부산", items)
+    busan_c = serp.combo_desc("부산", "경영", {"desc": "컨설팅·경영개선·시설 지원"}, items)
+    assert busan_r != busan_c
+    assert busan_c.startswith("부산시 경영")
+    assert "컨설팅" in busan_c
+    etc_c = serp.combo_desc("경기", "기타", {"desc": "그 외 지원사업"}, items)
+    assert "어려운입니다" not in etc_c
+    assert "넣기 어려운 지원입니다" in etc_c
+    fin_c = serp.combo_desc("경기", "금융", {"desc": "융자·보증·이차보전 등 자금 지원"}, items)
+    assert "금융 지원입니다" in fin_c
+    nat_r = serp.region_desc("전국", items)
+    nat_c = serp.combo_desc("전국", "경영", {"desc": "컨설팅·경영개선·시설 지원"}, items)
+    assert nat_r.startswith("전국 어디서나")
+    assert nat_c.startswith("전국에서 신청하는 경영")
+    suwon = serp.district_desc("경기", "수원", items)
+    assert suwon.startswith("수원 2026 기업 지원사업 공고")
+    assert "해시태그" in suwon
+    assert suwon != busan_r
+
+
 def test_ctr_magnets_keep_gsc_heads():
     """클릭용 뒷말을 붙여도 검색어 앞머리와 브랜드 접미사는 유지한다."""
     rows = [_item(dday=0) for _ in range(2)]
     ht = _branded(serp.home_title())
-    assert ht.startswith("오늘마감 정부지원사업 공고")
+    assert ht.startswith("오늘마감")
+    assert "오늘 마감" in ht
+    assert "정부지원사업" in ht
     assert "보조금" in ht
     ut = _branded(serp.urgent_title(rows))
     assert ut.startswith("오늘마감 2건")
+    assert "오늘 마감" in ut
     seoul = _branded(serp.region_title("서울", rows))
     assert seoul.startswith("서울시 2026 기업 지원사업 공고")
     assert "오늘마감" in seoul
     nd = serp.notice_desc(_item(dday=0, title="소상공인 특례보증"))
     assert nd.startswith("오늘마감")
-    assert "바로 신청" in nd
+    assert "대상 소상공인" in nd
+    assert "원문에서 신청" in nd
 
 
 def test_clip_and_counts():
@@ -330,7 +398,7 @@ def test_mock_build_html_titles():
     """목업 빌드가 있으면 대표 URL의 title·desc를 읽는다."""
     root = os.path.join(os.path.dirname(__file__), "..", "dist")
     samples = {
-        "index.html": ("오늘마감 정부지원사업", "오늘마감"),
+        "index.html": ("오늘 마감 정부지원사업", "오늘마감"),
         "urgent/index.html": ("오늘마감", "오늘마감"),
         "all/index.html": ("정부지원사업 전체", "마감일"),
         "region/index.html": ("지역별 정부지원사업", "사업장"),
@@ -399,6 +467,7 @@ if __name__ == "__main__":
     test_static_and_guide_pages()
     test_gsc_region_and_nationwide_copy()
     test_gsc_notice_longtail_keeps_keywords()
+    test_region_and_combo_openings_differ()
     test_ctr_magnets_keep_gsc_heads()
     test_clip_and_counts()
     test_mock_build_html_titles()
