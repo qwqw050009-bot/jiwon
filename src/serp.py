@@ -117,6 +117,9 @@ _STATIC_DESC = {
         "지원사업 마감판 문의처입니다. "
         "정보 오류 신고는 받고, 개별 공고의 자격·심사는 소관기관 원문에 직접 문의해야 합니다."
     ),
+    "pricing": (
+        "지원사업 마감판 요금제입니다. 무료·베이직·프로 안내와 알림 신청 방법을 이 페이지에서 확인하세요."
+    ),
 }
 
 
@@ -874,6 +877,17 @@ def calendar_desc():
 def static_desc(slug, h1=""):
     return _STATIC_DESC.get(slug) or clip_desc(
         f"{h1 or slug}. 지원사업 마감판의 고정 안내 페이지입니다."
+    )
+
+
+def pricing_title():
+    return with_brand("요금제 · 무료·베이직·프로 알림 구독")
+
+
+def pricing_desc():
+    return clip_desc(
+        "무료는 목록 열람, 베이직은 키워드 알림 3개, 프로는 무제한 조건 저장. "
+        "카드결제는 준비 중이며 지금은 이메일로 알림 신청을 받습니다."
     )
 
 

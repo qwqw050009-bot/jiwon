@@ -68,14 +68,16 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
       <input type="search" name="q" placeholder="공고명·수요기관으로 검색" aria-label="입찰 검색">
     </form>
-    <a class="hstart" href="/">지원사업 보기</a>
     {% else %}
     <form class="hsearch" action="/all/" method="get" role="search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
       <input type="search" name="q" placeholder="공고명·기관으로 검색" aria-label="지원사업 검색">
     </form>
-    <a class="hstart" href="/guide/start/">지원사업 처음이세요?</a>
     {% endif %}
+    <div class="hcta">
+      <a class="halert" href="{% if path == '/' %}#alert{% else %}/#alert{% endif %}">알림 등록</a>
+      <a class="hstart{{ ' active' if path.startswith('/pricing/') }}" href="/pricing/">구독하기</a>
+    </div>
   </div>
 </header>
 
@@ -98,6 +100,7 @@
   <nav>
     <a href="/">지원사업</a>
     <a href="/bid/">입찰공고</a>
+    <a href="/pricing/">요금제</a>
     <a href="/about/">사이트 소개</a>
     <a href="/about/#operator">운영 주체</a>
     <a href="/privacy/">개인정보처리방침</a>
@@ -105,12 +108,21 @@
     <a href="/contact/">문의</a>
   </nav>
   <p class="src-legend">데이터 출처: 기업마당(지원사업) · K-Startup(키가 있을 때만) · 나라장터(입찰, /bid/). 없는 숫자·사업자등록번호는 만들지 않습니다.</p>
-  <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.<br>
-  운영 문의 <a href="mailto:{{ site.email }}">{{ site.email }}</a> · 사업자등록번호는 등록 후 게시합니다.{% if collected_at %} · 이 빌드 수집 {{ collected_at }} (KST){% endif %}<br>
-  © {{ site.name }}</p>
+  {% set biz = site.business|default({}) %}
+  <dl class="biz">
+    <div><dt>상호</dt><dd>{{ site.name }}</dd></div>
+    {% if biz.ceo %}<div><dt>대표자</dt><dd>{{ biz.ceo }}</dd></div>{% endif %}
+    {% if biz.biz_no %}<div><dt>사업자등록번호</dt><dd>{{ biz.biz_no }}</dd></div>{% endif %}
+    {% if biz.mail_order %}<div><dt>통신판매업 신고번호</dt><dd>{{ biz.mail_order }}</dd></div>{% endif %}
+    {% if biz.address %}<div><dt>사업장 주소</dt><dd>{{ biz.address }}</dd></div>{% endif %}
+    {% if site.email %}<div><dt>고객센터</dt><dd><a href="mailto:{{ site.email }}">{{ site.email }}</a></dd></div>{% endif %}
+  </dl>
+  <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.{% if collected_at %} 이 빌드 수집 {{ collected_at }} (KST).{% endif %}</p>
+  <p>© {{ site.name }}. All rights reserved.</p>
 </div></footer>
 {% if (section|default('support')) != 'bid' %}
 <script src="/static/scrap.js?v={{ asset_v }}" defer></script>
 {% endif %}
+<script src="/static/alert.js?v={{ asset_v }}" defer></script>
 </body>
 </html>

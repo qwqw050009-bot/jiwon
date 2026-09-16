@@ -50,6 +50,7 @@ import serp
 import districts as distmod
 import bid_build
 import filters as filt
+import landing
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -173,7 +174,7 @@ def _static_version():
     URL도 바뀌게 해 캐시를 자연스럽게 무효화한다.
     """
     h = hashlib.md5()
-    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js", "card.js", "state.js"):
+    for name in ("style.css", "filter.js", "scrap.js", "bid_filter.js", "card.js", "state.js", "alert.js"):
         p = os.path.join(ROOT, "static", name)
         if os.path.exists(p):
             with open(p, "rb") as f:
@@ -185,6 +186,7 @@ env.globals["asset_v"] = _static_version()
 env.globals["bid_kinds"] = config.BID_KINDS
 env.globals["bid_has_regions"] = False
 env.globals["amount_bands"] = filt.AMOUNT_BANDS
+env.globals["landing"] = landing.context()
 
 URLS = []
 
@@ -904,6 +906,21 @@ def main():
         )
         write(f"/{slug}/", html)
 
+    write("/pricing/", env.get_template("pricing.html").render(
+        site=SITE, path="/pricing/", page="pricing", section="support",
+        title=serp.pricing_title(),
+        desc=serp.pricing_desc(),
+        h1=landing.PRICING_H1,
+        lede=landing.PRICING_LEDE,
+        faqs=landing.ALERT_FAQS,
+        faq_jsonld=intros.faq_jsonld(landing.ALERT_FAQS),
+        crumbs=[{"name": "홈", "url": "/"}, {"name": "요금제", "url": "/pricing/"}],
+        crumb_jsonld=crumb_ld([
+            {"name": "홈", "url": "/"},
+            {"name": "요금제", "url": "/pricing/"},
+        ]),
+    ))
+
     # 캘린더 구독 파일
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     os.makedirs(os.path.join(DIST, "calendar"), exist_ok=True)
@@ -986,7 +1003,7 @@ def main():
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for u in URLS:
-        pr = "1.0" if u in ("/", "/bid/") else ("0.8" if u.count("/") <= 3 else "0.6")
+        pr = "1.0" if u in ("/", "/bid/", "/pricing/") else ("0.8" if u.count("/") <= 3 else "0.6")
         sm.append(f"<url><loc>{SITE['domain']}{u}</loc><lastmod>{today}</lastmod>"
                   f"<changefreq>daily</changefreq><priority>{pr}</priority></url>")
     sm.append("</urlset>")

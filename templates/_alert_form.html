@@ -1,0 +1,33 @@
+{# 정적 사이트의 알림 관심 신청. 결제·카카오·계정은 없고, 이메일은 mailto 로 연다. #}
+<div class="alert-box{{ ' alert-box--compact' if compact|default(false) else '' }}" id="alert">
+  {% if not compact|default(false) %}
+  <h2 class="sr-only">무료 알림 등록</h2>
+  {% endif %}
+  <form class="alert-form" id="alert-form" method="post" action="mailto:{{ site.email }}" enctype="text/plain">
+    <input type="hidden" name="plan" id="alert-plan" value="">
+    <div class="alert-row">
+      <label class="sr-only" for="alert-keyword">내 업종/키워드</label>
+      <input type="text" id="alert-keyword" name="keyword" maxlength="80"
+             placeholder="내 업종/키워드 입력" autocomplete="off"
+             aria-describedby="alert-hint">
+      <button type="submit" class="alert-submit" id="alert-submit">무료 알림 등록</button>
+    </div>
+    <div class="alert-row alert-row--mail">
+      <label class="sr-only" for="alert-email">알림 받을 이메일</label>
+      <input type="email" id="alert-email" name="email" required
+             placeholder="알림 받을 이메일" autocomplete="email">
+      <button type="button" class="alert-kakao" disabled aria-disabled="true"
+              title="카카오톡 알림은 준비 중입니다">카카오톡 · 준비 중</button>
+    </div>
+    <p class="alert-hint" id="alert-hint">{{ landing.hero_hint }}</p>
+    <div class="alert-actions">
+      <button type="button" class="alert-save" id="alert-save">이 조건 저장하고 알림받기 🔔</button>
+    </div>
+    <p class="alert-save-hint">{{ landing.save_hint }}</p>
+    <p class="alert-lock" role="note"><span aria-hidden="true">🔒</span> {{ landing.pro_lock }}</p>
+    <p class="alert-status" id="alert-status" role="status" aria-live="polite"></p>
+  </form>
+  <noscript>
+    <p class="alert-hint">메일 앱이 열리지 않으면 <a href="mailto:{{ site.email }}">{{ site.email }}</a>으로 업종·키워드를 보내 주세요.</p>
+  </noscript>
+</div>

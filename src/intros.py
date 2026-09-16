@@ -15,6 +15,7 @@ import re
 from enrich import _josa, card_line, title_gist
 import config
 import serp
+import landing
 
 
 # 지역 페이지가 "무엇을 묶는지"만 설명한다. 특정 공고·예산을 지어내지 않는다.
@@ -1398,7 +1399,7 @@ def home_intro(today_n, week_n, open_n):
 
 def home_faqs(today_n, week_n, open_n):
     """홈 FAQ. JSON-LD와 화면에 같은 답을 둔다. 없는 건수를 만들지 않는다."""
-    return [
+    return list(landing.ALERT_FAQS) + [
         {"q": "정부지원사업은 어떻게 신청하나요?",
          "a": "이 사이트에서 신청하지 않습니다. 지역을 고르고 마감이 가까운 공고를 본 뒤, "
               "상세의 원문 링크로 소관기관에 접수하세요. 처음이면 시작 가이드를 보세요."},
@@ -1406,7 +1407,8 @@ def home_faqs(today_n, week_n, open_n):
          "a": f"홈과 이번 주 마감 목록에서 오늘 마감 {int(today_n)}건을 먼저 둡니다. "
               f"이번 주 마감은 {int(week_n)}건, 접수 중은 {int(open_n)}건입니다."},
         {"q": "회원가입이 필요한가요?",
-         "a": "아닙니다. 목록·필터·스크랩은 로그인 없이 씁니다. 스크랩은 이 브라우저에만 남습니다."},
+         "a": "아닙니다. 목록·필터·스크랩은 로그인 없이 씁니다. 스크랩은 이 브라우저에만 남습니다. "
+              "마감 알림은 이메일 신청으로 받습니다. 카카오톡·유료 결제는 준비 중입니다."},
         {"q": "지역은 거주지 기준인가요?",
          "a": "사업장 소재지 기준입니다. 거주지가 아니라 사업자등록증의 소재지로 고르세요."},
     ]

@@ -6,10 +6,12 @@
 {% endblock %}
 {% block body %}
 {% if path == '/bid/' %}
-<section class="hero">
+<section class="hero hero--alert">
   <p class="kicker">나라장터 · 마감일시 순 · 물품·용역·공사·외자</p>
   <h1>{{ h1 }}</h1>
   <p class="hero-lede">{{ lede }}</p>
+  {% include "_alert_form.html" %}
+  {% include "_industry_chips.html" %}
   {% if not bid_empty %}
   <ol class="how" aria-label="입찰 보는 순서">
     <li>
@@ -185,6 +187,10 @@
 {% if intro %}
 <div class="prose intro">{{ intro|safe }}</div>
 {% endif %}
+{% endif %}
+
+{% if path == '/bid/' %}
+{% include "_mid_cta.html" %}
 {% endif %}
 
 {% if faqs %}

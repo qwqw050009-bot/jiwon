@@ -255,10 +255,12 @@ def test_intros_wrappers_match_serp():
 def test_static_and_guide_pages():
     assert "2026" in serp.guide_hub_title()
     assert "자격" in serp.guide_hub_desc()
-    for slug in ("about", "privacy", "terms", "contact"):
+    for slug in ("about", "privacy", "terms", "contact", "pricing"):
         d = serp.static_desc(slug)
         assert len(d) >= 40
         assert "이(가)" not in d
+    assert "요금제" in serp.pricing_title()
+    assert "이메일" in serp.pricing_desc()
     assert "ICS" in serp.calendar_title()
 
 
