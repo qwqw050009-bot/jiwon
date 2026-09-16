@@ -112,12 +112,73 @@
     return bits.join(' / ') || '입찰 전체';
   }
 
+  function bindDialog(overlay, panel, onClose) {
+    if (!overlay || overlay.dataset.a11yBound) return;
+    overlay.dataset.a11yBound = '1';
+    overlay.addEventListener('keydown', function (e) {
+      if (overlay.hidden) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (onClose) onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !panel) return;
+      var nodes = [].slice.call(panel.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )).filter(function (el) {
+        return !el.disabled && el.getAttribute('aria-hidden') !== 'true';
+      });
+      if (!nodes.length) return;
+      var first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    });
+  }
+
+  function currentQ() {
+    var live = document.getElementById('f-q') || document.getElementById('bid-q');
+    if (live && live.value.trim()) return live.value.trim();
+    var head = document.querySelector('.hsearch input[name="q"]');
+    if (head && head.value.trim()) return head.value.trim();
+    return (new URLSearchParams(location.search).get('q') || '').trim();
+  }
+
+  function bindModeSwitch() {
+    document.querySelectorAll('.mode-switch a[data-mode]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        var q = currentQ();
+        if (!q) return;
+        var href = a.getAttribute('href') || '/';
+        if (/[?&]q=/.test(href)) return;
+        e.preventDefault();
+        var join = href.indexOf('?') >= 0 ? '&' : '?';
+        location.href = href + join + 'q=' + encodeURIComponent(q);
+      });
+    });
+    var q = currentQ();
+    if (!q) return;
+    document.querySelectorAll('.hsearch input[name="q"]').forEach(function (inp) {
+      if (!inp.value) inp.value = q;
+    });
+  }
+
   w.MagampanState = {
     parseGrant: parseGrant,
     serializeGrant: serializeGrant,
     parseBid: parseBid,
     serializeBid: serializeBid,
     describeGrant: describeGrant,
-    describeBid: describeBid
+    describeBid: describeBid,
+    bindDialog: bindDialog,
+    currentQ: currentQ
   };
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bindModeSwitch);
+    } else bindModeSwitch();
+  }
 })(window);

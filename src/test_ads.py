@@ -29,6 +29,7 @@ def test_headers_mark_ads_txt_plain_and_cacheable():
     assert "X-Content-Type-Options: nosniff" in h
     assert "/rss.xml" in h
     assert "X-Robots-Tag: noindex" in h
+    assert "/static/*" in h
 
 
 def test_redirects_do_not_swallow_ads_txt():

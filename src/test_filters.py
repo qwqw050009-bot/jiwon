@@ -73,6 +73,8 @@ def test_source_and_compact_keys():
     assert "시간 미상" in rec["du"]
     assert rec["no"] == "abc"
     assert rec["tm"] == 0
+    corr = filters.compact({**row, "title": "특례보증 정정공고"})
+    assert corr["corr"] == 1
     ks = filters.compact({**row, "source": "kstartup", "tags": []})
     assert ks["src"] == "kstartup"
     assert ks["sn"] == "K-Startup"
@@ -115,6 +117,44 @@ def test_related_notices_prefer_same_region_category():
     assert empty == []
 
 
+def test_related_notices_title_overlap_and_limit_six():
+    pool = [
+        {"id": "a", "title": "소상공인 특례보증 지원", "region": "제주",
+         "category": "기타", "dday": 4, "is_open": True},
+        {"id": "b", "title": "소상공인 특례보증 이차보전", "region": "서울",
+         "category": "금융", "dday": 1, "is_open": True},
+        {"id": "c", "title": "수출바우처", "region": "부산", "category": "수출",
+         "dday": 2, "is_open": True},
+        {"id": "d", "title": "인력 채용지원", "region": "대구", "category": "인력",
+         "dday": 3, "is_open": True},
+    ]
+    rel = filters.related_notices(pool[0], pool, limit=6)
+    assert [x["id"] for x in rel][0] == "b"
+    assert "c" in [x["id"] for x in rel]
+    assert len(rel) <= 6
+    bids = [
+        {"id": "1", "title": "사무용 가구 구매", "kind": "물품", "region": "서울",
+         "dday": 2, "is_open": True},
+        {"id": "2", "title": "사무용 책상 구매", "kind": "물품", "region": "부산",
+         "dday": 1, "is_open": True},
+        {"id": "3", "title": "정보화 용역", "kind": "용역", "region": "서울",
+         "dday": 0, "is_open": True},
+        {"id": "4", "title": "도로 공사", "kind": "공사", "region": "경기",
+         "dday": 3, "is_open": True},
+    ]
+    brel = filters.related_bids(bids[0], bids, limit=6)
+    assert [x["id"] for x in brel][0] == "2"
+    assert "3" in [x["id"] for x in brel]
+
+
+def test_title_tokens_skip_year_and_공고():
+    toks = filters.title_tokens("[서울] 2026년 소상공인 특례보증 지원사업 공고")
+    assert "2026" not in toks
+    assert "공고" not in toks
+    assert "소상공인" in toks
+    assert "특례보증" in toks
+
+
 def test_compact_bid_has_source_deadline_and_원문():
     row = {
         "id": "20260915001-000", "title": "사무용 가구", "kind": "물품",
@@ -143,5 +183,7 @@ if __name__ == "__main__":
     test_source_and_compact_keys()
     test_tally_and_rail_deadline_first()
     test_related_notices_prefer_same_region_category()
+    test_related_notices_title_overlap_and_limit_six()
+    test_title_tokens_skip_year_and_공고()
     test_compact_bid_has_source_deadline_and_원문()
     print("filters tests ok")

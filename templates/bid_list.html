@@ -108,7 +108,7 @@
   </form>
   <p class="find-hint">로그인 없이 · 마감일시 순 · 나라장터 원문</p>
   <div class="find-tools" role="toolbar" aria-label="입찰 검색 도구">
-    <button type="button" class="f-chip f-chip--sheet" id="bid-sheet" data-bid-panel="all" aria-expanded="false" aria-haspopup="dialog">필터</button>
+    <button type="button" class="f-chip f-chip--sheet" id="bid-sheet" data-bid-panel="all" aria-expanded="false" aria-haspopup="dialog" aria-controls="bid-panel">필터</button>
     <label class="sr-only" for="bid-sort">정렬</label>
     <select id="bid-sort" class="f-sort">
       <option value="dday">마감 임박순</option>
@@ -137,7 +137,7 @@
   <p class="f-count" id="bid-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>
   <p class="sr-only" id="bid-live" aria-live="assertive" aria-atomic="true"></p>
 
-  <div class="f-overlay" id="bid-overlay" hidden>
+  <div class="f-overlay" id="bid-overlay" hidden aria-hidden="true">
     <div class="f-panel" id="bid-panel" role="dialog" aria-modal="true" aria-labelledby="bid-panel-title" tabindex="-1">
       <div class="f-panel-head">
         <h2 id="bid-panel-title">필터</h2>

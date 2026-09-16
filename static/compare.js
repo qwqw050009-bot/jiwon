@@ -44,6 +44,8 @@
     document.querySelectorAll('.cmp[data-id]').forEach(function (btn) {
       var on = has(btn.dataset.id, btn.dataset.kind || 'grant');
       btn.setAttribute('aria-pressed', String(on));
+      btn.setAttribute('aria-label', on ? '비교에서 빼기' : '비교에 넣기');
+      btn.setAttribute('title', on ? '비교에서 빼기' : '비교에 넣기');
     });
   }
 
@@ -139,6 +141,13 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeSheet();
   });
+  if (window.MagampanState && MagampanState.bindDialog) {
+    MagampanState.bindDialog(
+      document.getElementById('cmp-overlay'),
+      document.querySelector('.cmp-sheet'),
+      closeSheet
+    );
+  }
 
   paintButtons();
   paintBar();

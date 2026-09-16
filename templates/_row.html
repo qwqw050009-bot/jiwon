@@ -5,7 +5,7 @@
   data-amt="{{ a.amount_card or '' }}"
   data-src="{{ a.source_label or '기업마당' }}">
   <button type="button" class="cmp" data-id="{{ a.id }}" data-kind="grant"
-    aria-pressed="false" aria-label="비교에 넣기"></button>
+    aria-pressed="false" aria-label="비교에 넣기" title="비교에 넣기"></button>
   <a class="row-body" href="/notice/{{ a.id }}/">
     <div class="row-tags">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
@@ -13,7 +13,7 @@
       {% if a.category %}<span class="pill">{{ a.category }}</span>{% endif %}
       {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
       {% if a.source_label %}<span class="pill pill-src">{{ a.source_label }}</span>{% endif %}
-      {% if a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
+      {% if a.is_correction %}<span class="pill pill-corr">정정</span>{% elif a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
       {% for s in a.signals %}<span class="pill sig-{{ s.cls }}">{{ s.label }}</span>{% endfor %}
     </div>
     <h3>{{ a.title }}</h3>
@@ -24,6 +24,6 @@
       <span class="when">{{ a.deadline_line or a.dsub }}</span>
     </div>
   </a>
-  <button type="button" class="star" data-id="{{ a.id }}" data-kind="grant" aria-pressed="false" aria-label="스크랩"></button>
+  <button type="button" class="star" data-id="{{ a.id }}" data-kind="grant" aria-pressed="false" aria-label="스크랩에 넣기" title="스크랩에 넣기"></button>
 </article>
 {% endmacro %}

@@ -89,6 +89,8 @@
       var k = el.dataset.kind || 'grant';
       if (k !== kind) return;
       el.setAttribute('aria-pressed', String(on));
+      el.setAttribute('aria-label', on ? '스크랩에서 빼기' : '스크랩에 넣기');
+      el.setAttribute('title', on ? '스크랩에서 빼기' : '스크랩에 넣기');
       var sp = el.querySelector('span');
       if (sp) sp.textContent = on ? '스크랩함' : '스크랩';
     });
@@ -127,7 +129,7 @@
   function bidHTML(a) {
     var c = window.MagampanCard
       ? MagampanCard.cls(a.d, '', a.st)
-      : (a.d === 0 ? ['d-u', '오늘'] : ['d-o', 'D-' + a.d]);
+      : (a.d === 0 ? ['d-u', '오늘'] : (a.d > 0 ? ['d-o', 'D-' + a.d] : ['d-c', '마감']));
     var amt = a.m
       ? '<span class="amt">' + esc(a.m) + '</span>'
       : '<span class="amt amt-empty">추정가격은 원문 확인</span>';
@@ -137,7 +139,7 @@
       '" data-title="' + esc(a.t) + '" data-org="' + esc(a.o || '') +
       '" data-due="' + esc(a.du || a.e || '') + '" data-amt="' + esc(a.m || '') +
       '" data-src="나라장터">' +
-      '<button type="button" class="cmp" data-id="' + esc(a.i) + '" data-kind="bid" aria-pressed="false" aria-label="비교에 넣기"></button>' +
+      '<button type="button" class="cmp" data-id="' + esc(a.i) + '" data-kind="bid" aria-pressed="false" aria-label="비교에 넣기" title="비교에 넣기"></button>' +
       '<a class="row-body" href="/bid/notice/' + esc(a.i) + '/">' +
       '<div class="row-tags"><span class="pill pill-dday ' + c[0] + '">' + esc(c[1]) + '</span>' +
       (a.k ? '<span class="pill">' + esc(a.k) + '</span>' : '') +
@@ -147,7 +149,8 @@
       (a.o ? '<div class="meta"><i>' + esc(a.o) + '</i></div>' : '') +
       '<div class="row-foot">' + amt + '<span class="when">' + esc(a.du || a.e || '') + '</span></div></a>' +
       '<button type="button" class="star" data-id="' + esc(a.i) + '" data-kind="bid" aria-pressed="' +
-      (starred ? 'true' : 'false') + '" aria-label="스크랩"></button></article>';
+      (starred ? 'true' : 'false') + '" aria-label="' + (starred ? '스크랩에서 빼기' : '스크랩에 넣기') +
+      '" title="' + (starred ? '스크랩에서 빼기' : '스크랩에 넣기') + '"></button></article>';
   }
 
   function esc(s) {
@@ -161,11 +164,15 @@
     if (tab === 'bid') {
       return '<div class="empty-filter" role="status">' +
         '<p>아직 스크랩한 입찰이 없습니다. 입찰 목록에서 별을 누르면 여기에 모입니다.</p>' +
-        '<ul class="empty-actions"><li><a class="cta empty-cta" href="/bid/">입찰 허브</a></li></ul></div>';
+        '<ul class="empty-actions"><li><a class="cta empty-cta" href="/bid/">입찰 허브</a></li>' +
+        '<li><a class="hero-secondary" href="/bid/urgent/">이번 주 마감</a></li>' +
+        '<li><a class="hero-secondary" href="/alerts/">알림 조건</a></li></ul></div>';
     }
     return '<div class="empty-filter" role="status">' +
       '<p>아직 스크랩한 지원사업이 없습니다. 공고 목록에서 별을 누르면 여기에 모입니다.</p>' +
-      '<ul class="empty-actions"><li><a class="cta empty-cta" href="/">공고 보러 가기</a></li></ul></div>';
+      '<ul class="empty-actions"><li><a class="cta empty-cta" href="/">공고 보러 가기</a></li>' +
+      '<li><a class="hero-secondary" href="/urgent/">이번 주 마감</a></li>' +
+      '<li><a class="hero-secondary" href="/alerts/">알림 조건</a></li></ul></div>';
   }
 
   function renderPage() {

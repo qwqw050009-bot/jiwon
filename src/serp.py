@@ -932,6 +932,17 @@ def scrap_desc():
     )
 
 
+def alerts_title():
+    return with_brand("알림 조건")
+
+
+def alerts_desc():
+    return (
+        "이 브라우저에 저장한 검색 조건의 미리보기·빈도·일시정지·삭제입니다. "
+        "메일은 mailto로만 보내며 결제·서버 계정은 없습니다."
+    )
+
+
 # ── 입찰 (지원금·바우처 카피 금지) ───────────────────────────
 
 def bid_hub_title(today=None):

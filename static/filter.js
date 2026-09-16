@@ -584,11 +584,15 @@
       panelTitle.textContent = kind === 'alert' ? '이 조건 알림' : '조건 저장';
       var auto = defaultPresetName();
       var desc = window.MagampanState ? MagampanState.describeGrant(toURLState()) : auto;
+      var hits = all.filter(match);
+      var preview = window.MagampanAlerts
+        ? MagampanAlerts.previewHTML(hits.map(function (a) { return a; }), { section: 'grant' })
+        : '';
       panelBody.innerHTML = '<div class="f-group"><p class="f-help">이 브라우저에만 저장됩니다. 로그인 없이 localStorage를 씁니다. 결제·회원 가입은 없습니다.</p>' +
         '<p class="f-help">지금 조건: ' + esc(desc) + '</p>' +
         '<label class="f-help" for="f-save-name">이름</label>' +
         '<input class="f-search" id="f-save-name" value="' + esc(auto) + '" maxlength="40">' +
-        (kind === 'alert' ? '<p class="f-help">저장한 뒤 이메일로 같은 조건을 보내 알림을 요청할 수 있습니다.</p>' : '') +
+        preview +
         '</div>';
       document.getElementById('f-panel-apply').textContent = kind === 'alert' ? '저장하고 메일 열기' : '저장';
       document.getElementById('f-panel-reset').hidden = true;
@@ -663,11 +667,14 @@
     catch (e) {}
   }
 
+  var panelOpener = null;
   function openPanel(kind) {
     draft = clonePicked(picked);
     fillPanel(kind);
     overlay.hidden = false;
+    overlay.setAttribute('aria-hidden', 'false');
     document.body.classList.add('f-lock');
+    panelOpener = document.activeElement;
     chipBtns.forEach(function (b) {
       b.setAttribute('aria-expanded', b.dataset.panel === kind ? 'true' : 'false');
     });
@@ -675,21 +682,38 @@
   }
   function closePanel() {
     overlay.hidden = true;
+    overlay.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('f-lock');
     chipBtns.forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
     panelKind = '';
     draft = null;
+    if (panelOpener && panelOpener.focus) panelOpener.focus();
+    panelOpener = null;
+  }
+  if (window.MagampanState && MagampanState.bindDialog) {
+    MagampanState.bindDialog(overlay, panel, closePanel);
   }
 
   function savePreset(andMail) {
     var inp = document.getElementById('f-save-name');
     var name = ((inp && inp.value) || defaultPresetName()).trim() || '지금 조건';
     var list = readPresets().filter(function (x) { return x.name !== name; });
-    list.unshift({ name: name, state: serialize(picked), q: q, openOnly: openOnly, sortBy: sortBy });
+    var rec = { name: name, state: serialize(picked), q: q, openOnly: openOnly, sortBy: sortBy };
+    list.unshift(rec);
     writePresets(list.slice(0, 8));
+    var freq = window.MagampanAlerts ? MagampanAlerts.freqOf(panelBody) : 'daily';
+    if (window.MagampanAlerts) {
+      MagampanAlerts.save({
+        name: name, section: 'grant', q: q, freq: freq,
+        href: location.pathname + (window.MagampanState ? MagampanState.serializeGrant(toURLState(), lockedKeys()) : ''),
+        region: [...picked.region], field: [...picked.category],
+        deadline: [...picked.period], org: [...picked.org], amount: [...picked.amount]
+      });
+    }
     if (andMail) {
       var desc = window.MagampanState ? MagampanState.describeGrant(toURLState()) : name;
       var body = '아래 조건으로 마감 알림을 받고 싶습니다.\n\n' + desc +
+        '\n빈도: ' + ((window.MagampanAlerts && MagampanAlerts.FREQ[freq]) || freq) +
         '\n\n페이지: ' + location.href + '\n\n(로그인·결제는 없습니다. 이 메일로 조건만 알려 주세요.)';
       location.href = 'mailto:' + EMAIL + '?subject=' +
         encodeURIComponent('[마감판] 조건 알림') + '&body=' + encodeURIComponent(body);
@@ -864,8 +888,19 @@
     sortBy = e.target.value; touched = true; render(true);
   });
 
+  var suggestCtl = null;
+  var qEl = document.getElementById('f-q');
+  if (qEl && window.MagampanSuggest) {
+    suggestCtl = MagampanSuggest.bind(qEl, {
+      onPick: function (v) {
+        q = (v || '').trim().toLowerCase();
+        touched = true;
+        render(true);
+      }
+    });
+  }
   var t;
-  document.getElementById('f-q').addEventListener('input', function (e) {
+  if (qEl) qEl.addEventListener('input', function (e) {
     clearTimeout(t);
     var v = e.target.value.trim().toLowerCase();
     t = setTimeout(function () { q = v; touched = true; render(true); }, 180);
@@ -908,6 +943,11 @@
     .then(function (r) { return r.json(); })
     .then(function (d) {
       all = d; root.classList.add('ready');
+      if (suggestCtl) {
+        var orgs = {};
+        d.forEach(function (a) { if (a.o) orgs[a.o] = 1; });
+        suggestCtl.add(Object.keys(orgs), '기관');
+      }
       paintChips(); paintSum(); paintPills(); paintOpenOnly();
       if (touched) render(true);
     })

@@ -7,9 +7,11 @@
   }
 
   function cls(d, p, st) {
+    d = Number(d);
     if (st === 'closed' || d < 0) return ['d-c', '마감'];
-    if (d === 9999) return ['d-a', '상시'];
+    if (d === 9999 || p === 'always') return ['d-a', '상시'];
     if (d === 0) return ['d-u', '오늘'];
+    if (!(d > 0)) return ['d-o', '접수중'];
     if (d <= 7) return ['d-u', 'D-' + d];
     if (d <= 14) return ['d-s', 'D-' + d];
     return ['d-o', 'D-' + d];
@@ -25,14 +27,15 @@
 
   function html(a) {
     var st = a.st || (a.d < 0 ? 'closed' : 'open');
-    var c = cls(a.d, a.p, st);
+    var c = cls(a.d, a.pt, st);
     var sl = a.sl || (st === 'closed' ? '마감' : st === 'upcoming' ? '예정' : '진행');
     var tags = '<span class="pill pill-dday ' + c[0] + '">' + esc(c[1]) + '</span>';
     if (sl && sl !== c[1]) tags += '<span class="pill pill-st">' + esc(sl) + '</span>';
     if (a.c) tags += '<span class="pill">' + esc(a.c) + '</span>';
     if (a.r) tags += '<span class="pill">' + esc(a.r) + '</span>';
     if (a.sn) tags += '<span class="pill pill-src">' + esc(a.sn) + '</span>';
-    if (a.n) tags += '<span class="pill pill-new">신규</span>';
+    if (a.corr) tags += '<span class="pill pill-corr">정정</span>';
+    else if (a.n) tags += '<span class="pill pill-new">신규</span>';
     (a.sg || []).forEach(function (s) {
       tags += '<span class="pill sig-' + esc(s.k) + '">' + esc(s.l) + '</span>';
     });
@@ -51,7 +54,7 @@
       '" data-due="' + esc(due) + '" data-amt="' + esc(a.m || '') +
       '" data-src="' + esc(a.sn || '기업마당') + '">' +
       '<button type="button" class="cmp" data-id="' + esc(a.i) +
-      '" data-kind="grant" aria-pressed="false" aria-label="비교에 넣기"></button>' +
+      '" data-kind="grant" aria-pressed="false" aria-label="비교에 넣기" title="비교에 넣기"></button>' +
       '<a class="row-body" href="/notice/' + esc(a.i) + '/">' +
       '<div class="row-tags">' + tags + '</div>' +
       '<h3>' + esc(a.t) + '</h3>' +
@@ -61,7 +64,8 @@
       '</a>' +
       '<button type="button" class="star" data-id="' + esc(a.i) +
       '" data-kind="grant" aria-pressed="' + (starred ? 'true' : 'false') +
-      '" aria-label="스크랩"></button></article>';
+      '" aria-label="' + (starred ? '스크랩에서 빼기' : '스크랩에 넣기') +
+      '" title="' + (starred ? '스크랩에서 빼기' : '스크랩에 넣기') + '"></button></article>';
   }
 
   w.MagampanCard = { esc: esc, cls: cls, html: html, whenOf: whenOf };
