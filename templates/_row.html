@@ -1,11 +1,20 @@
 {% macro row(a) %}
 <a class="row" href="/notice/{{ a.id }}/">
-  <div class="dday {{ a.cls }}">{{ a.dlabel }}<small>{{ a.dsub }}</small></div>
-  <div>
-    <h3>{{ a.title }}{% if a.is_new %}<span class="tag-new">신규</span>{% endif %}</h3>
-    <div class="meta"><i>{{ a.org }}</i><i>{{ a.category }}</i>{% if a.target_short %}<i class="who">{{ a.target_short }}</i>{% endif %}{% if a.amount_card %}<i class="amt">{{ a.amount_card }}</i>{% endif %}</div>
-    {% if a.signals %}<p class="signals">{% for s in a.signals %}<span class="sig-{{ s.cls }}">{{ s.label }}</span>{% endfor %}</p>{% endif %}
+  <div class="row-body">
+    <div class="row-tags">
+      <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+      {% if a.category %}<span class="pill">{{ a.category }}</span>{% endif %}
+      {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
+      {% if a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
+      {% for s in a.signals %}<span class="pill sig-{{ s.cls }}">{{ s.label }}</span>{% endfor %}
+    </div>
+    <h3>{{ a.title }}</h3>
+    <div class="meta">{% if a.org %}<i>{{ a.org }}</i>{% endif %}{% if a.target_short %}<i class="who">{{ a.target_short }}</i>{% endif %}</div>
     {% if a.blurb %}<p class="blurb">{{ a.blurb }}</p>{% endif %}
+    <div class="row-foot">
+      {% if a.amount_card %}<span class="amt">{{ a.amount_card }}</span>{% else %}<span class="amt amt-empty">규모는 원문 확인</span>{% endif %}
+      {% if a.dsub %}<span class="when">{{ a.dsub }}</span>{% endif %}
+    </div>
   </div>
   <button type="button" class="star" data-id="{{ a.id }}" aria-pressed="false" aria-label="스크랩"></button>
 </a>

@@ -6,8 +6,21 @@
 {% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
 {% endblock %}
 {% block body %}
-<div class="head{% if path == '/' %} head-home{% endif %}">
-  {% if path == '/' %}<p class="kicker">무료 · 마감일 순 · 지역·분야</p>{% endif %}
+{% if path == '/' %}
+<section class="hero">
+  <p class="kicker">무료 · 마감일 순 · 지역·분야</p>
+  <h1>{{ h1 }}</h1>
+  <p class="hero-lede">{{ lede }}</p>
+  {% if tally %}
+  <div class="tally">
+    <span class="u"><b>{{ tally.urgent }}</b>이번 주 마감</span>
+    <span class="s"><b>{{ tally.soon }}</b>2주 내</span>
+    <span><b>{{ tally.open }}</b>접수중</span>
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<div class="head">
   <h1>{{ h1 }}</h1>
   <p>{{ lede }}</p>
   {% if tally %}
@@ -16,6 +29,41 @@
     <span class="s"><b>{{ tally.soon }}</b>2주 내</span>
     <span><b>{{ tally.open }}</b>접수중</span>
   </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% include "_filter.html" %}
+
+{% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}
+{% if today %}<a class="today-bar" href="/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
+
+<div class="layout">
+<div class="layout-main">
+
+{% if items or sections %}
+<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>이 먼저 닫힙니다. <b>상시</b>는 마감일이 없고, 예산이 끝나면 목록 하단 공고가 먼저 사라집니다.</p>
+{% endif %}
+
+{% if ad_top %}{{ ad_slot('list_top') }}{% endif %}
+
+<div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}" data-ad-mid="{{ ad_mid_after or 0 }}" data-ad-client="{{ site.adsense_client or '' }}" data-ad-slot-mid="{{ (site.adsense_slots or {}).get('list_mid', '') }}">
+  {% if sections %}
+    {% for s in sections %}
+    <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
+    {% for a in s["items"] %}{{ row(a) }}{% endfor %}
+    {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
+    {% endfor %}
+  {% else %}
+    {% for a in items[:limit or 20] %}
+    {{ row(a) }}
+    {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
+    {% else %}
+    <p class="note">지금 접수 중인 공고가 없습니다. 새 공고는 매일 아침 갱신됩니다.</p>
+    {% endfor %}
+    {% if items|length > (limit or 20) %}
+    <button type="button" class="more" id="f-more-static">{{ items|length - (limit or 20) }}건 더 보기</button>
+    {% endif %}
   {% endif %}
 </div>
 
@@ -56,9 +104,6 @@
 </nav>
 {% endif %}
 
-{% if new_cnt %}<p class="newbar">오늘 새로 올라온 공고 <b>{{ new_cnt }}건</b></p>{% endif %}
-{% if today %}<a class="today-bar" href="/urgent/">오늘 마감 <b>{{ today }}건</b> — 바로 확인</a>{% endif %}
-
 {% if ics_url %}
 <a class="sub-cal" href="{{ ics_url }}" download>
   <b>이 목록을 캘린더에 구독</b>
@@ -66,44 +111,14 @@
 </a>
 {% endif %}
 
-{% include "_filter.html" %}
-
-{% if not intro_paras %}
 {% for b in blocks %}
-<section class="nav-block nav-block-top">
+<section class="nav-block">
   <h2>{{ b.title }}</h2>
   <div class="chips">
     {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
   </div>
 </section>
 {% endfor %}
-{% endif %}
-
-{% if items or sections %}
-<p class="dlegend">왼쪽 숫자는 날짜형 마감입니다. <b>오늘</b>·<b>D-n</b>이 먼저 닫힙니다. <b>상시</b>는 마감일이 없고, 예산이 끝나면 목록 하단 공고가 먼저 사라집니다.</p>
-{% endif %}
-
-{% if ad_top %}{{ ad_slot('list_top') }}{% endif %}
-
-<div class="board" id="board" data-limit="{{ limit }}" data-more="{{ more_href }}" data-ad-mid="{{ ad_mid_after or 0 }}" data-ad-client="{{ site.adsense_client or '' }}" data-ad-slot-mid="{{ (site.adsense_slots or {}).get('list_mid', '') }}">
-  {% if sections %}
-    {% for s in sections %}
-    <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
-    {% for a in s["items"] %}{{ row(a) }}{% endfor %}
-    {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
-    {% endfor %}
-  {% else %}
-    {% for a in items[:limit or 20] %}
-    {{ row(a) }}
-    {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
-    {% else %}
-    <p class="note">지금 접수 중인 공고가 없습니다. 새 공고는 매일 아침 갱신됩니다.</p>
-    {% endfor %}
-    {% if items|length > (limit or 20) %}
-    <button type="button" class="more" id="f-more-static">{{ items|length - (limit or 20) }}건 더 보기</button>
-    {% endif %}
-  {% endif %}
-</div>
 
 {% if faqs %}
 <section class="faq" id="faq">
@@ -117,18 +132,32 @@
 </section>
 {% endif %}
 
-{% if intro_paras %}
-{% for b in blocks %}
-<section class="nav-block">
-  <h2>{{ b.title }}</h2>
-  <div class="chips">
-    {% for c in b["items"] %}<a href="{{ c.url }}">{{ c.name }}<em>{{ c.count }}</em></a>{% endfor %}
-  </div>
-</section>
-{% endfor %}
-{% endif %}
-
 {% if ad_bottom %}{{ ad_slot('list_bottom') }}{% endif %}
+
+</div>
+
+{% if urgent_rail %}
+<aside class="rail" aria-label="마감 임박">
+  <div class="rail-card">
+    <div class="rail-head">
+      <h2>마감 임박</h2>
+      <a href="/urgent/">전체</a>
+    </div>
+    <ol class="rail-list">
+      {% for a in urgent_rail %}
+      <li>
+        <a href="/notice/{{ a.id }}/">
+          <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
+          <span class="rail-title">{{ a.title }}</span>
+          <span class="rail-meta">{{ a.category }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+</aside>
+{% endif %}
+</div>
 
 <script>window.__SLUG__={{ slugmap|safe }};</script>
 <script src="/static/filter.js?v={{ asset_v }}" defer></script>

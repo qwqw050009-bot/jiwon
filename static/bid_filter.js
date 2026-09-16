@@ -30,12 +30,19 @@
 
   function rowHTML(a) {
     var c = cls(a.d, a.e);
-    var meta = '<i>' + esc(a.o) + '</i><i>' + esc(a.k) + '</i>';
-    if (a.r) meta += '<i>' + esc(a.r) + '</i>';
-    if (a.m) meta += '<i class="amt">' + esc(a.m) + '</i>';
+    var tags = '<span class="pill pill-dday ' + c[0] + '">' + esc(c[1]) + '</span>';
+    if (a.k) tags += '<span class="pill">' + esc(a.k) + '</span>';
+    if (a.r) tags += '<span class="pill">' + esc(a.r) + '</span>';
+    var amt = a.m
+      ? '<span class="amt">' + esc(a.m) + '</span>'
+      : '<span class="amt amt-empty">추정가격은 원문 확인</span>';
+    var when = c[2] ? '<span class="when">' + esc(c[2]) + '</span>' : '';
     return '<a class="row" href="/bid/notice/' + esc(a.i) + '/">' +
-      '<div class="dday ' + c[0] + '">' + c[1] + '<small>' + esc(c[2]) + '</small></div>' +
-      '<div><h3>' + esc(a.t) + '</h3><div class="meta">' + meta + '</div></div></a>';
+      '<div class="row-body">' +
+      '<div class="row-tags">' + tags + '</div>' +
+      '<h3>' + esc(a.t) + '</h3>' +
+      '<div class="meta"><i>' + esc(a.o) + '</i>' + (a.k ? '<i>' + esc(a.k) + '</i>' : '') + '</div>' +
+      '<div class="row-foot">' + amt + when + '</div></div></a>';
   }
 
   function hideMore() {

@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block jsonld %}{% if jsonld %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endif %}{% endblock %}
 {% block body %}
-<div class="head"><h1>{{ h1 }}</h1></div>
-<div class="detail prose">{{ content|safe }}</div>
+<div class="head">
+  <h1>{{ h1 }}</h1>
+</div>
+<div class="notice prose page-body">{{ content|safe }}</div>
 {% endblock %}
