@@ -11,7 +11,7 @@ from datetime import date
 import re
 
 import config
-from enrich import _josa, amount_card, title_gist
+from enrich import _josa, amount_card
 
 
 BRAND = config.SITE["name"]
@@ -49,6 +49,39 @@ _CAT_OPEN = {
     "창업": "예비·초기창업 사업화 공고",
     "경영": "컨설팅·경영개선·시설 지원 공고",
     "기타": "여덟 분야에 넣기 어려운 공고",
+}
+
+# 조합 제목 뒷말. 급함이 없을 때 분야 8종이 같은 접미사로 안 보이게.
+_CAT_CHIP = {
+    "금융": "융자·보증",
+    "기술": "R&D·특허",
+    "인력": "인건비·채용",
+    "수출": "해외진출",
+    "내수": "판로·마케팅",
+    "창업": "예비·초기",
+    "경영": "컨설팅·시설",
+    "기타": "기타 분야",
+}
+
+# 지역 설명 둘째 문장. 행정 구조만 말하고 공고 건수·금액을 지어내지 않는다.
+_REGION_OPEN = {
+    "서울": "시와 자치구 공고가 한 목록이고, 구청 소관이면 그 구 사업장인 경우가 많습니다",
+    "부산": "광역시 사업장 기준이며 구·군 공고가 섞여 있습니다",
+    "대구": "광역시와 구 공고가 함께 있고, 구청 소관이면 그 구로 좁혀집니다",
+    "인천": "시·구·군 공고가 함께 올라오며 짧은 대상 지역도 원문에 세부 요건이 있습니다",
+    "대전": "광역시와 구 공고가 한 목록이며 소관기관으로 시 전체와 구 단위를 가릅니다",
+    "울산": "시와 구·군 공고가 섞여 있어 기관명과 대상 지역을 함께 봅니다",
+    "세종": "시 단위 공고가 중심이고, 소재지 제한이 없으면 전국 목록에 있습니다",
+    "경기": "도와 31개 시·군 공고가 한 목록에 모입니다",
+    "강원": "도와 시·군 공고가 섞여 있고, 시·군 소관이면 그 지역 사업장 요건이 붙습니다",
+    "충북": "도와 시·군 공고가 한 목록이며 특정 시·군으로 적혀 있는지 원문에서 봅니다",
+    "충남": "도와 시·군 공고가 함께 올라오며 소관기관이 범위를 나눕니다",
+    "전북": "도와 시·군 공고가 함께 있고 소관기관과 대상 지역이 일치하는지만 보면 됩니다",
+    "전남광주": "광주와 전남을 나누지 않는 통합특별시 목록입니다",
+    "경북": "도와 시·군 공고가 섞여 있고 짧은 대상 지역도 원문에 세부 조건이 있습니다",
+    "경남": "도와 시·군 공고가 한 목록이며 시·군 소관이면 해당 지역 사업장 기준입니다",
+    "제주": "도 단위 공고가 중심이며 소재지 제한이 없으면 전국 목록에서 봅니다",
+    "전국": "사업장 소재지 제한이 없습니다",
 }
 
 # 검색어에 시가 붙는 광역시·세종만. 경기·도는 시로 쓰지 않는다.
@@ -199,6 +232,16 @@ def _count_clause(c, include_always=True):
     return f"{bits[0]}, {', '.join(bits[1:])}"
 
 
+def _snippet_clock(c, head=""):
+    """오늘·이번 주·상시만 덧붙인다. 이미 쓴 건수('접수 중 N건')는 반복하지 않는다."""
+    clock = _count_clause(c)
+    if not clock or clock in (head or ""):
+        return ""
+    if clock.startswith("접수 중") or clock.startswith("지금 "):
+        return ""
+    return f" {clock}."
+
+
 def _urgency_chip(c):
     """조합 페이지 제목 뒷말. 같은 틀이 수백 개 반복되지 않게 시계열로 가른다."""
     if c["today"]:
@@ -231,27 +274,62 @@ def _cat_hook(name):
     return _CAT_HOOK.get(name) or "소상공인·중소기업"
 
 
+def _cat_chip(name):
+    return _CAT_CHIP.get(name) or (name or "지원사업")
+
+
+def _cat_nature(name):
+    """설명용 분야 성격. 끝의 '공고'는 앞 문장과 겹치지 않게 뗀다."""
+    raw = _CAT_OPEN.get(name) or f"{name} 지원 공고"
+    return re.sub(r"\s*공고$", "", raw).strip()
+
+
+def _region_open(region):
+    return _REGION_OPEN.get(region) or "사업장 소재지 기준입니다"
+
+
+def _region_cta(kind):
+    if kind == "nation":
+        return "시·도 제한 없이 마감일 순으로 보고 원문에서 신청하세요."
+    if kind == "united":
+        return "광주·전남을 나누지 않고 마감일 순으로 확인하세요."
+    if kind == "metro":
+        return "구·군 요건은 소관기관과 맞춰 본 뒤 원문으로 가세요."
+    if kind == "wide":
+        return "시·군 사업장 요건을 본 뒤 원문에서 신청하세요."
+    if kind == "city":
+        return "시 단위 공고를 마감일 순으로 보고 원문에서 신청하세요."
+    if kind == "island":
+        return "도 단위 공고를 마감일 순으로 보고 원문에서 신청하세요."
+    return "사업장 소재지를 맞춘 뒤 원문에서 신청하세요."
+
+
 # ── 홈·긴급·전체 ─────────────────────────────────────────────
 
 def home_title(today=None):
-    return with_brand(f"오늘마감 정부지원사업 공고 · 소상공인 보조금 {year(today)}")
+    """오늘마감·오늘 마감 검색어를 홈 제목 앞에 둔다."""
+    return with_brand(
+        f"오늘마감 · 오늘 마감 정부지원사업 공고 · 소상공인 보조금 {year(today)}"
+    )
 
 
 def home_desc(items=None):
     c = counts_of(items)
     clock = _count_clause(c)
-    if clock:
-        head = f"{clock}입니다."
+    if c["today"]:
+        head = f"오늘마감입니다. {clock}."
+    elif clock:
+        head = f"오늘마감·오늘 마감은 없고 {clock}."
     else:
-        head = "오늘마감·이번 주 마감 정부지원사업을 마감일 순으로 둡니다."
+        head = "오늘마감·오늘 마감 정부지원사업을 마감일 순으로 둡니다."
     return clip_desc(
-        f"{head} 오늘마감부터 소상공인·중소기업이 회원가입 없이 지역·분야로 "
+        f"{head} 소상공인·중소기업이 회원가입 없이 지역·분야로 "
         f"좁혀 {year()}년 원문에서 신청하세요."
     )
 
 
 def home_h1():
-    return "오늘 마감되는 정부지원사업부터 봅니다"
+    return "오늘마감 · 오늘 마감되는 정부지원사업부터 봅니다"
 
 
 def home_lede():
@@ -264,36 +342,40 @@ def urgent_title(items=None):
     if c["today"]:
         return with_brand(_join(
             _named("오늘마감", c["today"]),
+            "오늘 마감",
             _named("이번 주 지원사업", n),
         ))
-    return with_brand(_join("오늘마감 확인", _named("이번 주 지원사업", n), "D-7"))
+    return with_brand(_join("오늘마감 확인", "오늘 마감", _named("이번 주 지원사업", n), "D-7"))
 
 
 def urgent_desc(items=None):
     c = counts_of(items)
     n = c["n"] or c["week"]
     if c["today"]:
-        head = f"오늘마감 {c['today']}건, 이번 주 마감 {n}건입니다."
+        head = (
+            f"오늘마감 {c['today']}건입니다. "
+            f"오늘 마감부터 이번 주 지원사업 {n}건입니다."
+        )
     elif n:
-        head = f"오늘마감은 없고 이번 주(D-7) 지원사업 {n}건입니다."
+        head = f"오늘마감은 없습니다. 오늘 마감 다음으로 이번 주(D-7) 지원사업 {n}건입니다."
     else:
-        head = "오늘마감·이번 주 마감 지원사업만 모았습니다."
+        head = "오늘마감·오늘 마감·이번 주 마감 지원사업만 모았습니다."
     return clip_desc(
-        f"{head} 소상공인·중소기업 보조금을 마감일 순으로 보고, 오늘마감부터 원문에서 바로 신청하세요."
+        f"{head} 소상공인·중소기업 보조금을 마감일 순으로 보고 원문에서 신청하세요."
     )
 
 
 def urgent_h1():
-    return "오늘 마감 · 이번 주 지원사업"
+    return "오늘마감 · 오늘 마감 · 이번 주 지원사업"
 
 
 def urgent_lede(items=None):
     c = counts_of(items)
     if c["today"]:
-        return f"오늘 마감 {c['today']}건을 먼저 보고, 이번 주 {c['n'] or c['week']}건을 이어서 보세요."
+        return f"오늘마감 {c['today']}건을 먼저 보고, 이번 주 {c['n'] or c['week']}건을 이어서 보세요."
     if c["n"]:
         return f"오늘 마감부터 확인하고, 이번 주 지원사업 {c['n']}건을 마감일 순으로 보세요."
-    return "오늘 마감과 이번 주(D-7) 지원사업만 모았습니다."
+    return "오늘마감과 이번 주(D-7) 지원사업만 모았습니다."
 
 
 def all_title(items=None):
@@ -441,8 +523,17 @@ def category_lede(name, cat=None):
 # ── 지역 ────────────────────────────────────────────────────
 
 def _region_hook(kind, c=None):
-    """지역 제목 뒷말. 검색어 앞머리를 해치지 않고 오늘마감을 붙인다."""
+    """
+    지역 제목 뒷말. 오늘마감은 실제 오늘 마감 건이 있을 때만.
+    홈·마감임박이 오늘마감 쿼리를 가져가므로, 없는 급함을 붙이지 않는다.
+    """
     c = c or {}
+    if c.get("today"):
+        return f"오늘마감 {c['today']}건"
+    if c.get("week"):
+        return f"이번 주 마감 {c['week']}건"
+    if c.get("always"):
+        return f"상시 {_nbit(c['always'])}".strip()
     if kind == "nation":
         return "소재지 제한 없음"
     if kind == "united":
@@ -450,12 +541,12 @@ def _region_hook(kind, c=None):
     if kind == "city":
         return "시 단위"
     if kind == "island":
-        return "도 단위"
-    if c.get("today"):
-        return f"오늘마감 {c['today']}건"
+        return "제주특별자치도"
     if kind == "wide":
-        return "시·군 오늘마감"
-    return "오늘마감부터"
+        return "시·군 공고"
+    if kind == "metro":
+        return "광역시 소재지"
+    return "도 단위"
 
 
 def _region_core(region, n, c=None):
@@ -484,26 +575,24 @@ def region_desc(region, items=None):
     kind = _REGION_KIND.get(region, "do")
     q = _region_query(region)
     y = year()
+    open_s = _region_open(region)
     if kind == "nation":
         head = (
-            f"전국 어디서나 신청하는 {y} 기업 지원사업 공고 {n}건입니다. 소재지 제한이 없습니다."
-            if n else f"전국 어디서나 신청하는 {y} 기업 지원사업 공고만 모았습니다. 소재지 제한이 없습니다."
+            f"전국 어디서나 신청하는 {y} 기업 지원사업 공고 {n}건입니다. {open_s}."
+            if n else f"전국 어디서나 신청하는 {y} 기업 지원사업 공고만 모았습니다. {open_s}."
         )
     elif kind == "united":
         head = (
-            f"전남광주 {y} 기업 지원사업 공고 {n}건입니다. 광주와 전남을 나누지 않습니다."
-            if n else f"전남광주 {y} 기업 지원사업 공고입니다. 광주와 전남을 나누지 않습니다."
+            f"전남광주 {y} 기업 지원사업 공고 {n}건입니다. {open_s}."
+            if n else f"전남광주 {y} 기업 지원사업 공고입니다. {open_s}."
         )
     else:
         head = (
-            f"{q} {y} 기업 지원사업 공고 {n}건입니다. 사업장 소재지 기준입니다."
-            if n else f"{q} {y} 기업 지원사업 공고를 마감일 순으로 둡니다."
+            f"{q} {y} 기업 지원사업 공고 {n}건입니다. {open_s}."
+            if n else f"{q} {y} 기업 지원사업 공고를 마감일 순으로 둡니다. {open_s}."
         )
-    clock = _count_clause(c)
-    extra = f" {clock}." if clock and clock not in head else ""
-    return clip_desc(
-        f"{head}{extra} 오늘마감부터 소상공인·중소기업 보조금을 확인하고 원문에서 신청하세요."
-    )
+    extra = _snippet_clock(c, head)
+    return clip_desc(f"{head}{extra} {_region_cta(kind)}")
 
 
 def region_h1(region):
@@ -529,46 +618,48 @@ def region_lede(region):
 def combo_title(region, category, items=None):
     c = counts_of(items)
     y = year()
+    chip = _urgency_chip(c)
+    if chip == "마감일 순":
+        chip = _cat_chip(category)
+        if region == "전국":
+            chip = f"{chip} · 소재지 제한 없음"
     if region == "전국":
-        chip = _urgency_chip(c)
-        if chip == "마감일 순":
-            chip = "소재지 제한 없음"
         return with_brand(_join(
             _named(f"전국 {category} 지원사업 공고 {y}", c["n"]), chip,
         ))
     q = _region_query(region)
     return with_brand(_join(
-        _named(f"{q} {category} 지원사업 공고 {y}", c["n"]),
-        _urgency_chip(c),
+        _named(f"{q} {category} 지원사업 공고 {y}", c["n"]), chip,
     ))
 
 
 def combo_desc(region, category, cat=None, items=None):
     c = counts_of(items)
     extra = ((cat or {}).get("desc") or "").strip()
+    nature = _cat_nature(category)
     y = year()
+    kind = _REGION_KIND.get(region, "do")
     if region == "전국":
         if c["n"]:
-            head = (
-                f"전국에서 신청하는 {category} 지원사업 공고 {c['n']}건입니다. "
-                "사업장 소재지 제한이 없습니다."
-            )
+            head = f"전국에서 신청하는 {category} 지원사업 공고 {c['n']}건입니다."
         else:
-            head = f"전국에서 신청하는 {category} 지원사업 공고만 모았습니다. 소재지 제한이 없습니다."
+            head = f"전국에서 신청하는 {category} 지원사업 공고만 모았습니다."
+        place = f"{nature}이며 소재지 제한이 없습니다."
     else:
         q = _region_query(region)
         if c["n"]:
             head = f"{q} {category} 지원사업 공고 {c['n']}건입니다."
         else:
             head = f"{q} {category} 지원사업 공고를 마감일 순으로 둡니다."
-    clock = _count_clause(c)
-    mid = f" {clock}." if clock and clock not in head else ""
-    note = f" {extra}." if extra and extra not in head else ""
+        place = f"{nature}입니다. {_region_open(region)}."
+    if extra and extra not in head and extra not in place and extra not in nature:
+        place = f"{place} {extra}."
+    mid = _snippet_clock(c, f"{head} {place}")
     if region == "전국":
-        cta = f" {y}년 전국 단위만 보고 대상·소관기관을 확인한 뒤 원문으로 가세요."
+        cta = f"{y}년 전국 단위만 보고 원문에서 신청하세요."
     else:
-        cta = " 오늘·이번 주 마감을 확인한 뒤 대상·소관기관을 보고 원문으로 가세요."
-    return clip_desc(f"{head}{mid}{cta}{note}")
+        cta = _region_cta(kind)
+    return clip_desc(f"{head} {place}{mid} {cta}".strip())
 
 
 def combo_h1(region, category):
@@ -596,15 +687,14 @@ def district_title(sido, district, items=None):
 def district_desc(sido, district, items=None):
     c = counts_of(items)
     label = _region_label(sido)
+    y = year()
     if c["n"]:
-        head = f"{label} {district} 이름이 붙은 지원사업 {c['n']}건입니다."
+        head = f"{district} {y} 기업 지원사업 공고 {c['n']}건입니다."
     else:
-        head = f"{label} {district} 이름이 붙은 지원사업만 모았습니다."
-    clock = _count_clause(c)
-    extra = f" {clock}." if clock and clock not in head else ""
-    return clip_desc(
-        f"{head}{extra} 시·도 전체가 아니라 이 시군구 해시태그만 모아 마감일 순으로 확인하세요."
-    )
+        head = f"{district} {y} 기업 지원사업 공고만 모았습니다."
+    place = f"{label} 목록에서 이 시군구 해시태그만 골랐습니다. 시·도 전체가 아닙니다."
+    extra = _snippet_clock(c, head)
+    return clip_desc(f"{head} {place}{extra} 마감일 순으로 보고 원문에서 신청하세요.")
 
 
 def district_h1(sido, district):
@@ -617,8 +707,11 @@ def district_lede(sido, district):
 
 def district_combo_title(sido, district, category, items=None):
     c = counts_of(items)
+    chip = _urgency_chip(c)
+    if chip == "마감일 순":
+        chip = _cat_chip(category)
     return with_brand(_join(
-        _named(f"{district} {category} 지원사업", c["n"]), _urgency_chip(c),
+        _named(f"{district} {category} 지원사업", c["n"]), chip,
     ))
 
 
@@ -626,15 +719,17 @@ def district_combo_desc(sido, district, category, cat=None, items=None):
     c = counts_of(items)
     label = _region_label(sido)
     extra = ((cat or {}).get("desc") or "").strip()
+    nature = _cat_nature(category)
     if c["n"]:
-        head = f"{district} {category}만 보면 {c['n']}건입니다. {label} 목록에서 이 시군구만 골랐습니다."
+        head = f"{district} {category} 지원사업 {c['n']}건입니다."
     else:
-        head = f"{label} {district} {category} 공고를 마감일 순으로 둡니다."
-    clock = _count_clause(c)
-    mid = f" {clock}." if clock and clock not in head else ""
-    note = f" {extra}." if extra and extra not in head else ""
+        head = f"{district} {category} 지원사업만 모았습니다."
+    place = f"{nature}입니다. {label} 목록에서 이 시군구만 골랐습니다."
+    if extra and extra not in head and extra not in place and extra not in nature:
+        place = f"{place} {extra}."
+    mid = _snippet_clock(c, head)
     return clip_desc(
-        f"{head}{mid} 오늘·이번 주 마감을 보고 원문으로 접수하세요.{note}"
+        f"{head} {place}{mid} 마감일 순으로 보고 원문에서 신청하세요."
     )
 
 
@@ -683,70 +778,71 @@ def notice_title(row):
     return with_brand(title)
 
 
+def _deadline_lead(row, closed, d):
+    """스니펫 첫 조각. 마감일(또는 오늘마감/상시)만. 제목을 다시 쓰지 않는다."""
+    end = (row.get("apply_end") or "").strip()
+    if closed:
+        return f"접수 마감 {end}." if end else "접수 기간이 끝난 공고입니다."
+    if row.get("period_type") == "always":
+        raw = (row.get("period_raw") or "상시 접수").strip()
+        if raw and raw != "상시 접수":
+            return f"상시 접수({raw}). 예산이 끝나면 닫힙니다."
+        return "상시 접수. 예산이 끝나면 닫힙니다."
+    if d == 0:
+        return f"오늘마감({end})." if end else "오늘마감."
+    if isinstance(d, int) and 0 < d <= 7:
+        return f"이번 주 마감 D-{d}({end})." if end else f"이번 주 마감 D-{d}."
+    if end:
+        return f"마감일 {end}."
+    return ""
+
+
 def notice_desc(row, limit=150):
     """
-    원제와 다른 스니펫. 마감·대상·지역·요지를 앞에 두고 원문 CTA로 끝낸다.
-    깨진 조사 요약은 쓰지 않는다.
+    원제와 다른 스니펫. 마감일·대상·금액을 앞에 두고, 제목 요지는 반복하지 않는다.
+    금액은 본문에서 뽑힌 표기만. 깨진 조사 요약은 쓰지 않는다.
     """
     row = row or {}
     closed = _notice_closed(row)
     who = _notice_who(row)
     region = (row.get("region") or "").strip()
     org = (row.get("org") or "").strip()
-    gist = title_gist(row.get("title") or "") or (row.get("category") or "").strip()
-    end = (row.get("apply_end") or "").strip()
     amt = amount_card(row) or ""
     d = row.get("dday")
+    lead = _deadline_lead(row, closed, d)
 
-    if closed:
-        lead = f"접수 마감 {end}." if end else "접수 기간이 끝난 공고입니다."
-    elif row.get("period_type") == "always":
-        raw = (row.get("period_raw") or "상시 접수").strip()
-        lead = f"상시 접수('{raw}'). 예산이 끝나면 닫힙니다."
-    elif d == 0:
-        lead = "오늘마감."
-    elif isinstance(d, int) and 0 < d <= 7:
-        lead = f"이번 주 마감 D-{d}" + (f"({end})." if end else ".")
-    elif end:
-        lead = f"마감일 {end}."
-    else:
-        lead = ""
-
-    mid = []
-    if region == "전국" and who:
-        mid.append(f"소재지 제한 없이 신청할 수 있는 {who} 대상")
-    elif region == "전국":
-        mid.append("소재지 제한 없이 신청할 수 있는 공고")
-    elif region and who:
-        mid.append(f"{_region_query(region)} 사업장 기준 {who} 대상")
-    elif region:
-        mid.append(f"{_region_query(region)} 사업장 기준")
-    elif who:
-        mid.append(f"{who} 대상")
-    if gist and not (gist.endswith("…") and len(who) >= 16):
-        mid.append(gist)
-    if org and org not in " ".join(mid):
-        mid.append(f"{org} 소관")
+    parts = []
+    if lead:
+        parts.append(lead if lead.endswith(".") else lead + ".")
+    if who:
+        if who.startswith("대상"):
+            parts.append(who if who.endswith(".") else f"{who}.")
+        else:
+            parts.append(f"대상 {who}.")
     if amt:
-        mid.append(f"본문 규모 {amt}")
-    mid_s = ". ".join(p.strip(" .") for p in mid if p)
-    if mid_s and not mid_s.endswith("."):
-        mid_s += "."
+        parts.append(f"본문 기준 {amt}.")
+    if region == "전국":
+        parts.append("소재지 제한 없이 신청할 수 있습니다.")
+    elif region:
+        parts.append(f"{_region_query(region)} 사업장 기준.")
+    if org and org not in " ".join(parts):
+        parts.append(f"{org} 소관.")
 
     leftover = ((row.get("ai") or {}).get("summary") or "").strip()
     if leftover and ("이(가)" in leftover or "을(를)" in leftover):
         leftover = ""
-    if leftover and leftover not in (mid_s or "") and len(mid_s) < 70:
+    body = " ".join(parts)
+    if leftover and leftover not in body and len(body) < 55 and not who:
         cut = leftover.find("다.")
         extra = leftover[: cut + 2] if cut >= 12 else leftover[:80]
-        if extra and extra not in (mid_s or ""):
-            mid_s = f"{mid_s} {extra}".strip() if mid_s else extra
+        if extra and extra not in body:
+            parts.append(extra)
 
     if closed:
-        cta = "자격·지원내용을 보고, 비슷한 공고는 지역·분야 목록에서 확인하세요."
+        parts.append("비슷한 공고는 지역·분야 목록에서 확인하세요.")
     else:
-        cta = "자격·마감일을 보고 원문에서 바로 신청하세요."
-    return clip_desc(" ".join(p for p in (lead, mid_s, cta) if p), lo=70, hi=limit)
+        parts.append("원문에서 신청하세요.")
+    return clip_desc(" ".join(p for p in parts if p), lo=70, hi=limit)
 
 
 # ── 가이드·고정·캘린더 ───────────────────────────────────────
