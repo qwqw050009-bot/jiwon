@@ -327,7 +327,8 @@ def test_list_and_detail_wework_chrome():
     assert "무료 알림 등록" in home
     assert "이 조건 저장하고 알림받기" in home
     assert "조명·전기공사" in home
-    assert "요금제 보기" in home
+    assert "요금제 안내" in home
+    assert "무료 알림 등록" in home
     assert "후기" not in home
     assert "낙찰까지 받았습니다" not in home
     assert "path-card" in home
@@ -690,6 +691,10 @@ def test_bid_list_wework_chips_and_detail_cta():
     assert "오늘 마감" in listing
     assert "나라장터 원문" in listing
     assert "지원 탭" in listing
+    assert "무료 알림" in listing
+    assert "프로 전용" not in listing
+    assert "개인이 운영하는 지원사업·입찰 마감 안내 사이트" in listing
+    assert "[대표자명]" not in listing
     assert "지원금" not in listing
     assert "바우처" not in listing
     assert "보조금" not in listing
@@ -760,7 +765,10 @@ def test_contact_email_is_real_not_example():
     assert "contact@example.com" not in about
     assert "순위를 매기거나 선정을 보장하지 않습니다" in about
     assert "운영 주체" in about
-    assert "사업자등록번호는 아직 게시하지 않" in about
+    assert "개인이 운영하는 지원사업·입찰 마감 안내 사이트" in about
+    assert "없는 번호를 만들지" in about
+    assert "[대표자명]" not in about
+    assert "000-00-00000" not in about
     assert "기업마당" in about
     assert "나라장터" in about
 

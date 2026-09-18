@@ -260,7 +260,10 @@ def test_static_and_guide_pages():
         assert len(d) >= 40
         assert "이(가)" not in d
     assert "요금제" in serp.pricing_title()
+    assert "무료" in serp.pricing_title()
     assert "이메일" in serp.pricing_desc()
+    assert "사업자 등록 후" in serp.pricing_desc()
+    assert "카드결제" in serp.pricing_desc() or "PG" in serp.pricing_desc()
     assert "ICS" in serp.calendar_title()
 
 
