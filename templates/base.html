@@ -171,15 +171,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     <a href="/contact/">문의</a>
   </nav>
   <p class="src-legend">데이터 출처: 기업마당(지원사업) · K-Startup(키가 있을 때만) · 나라장터(입찰, /bid/). 없는 숫자·사업자등록번호는 만들지 않습니다.</p>
-  {% set biz = site.business|default({}) %}
-  <dl class="biz">
-    <div><dt>상호</dt><dd>{{ site.name }}</dd></div>
-    {% if biz.ceo %}<div><dt>대표자</dt><dd>{{ biz.ceo }}</dd></div>{% endif %}
-    {% if biz.biz_no %}<div><dt>사업자등록번호</dt><dd>{{ biz.biz_no }}</dd></div>{% endif %}
-    {% if biz.mail_order %}<div><dt>통신판매업 신고번호</dt><dd>{{ biz.mail_order }}</dd></div>{% endif %}
-    {% if biz.address %}<div><dt>사업장 주소</dt><dd>{{ biz.address }}</dd></div>{% endif %}
-    {% if site.email %}<div><dt>고객센터</dt><dd><a href="mailto:{{ site.email }}">{{ site.email }}</a></dd></div>{% endif %}
-  </dl>
+  <p class="op-note">개인이 운영하는 지원사업·입찰 마감 안내 사이트입니다.{% if site.email %} 문의 <a href="mailto:{{ site.email }}">{{ site.email }}</a>.{% endif %}</p>
   <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.{% if collected_at %} 이 빌드 수집 {{ collected_at }} (KST).{% endif %}</p>
   <p>© {{ site.name }}. All rights reserved.</p>
 </div></footer>

@@ -1,5 +1,8 @@
 <section class="mid-cta" aria-labelledby="mid-cta-h">
   <h2 id="mid-cta-h">{{ landing.mid_cta_h2 }}</h2>
   <p>{{ landing.mid_cta_lede }}</p>
-  <a class="hero-primary" href="/pricing/">요금제 보기</a>
+  <div class="mid-cta-actions">
+    <a class="hero-primary" href="{% if (section|default('support')) == 'bid' %}/bid/#alert{% else %}/#alert{% endif %}">무료 알림 등록</a>
+    <a class="hero-secondary" href="/pricing/">요금제 안내</a>
+  </div>
 </section>

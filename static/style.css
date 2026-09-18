@@ -867,6 +867,7 @@ body.has-cmp{padding-bottom:72px}
 }
 .mid-cta h2{margin:0 0 6px;font-size:20px;letter-spacing:-.03em;font-weight:800}
 .mid-cta p{margin:0 0 14px;color:var(--muted);font-size:15px;line-height:1.6}
+.mid-cta-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .pricing-hero{max-width:40rem}
 .pricing-status{
   margin:12px 0 0;font-size:14px;color:var(--muted);line-height:1.6;
@@ -882,6 +883,10 @@ body.has-cmp{padding-bottom:72px}
   display:flex;flex-direction:column;gap:8px;
 }
 .plan.is-popular{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow-card)}
+.plan.is-soon{background:var(--paper)}
+.plan.is-soon .plan-badge{
+  color:var(--muted);background:var(--sheet);border:1px solid var(--line);
+}
 .plan-badge{
   margin:0 0 4px;display:inline-flex;align-self:flex-start;
   padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800;
@@ -926,14 +931,8 @@ footer nav{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
 footer a{text-decoration:none;min-height:40px;display:inline-flex;align-items:center}
 footer a:hover{text-decoration:underline}
 footer a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
-.biz{
-  margin:0 0 14px;display:grid;gap:4px;
-  font-size:13px;color:var(--muted);
-}
-.biz div{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
-.biz dt{margin:0;font-weight:700;color:var(--ink)}
-.biz dt:after{content:":"}
-.biz dd{margin:0}
+.op-note{margin:0 0 14px;font-size:13px;color:var(--muted);line-height:1.6}
+.op-note a{color:var(--ink);font-weight:700}
 
 .prose{max-width:68ch}
 .prose h2{font-size:18px;margin:28px 0 8px}
