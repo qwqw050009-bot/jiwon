@@ -271,6 +271,10 @@ def test_bid_copy_stays_off_support_words():
     assert "나라장터" in ht and "마감일시" in ht and "2026" in ht
     assert "20건" in ht
     assert ht.lower().count("나라장터") == 1
+    ht2 = _branded(serp.bid_hub_title({"today": 0, "urgent": 4, "open": 20}))
+    assert ht2.startswith("마감임박 4건")
+    assert "나라장터 입찰공고 20건" in ht2
+    assert "지원금" not in ht2
     ut = _branded(serp.bid_urgent_title(4))
     assert "나라장터" in ut and "마감일시" in ut and "2026" in ut
     assert "4건" in ut

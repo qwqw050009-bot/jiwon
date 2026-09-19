@@ -1118,11 +1118,18 @@ def alerts_desc():
 def bid_hub_title(tally=None, today=None):
     t = tally or {}
     n_today = int(t.get("today") or 0)
+    urgent = int(t.get("urgent") or 0)
     open_n = int(t.get("open") or 0)
     y = year(today)
     if n_today and open_n:
         return with_brand(_join(
             _named("오늘마감", n_today),
+            _named("나라장터 입찰공고", open_n),
+            f"마감일시 {y}",
+        ))
+    if urgent and open_n:
+        return with_brand(_join(
+            _named("마감임박", urgent),
             _named("나라장터 입찰공고", open_n),
             f"마감일시 {y}",
         ))
