@@ -572,7 +572,7 @@ def main():
         "/", serp.home_h1(),
         serp.home_lede(),
         [],
-        title=serp.home_title(),
+        title=serp.home_title(rows),
         desc=serp.home_desc(rows),
         intro=intros.home_intro(today_n, week_n, open_n),
         blocks=hub, today=today_n, new_cnt=new_cnt,

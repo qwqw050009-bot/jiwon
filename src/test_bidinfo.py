@@ -322,8 +322,10 @@ def test_list_and_detail_wework_chrome():
         home_guides=[], list_guides=[], urgent_rail=[item], source_tally={},
     )
     assert "hero--alert" in home
-    assert "지원사업부터 입찰까지, 마감을 놓치면 수천만 원이 날아갑니다" in home
-    assert "전국 지원사업·나라장터 입찰 공고를 한 곳에서" in home
+    assert landing.HERO_H1 in home
+    assert "오늘마감" in home
+    assert "소상공인" in home
+    assert "가입 없이 오늘마감부터" in home
     assert "무료 알림 등록" in home
     assert "이 조건 저장하고 알림받기" in home
     assert "조명·전기공사" in home
