@@ -200,10 +200,10 @@ def build(env, write, site, urls, dist):
             hub_blocks.append({"title": "참가지역으로 찾기", "items": reg_chips})
         hub_items = open_rows
     render_list(
-        "/bid/", "나라장터 입찰, 마감일시 순",
+        "/bid/", serp.bid_hub_h1(),
         lede,
         hub_items,
-        title=serp.bid_hub_title(),
+        title=serp.bid_hub_title(None if hub_empty else t_all),
         desc=serp.bid_hub_desc(None if hub_empty else t_all),
         intro=intro, faqs=faqs, beginner=not hub_empty,
         blocks=hub_blocks, limit=20,
@@ -214,7 +214,7 @@ def build(env, write, site, urls, dist):
     )
 
     render_list(
-        "/bid/urgent/", "이번 주 마감 입찰",
+        "/bid/urgent/", serp.bid_urgent_h1(),
         "7일 안에 마감일시가 있는 입찰만 모았습니다.",
         week,
         title=serp.bid_urgent_title(len(week)),
