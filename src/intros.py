@@ -10,6 +10,7 @@ LLM을 페이지마다 부르지 않는다. 그 페이지에 실제로 올라온
 """
 from html import escape as h
 import json
+import urlstate
 import re
 
 from enrich import _josa, card_line, title_gist
@@ -1801,7 +1802,7 @@ def related_hubs(path="", region=None, category=None, district=None):
     if c:
         add(f"/category/{c['slug']}/", f"{category} 지원사업")
     if r and c:
-        add(f"/region/{r['slug']}/{c['slug']}/", f"{region} {category}")
+        add(urlstate.field_href(f"/region/{r['slug']}/", category), f"{region} {category}")
     if r and district:
         add(f"/region/{r['slug']}/", f"{region} 전체")
         add("/region/", "지역별 목록")
@@ -1892,21 +1893,12 @@ def _blurb_deadline(row):
 
 
 def _blurb_caution(row):
+    """카드에 붙는 다만. 원문 기간 문장만. 이번 주 마감 같은 공통 문장은 넣지 않는다."""
     row = row or {}
-    title = row.get("title") or ""
-    if row.get("period_type") == "always":
-        raw = (row.get("period_raw") or "상시 접수").strip()
-        return f"다만 원문이 '{raw}'{_josa(raw, '으로', '로')} 적혀 있어 예산이 끝나면 날짜 전에 닫힐 수 있습니다."
-    if re.search(r"융자|보증|이차보전|정책자금", title):
-        return "다만 융자·보증·정책자금이면 원금은 남습니다."
-    if "바우처" in title or "선착순" in title:
-        return "다만 바우처·선착순이면 잔여 예산이 날짜보다 먼저 끊깁니다."
-    dday = row.get("dday")
-    if dday == 0:
-        return "다만 접수는 오늘 끝입니다."
-    if isinstance(dday, int) and 0 < dday <= 7:
-        return "다만 이번 주 안에 접수가 끝납니다."
-    return "자격·체납은 원문 대상과 맞춰 보세요."
+    if row.get("period_type") != "always":
+        return ""
+    raw = (row.get("period_raw") or "상시 접수").strip()
+    return f"다만 원문이 '{raw}'{_josa(raw, '으로', '로')} 적혀 있어 예산이 끝나면 날짜 전에 닫힐 수 있습니다."
 
 
 def _clip_blurb(s, lo=120, hi=200):

@@ -11,7 +11,7 @@
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
       {% if a.status_label and a.dlabel != a.status_label %}<span class="pill pill-st">{{ a.status_label }}</span>{% endif %}
       {% if a.category %}<span class="pill">{{ a.category }}</span>{% endif %}
-      {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
+      {% if a.region_pill or a.region %}<span class="pill">{{ a.region_pill or a.region }}</span>{% endif %}
       {% if a.source_label %}<span class="pill pill-src">{{ a.source_label }}</span>{% endif %}
       {% if a.is_correction %}<span class="pill pill-corr">정정</span>{% elif a.is_new %}<span class="pill pill-new">신규</span>{% endif %}
       {% for s in a.signals %}<span class="pill sig-{{ s.cls }}">{{ s.label }}</span>{% endfor %}
@@ -20,7 +20,7 @@
     <div class="meta">{% if a.org %}<i>{{ a.org }}</i>{% endif %}{% if a.target_short %}<i class="who">{{ a.target_short }}</i>{% endif %}</div>
     {% if a.blurb %}<p class="blurb">{{ a.blurb }}</p>{% endif %}
     <div class="row-foot">
-      {% if a.amount_card %}<span class="amt">{{ a.amount_card }}</span>{% else %}<span class="amt amt-empty">규모는 원문 확인</span>{% endif %}
+      {% if a.amount_card %}<span class="amt">{{ a.amount_card }}</span>{% endif %}
       <span class="when">{{ a.deadline_line or a.dsub }}</span>
     </div>
   </a>

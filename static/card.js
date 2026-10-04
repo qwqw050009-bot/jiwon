@@ -32,7 +32,7 @@
     var tags = '<span class="pill pill-dday ' + c[0] + '">' + esc(c[1]) + '</span>';
     if (sl && sl !== c[1]) tags += '<span class="pill pill-st">' + esc(sl) + '</span>';
     if (a.c) tags += '<span class="pill">' + esc(a.c) + '</span>';
-    if (a.r) tags += '<span class="pill">' + esc(a.r) + '</span>';
+    if (a.rl || a.r) tags += '<span class="pill">' + esc(a.rl || a.r) + '</span>';
     if (a.sn) tags += '<span class="pill pill-src">' + esc(a.sn) + '</span>';
     if (a.corr) tags += '<span class="pill pill-corr">정정</span>';
     else if (a.n) tags += '<span class="pill pill-new">신규</span>';
@@ -43,9 +43,7 @@
     if (a.o) meta += '<i>' + esc(a.o) + '</i>';
     if (a.w) meta += '<i class="who">' + esc(a.w) + '</i>';
     var blurb = a.s ? '<p class="blurb">' + esc(a.s) + '</p>' : '';
-    var amt = a.m
-      ? '<span class="amt">' + esc(a.m) + '</span>'
-      : '<span class="amt amt-empty">규모는 원문 확인</span>';
+    var amt = a.m ? '<span class="amt">' + esc(a.m) + '</span>' : '';
     var when = '<span class="when">' + esc(whenOf(a)) + '</span>';
     var starred = w.Scrap && w.Scrap.has(a.i, 'grant');
     var due = whenOf(a);

@@ -271,7 +271,7 @@ def test_blurb_is_richer_and_lists_have_faq():
     b = intros.blurb_of(rich)
     assert 80 <= len(b) <= 200, (len(b), b)
     assert "소상공인" in b
-    assert "다만" in b
+    assert "이번 주 안에 접수가 끝납니다" not in b
     assert "이(가)" not in b and "을(를)" not in b
     assert "2,000" in b or "2000" in b or "만원" in b
     with_ov = _item(
@@ -283,7 +283,7 @@ def test_blurb_is_richer_and_lists_have_faq():
         amount="", ai={},
     )
     b3 = intros.blurb_of(with_ov)
-    assert 120 <= len(b3) <= 200, (len(b3), b3)
+    assert 80 <= len(b3) <= 200, (len(b3), b3)
     assert "특례보증" in b3 and "소상공인" in b3
     assert "이(가)" not in b3
     faqs_r = intros.region_page_faqs("경기", [rich, _item(region="경기")])

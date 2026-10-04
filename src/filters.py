@@ -178,6 +178,9 @@ def compact(row):
         "tm": 1 if dl.time_known(row.get("apply_end") or "") else 0,
         "no": notice_no(row),
     }
+    pill = (row.get("region_pill") or "").strip()
+    if pill and pill != rec["r"]:
+        rec["rl"] = pill
     if is_correction(row):
         rec["corr"] = 1
     pd = posted_at(row)
