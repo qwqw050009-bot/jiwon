@@ -16,7 +16,7 @@
     <div class="notice-chips">
       <span class="pill pill-dday {{ a.cls }}">{{ a.dlabel }}</span>
       {% if a.status_label and a.dlabel != a.status_label %}<span class="pill pill-st">{{ a.status_label }}</span>{% endif %}
-      {% if a.region %}<span class="pill">{{ a.region }}</span>{% endif %}
+      {% if a.region_pill or a.region %}<span class="pill">{{ a.region_pill or a.region }}</span>{% endif %}
       {% if a.category %}<span class="pill">{{ a.category }}</span>{% endif %}
       {% if a.source_label %}<span class="pill pill-src">{{ a.source_label }}</span>{% endif %}
       {% if a.amount_card %}<span class="pill pill-amt">{{ a.amount_card }}</span>{% endif %}
@@ -54,7 +54,7 @@
   <dl class="facts">
     <div><dt>소관기관</dt><dd>{{ a.org }}</dd></div>
     <div><dt>지원분야</dt><dd>{{ a.category }}</dd></div>
-    <div><dt>대상지역</dt><dd>{{ a.region }}</dd></div>
+    <div><dt>대상지역</dt><dd>{{ a.region_label or a.region }}{% if a.region_note %}<small class="amt-note">{{ a.region_note }}</small>{% endif %}</dd></div>
     <div><dt>지원대상</dt><dd>{{ a.target }}</dd></div>
     <div><dt>지원규모</dt><dd>{{ a.amount }}<small class="amt-note">본문 표기. 없으면 공고문 참조</small></dd></div>
     <div><dt>접수기간</dt><dd>{% if a.period_type == 'always' %}{{ a.period_raw }}{% else %}{{ a.apply_start }} ~ {{ a.apply_end }}{% endif %}</dd></div>
@@ -86,23 +86,29 @@
   </div>
   {% endif %}
 
+  {% if a.ai.fit %}
   <div class="sec">
     <h2>이런 곳에 맞습니다</h2>
     <ul>{% for x in a.ai.fit %}<li>{{ x }}</li>{% endfor %}</ul>
   </div>
+  {% endif %}
 
   {{ ad_slot('detail_mid') }}
 
+  {% if a.ai.caution %}
   <div class="sec">
     <h2>신청 전 확인할 점</h2>
     <ul>{% for x in a.ai.caution %}<li>{{ x }}</li>{% endfor %}</ul>
   </div>
+  {% endif %}
 
+  {% if a.ai.checklist %}
   <div class="sec">
-    <h2>서류 체크리스트</h2>
+    <h2>이 공고 문장의 서류</h2>
     <ul>{% for x in a.ai.checklist %}<li>{{ x }}</li>{% endfor %}</ul>
-    <p class="note"><a href="/guide/docs-checklist/">정부지원사업 공통 준비서류와 발급처 총정리 →</a></p>
+    <p class="note">위에 적힌 줄만 본문에서 읽었습니다. 최종 목록은 원문입니다.</p>
   </div>
+  {% endif %}
 
   {% if faqs %}
   <section class="faq" id="faq">
@@ -134,7 +140,7 @@
 {% if related %}
 <section class="related">
   <div class="sec-head">
-  <h2>{{ a.region }} {{ a.category }} 이어서 볼 공고</h2>
+  <h2>{% if a.region_note %}{{ a.category }}{% else %}{{ a.region }} {{ a.category }}{% endif %} 이어서 볼 공고</h2>
     <span>마감 가까운 순 {{ related|length }}건</span>
   </div>
   <div class="board">

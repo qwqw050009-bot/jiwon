@@ -119,9 +119,11 @@ def test_fallback_uses_title_shape_and_euro_josa():
     assert "이(가)" not in ai["summary"]
     assert "을(를)" not in ai["summary"]
     assert "접수으로" not in " ".join(ai["caution"])
-    assert "접수로" in " ".join(ai["caution"])
-    assert any("갚" in x or "융자" in x for x in ai["fit"] + ai["caution"])
-    assert "원금" in " ".join(ai["caution"]) or "빚" in " ".join(ai["caution"])
+    joined = " ".join(ai["caution"])
+    assert "이메일 접수" in joined
+    assert "사업자등록증명" not in " ".join(ai["checklist"])
+    assert ai["fit"] == []
+    assert "원금" not in joined
 
 
 def test_notice_signals_from_visible_title():
@@ -188,6 +190,55 @@ def test_card_line_differs_when_titles_differ():
     assert "이(가)" not in a + b
 
 
+def test_stated_area_quotes_target_and_skips_preference():
+    row = {
+        "region": "전국",
+        "title": "2026 「Go to Market」동남권 창업기업 온라인 판로개척 교육 참가자 모집",
+        "target": "동남권(부산·울산·경남) 소재, 업력 7년 미만 (예비)창업기업",
+        "points": ["인증·검사실적 보유 기업, 업체당 최대 150만 원"],
+        "category": "창업",
+        "org": "경상국립대학교",
+    }
+    label, note, pill = enrich.region_display(row)
+    assert label.startswith("동남권")
+    assert "부산" in label and "경남" in label
+    assert label != "전국"
+    assert "전국" in note
+    assert pill == "동남권"
+    assert row["region"] == "전국"
+    ai = enrich.ground_ai({
+        "summary": "요약",
+        "fit": ["전국에 사업장을 두고 대상 표기가 '동남권'인 곳", "창업 성격이 제목·대상과 맞는 곳"],
+        "caution": ["같은 연도에 유사 항목을 받았다면 중복 지원이 제한될 수 있습니다."],
+        "checklist": ["사업자등록증명원", "국세·지방세 완납증명서", "재무제표", "사업계획서"],
+    }, row)
+    blob = " ".join(ai["fit"] + ai["checklist"] + ai["caution"])
+    assert "사업자등록" not in blob
+    assert "재무제표" not in blob
+    assert "전국에 사업장" not in blob
+    assert ai["fit"] == []
+    pref = {"region": "전국", "target": "서초구 거주자 또는 서초구 소재 기업 우대"}
+    assert enrich.region_display(pref)[0] == "전국"
+    titled = {"region": "전국", "title": "[대전] 웰컴 스테이", "target": "참가기업"}
+    assert enrich.stated_area(titled) == ""
+
+
+def test_home_sections_do_not_repeat_ids():
+    import build
+    rows = [
+        {"id": "a", "dday": 1, "is_open": True, "is_new": True},
+        {"id": "b", "dday": 2, "is_open": True, "is_new": False},
+        {"id": "c", "dday": 9, "is_open": True, "is_new": False},
+    ]
+    week = [rows[0], rows[1]]
+    sections = build.home_sections(rows, [rows[0]], week)
+    shown = []
+    for sec in sections:
+        shown.extend(x["id"] for x in sec["items"])
+    assert shown == ["a", "b", "c"]
+    assert len(shown) == len(set(shown))
+
+
 if __name__ == "__main__":
     test_josa_batchim()
     test_card_line_uses_real_fields_and_josa()
@@ -199,4 +250,6 @@ if __name__ == "__main__":
     test_heal_bullet_and_wrong_euro()
     test_amount_of_skips_placeholder_and_parses_body()
     test_card_line_differs_when_titles_differ()
+    test_stated_area_quotes_target_and_skips_preference()
+    test_home_sections_do_not_repeat_ids()
     print("enrich tests ok")

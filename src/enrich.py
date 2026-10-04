@@ -27,7 +27,7 @@ PROMPT = """다음 정부지원사업 공고를 신청자 입장에서 차갑게
 1) 실제로 주는 것(현금, 바우처, 융자·보증, 교육, 공간, 컨설팅 등)을 제목·본문에서만 읽기
 2) 대상 문구를 '모든 기업'이 아니라 구체 상황으로 바꿔 쓰기
 3) 이 공고만의 제약(지역, 업력, 선착순, 자부담, 선정 인원 미공개, 상환, 예산 소진)
-4) 준비물 — 본문에 나온 서류 우선. 없으면 흔한 서류라고 밝히기
+4) 준비물 — 본문에 서류 이름이 있을 때만. 없으면 서류 항목을 비운다
 
 공고명: {title}
 분야: {category} / 지역: {region}
@@ -43,7 +43,7 @@ JSON만 답해. 다른 말 금지.
  "summary": "무엇을 주는지 1문장 + 가장 큰 제약 1문장. 최대 3문장. '~해드립니다' 금지.",
  "fit": ["대상 문구를 상황으로 바꾼 문장 3개. '모든 기업에 유리' 금지."],
  "caution": ["이 공고 본문에서 읽히는 제약 3개. 체납 문장만 반복 금지."],
- "checklist": ["서류/조건 4개. 본문에 없으면 '공고문 양식 확인'처럼 표시."]
+ "checklist": ["본문에 나온 서류 문장만. 없으면 빈 배열."]
 }}"""
 
 # 본문에서 지원금액처럼 보이는 표현을 뽑는다. 없는 숫자는 만들지 않는다.
@@ -243,68 +243,194 @@ def card_line(row):
     return line[:90]
 
 
-def _fallback(row):
-    """LLM 없이 쓰는 규칙 기반 해설. 모든 필드는 방어적으로 접근한다."""
-    org = (row.get("org") or "").strip() or "소관기관"
-    region = (row.get("region") or "").strip() or "전국"
-    target = ((row.get("target") or "").strip().splitlines() or [""])[0].strip()
-    category = (row.get("category") or "").strip() or "기타"
-    method = (row.get("method") or "").strip() or "공고문 참조"
-    title = (row.get("title") or "").strip()
-    amount = amount_of(row)
-    place = _place_of(region)
-    gist = title_gist(title) or category
+_KWON = ("수도권", "동남권", "서남권", "대경권", "충청권", "호남권", "영남권", "강원권")
+_PLACE_STOP = {
+    "사업장", "해당", "국내", "역내", "지역", "전국", "관할", "소재지", "본점",
+    "기업", "대상", "신청", "소재",
+}
+_SIDO_WORD = {
+    "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
+    "대전광역시", "울산광역시", "세종특별자치시", "경기도", "강원특별자치도",
+    "강원도", "충청북도", "충청남도", "전북특별자치도", "전라북도", "전라남도",
+    "경상북도", "경상남도", "제주특별자치도", "제주도",
+    "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
+    "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
+    "전남광주",
+}
+_DOC_HINT = re.compile(
+    r"서류|증빙|증명서|증명원|확인서|계획서|가입자명부|사업자등록증|사업자등록증명"
+)
+_FILLER_SUMMARY = re.compile(
+    r"\s*본문에서 지원규모 표기를 찾지 못했습니다\..*"
+)
 
+
+def _target_text(row):
+    """신청대상 필드와, 그에 해당하는 포인트만. 제목은 넣지 않는다."""
+    chunks = []
+    target = (row.get("target") or "").strip()
+    if target:
+        chunks.append(target)
+    for p in row.get("points") or []:
+        if isinstance(p, str) and "신청대상" in p[:12]:
+            chunks.append(p)
+    return "\n".join(chunks)
+
+
+def _place_ok(place):
+    place = (place or "").strip(" ·,")
+    if not place or place in _PLACE_STOP:
+        return ""
+    if "·" in place or "," in place:
+        return place
+    if place in _SIDO_WORD or place in _KWON:
+        return place
+    if len(place) >= 3 and place.endswith(("시", "도", "군", "구")):
+        return place
+    return ""
+
+
+def stated_area(row):
+    """신청대상 문장에 적힌 지역.
+
+    목록 버킷(region)은 바꾸지 않는다. 제목의 지명으로 시·도를 고르지 않는다.
+    출처 칸이 이미 시·도면 그 값을 유지한다.
+    """
+    bucket = (row.get("region") or "").strip()
+    if bucket and bucket != "전국":
+        return ""
+    text = _target_text(row).replace("ㆍ", "·").replace("（", "(").replace("）", ")")
+    if not text:
+        return ""
+    kwon = "|".join(_KWON)
+    m = re.search(rf"({kwon})\s*\([^)]{{1,40}}\)", text)
+    if m:
+        return re.sub(r"\s+", " ", m.group(0)).strip()
+    m = re.search(rf"({kwon})", text)
+    if m:
+        return m.group(1)
+    for line in text.splitlines():
+        if "우대" in line:
+            continue
+        found = re.search(
+            r"([가-힣]{2,12}(?:\s*[·,]\s*[가-힣]{2,12}){0,4})\s*소재",
+            line,
+        )
+        if not found:
+            continue
+        place = _place_ok(re.sub(r"\s+", "", found.group(1)))
+        if place:
+            return place
+    return ""
+
+
+def region_display(row):
+    """(상세 표기, 주석, 카드 알약). 주석은 출처 칸과 문장이 다를 때만."""
+    bucket = (row.get("region") or "").strip() or "전국"
+    stated = stated_area(row)
+    if not stated or stated == bucket:
+        return bucket, "", bucket
+    pill = stated
+    m = re.match(rf"({'|'.join(_KWON)})", stated)
+    if m:
+        pill = m.group(1)
+    elif len(stated) > 12:
+        pill = stated[:12].rstrip(" ·,/")
+    note = (
+        f"출처 지역 칸은 {bucket}입니다. "
+        "위 표기는 신청대상 문장에 적힌 지역을 그대로 옮긴 것입니다."
+    )
+    return stated, note, pill
+
+
+def _notice_lines(row):
+    blobs = []
+    for key in ("target", "overview", "method"):
+        blobs.extend(str(row.get(key) or "").splitlines())
+    for p in row.get("points") or []:
+        blobs.extend(str(p).splitlines())
+    return blobs
+
+
+def docs_from_notice(row):
+    """본문에 서류 단어가 있는 줄만. 없는 서류 이름은 만들지 않는다."""
+    out, seen = [], set()
+    for raw in _notice_lines(row):
+        line = raw.strip().lstrip("•·*-■○ ")
+        line = re.sub(
+            r"^(?:신청대상|신청제외대상|우대사항|신청방법|주요내용)\s*:\s*",
+            "",
+            line,
+        ).strip()
+        if not line or not _DOC_HINT.search(line):
+            continue
+        if len(line) > 120:
+            line = line[:119].rstrip() + "…"
+        if line in seen:
+            continue
+        seen.add(line)
+        out.append(line)
+        if len(out) >= 6:
+            break
+    return out
+
+
+def caution_from_fields(row):
+    """접수기간·신청방법·제외 문장만. 모든 공고에 붙는 문장은 만들지 않는다."""
+    out = []
+    if row.get("period_type") == "always":
+        raw = (row.get("period_raw") or "상시 접수").strip()
+        out.append(f"접수기간 표기는 {raw}입니다.")
+    else:
+        start = (row.get("apply_start") or "").strip()
+        end = (row.get("apply_end") or "").strip()
+        if start and end:
+            out.append(f"접수기간은 {start} ~ {end}입니다.")
+        elif end:
+            out.append(f"마감일은 {end}입니다.")
+    method = (row.get("method") or "").strip()
+    if method:
+        first = method.splitlines()[0].strip()
+        if len(first) > 80:
+            first = first[:79].rstrip() + "…"
+        out.append(f"신청방법 표기는 {first}입니다. 접수는 원문에서 합니다.")
+    for p in row.get("points") or []:
+        text = str(p).strip()
+        if "제외" in text or "중복" in text:
+            if len(text) > 140:
+                text = text[:139].rstrip() + "…"
+            if text not in out:
+                out.append(text)
+        if len(out) >= 4:
+            break
+    return out
+
+
+def _fallback(row):
+    """LLM 없이 쓰는 규칙 기반 해설. 공고에 없는 자격·서류는 넣지 않는다."""
+    amount = amount_of(row)
     head = card_line(row)
     if amount:
         head += f" 공고문 지원규모 표기는 {amount}입니다. 이 숫자가 아니면 원문을 따르세요."
-    else:
-        head += " 본문에서 지원규모 표기를 찾지 못했습니다. 금액은 원문을 보세요."
+    return {
+        "summary": head,
+        "fit": [],
+        "caution": caution_from_fields(row),
+        "checklist": docs_from_notice(row),
+    }
 
-    who = target or "신청 대상은 공고문 참조"
-    fit = []
-    if target:
-        fit.append(f"{place}에 사업장을 두고 대상 표기가 '{target}'인 곳")
-    else:
-        fit.append(f"{place} 소재 사업장 기준 공고. 대상은 원문 확인")
-    if re.search(r"융자|보증|이차보전|정책자금", title):
-        fit.append(f"{gist}처럼 갚는 자금이 필요한 곳. 보조금과 구분해 보세요")
-    elif "바우처" in title or "선착순" in title:
-        fit.append(f"{gist}처럼 조건이 되면 빨리 접수하는 쪽이 유리한 곳")
-    else:
-        fit.append(f"{category} 성격이 제목·대상과 맞는 곳")
-    if row.get("period_type") == "always":
-        fit.append("날짜형 마감보다 예산 잔액을 먼저 봐야 하는 사업자")
-    else:
-        fit.append("접수 기간 안에 서류와 원문 창구를 맞출 수 있는 사업자")
 
-    caution = []
-    if row.get("period_type") == "always":
-        raw = (row.get("period_raw") or "상시 접수").strip()
-        caution.append(f"접수기간이 '{raw}'{_josa(raw, '으로', '로')} 적혀 있어 예산이 끝나면 날짜 전에 닫힐 수 있습니다.")
-    else:
-        caution.append(f"접수기간은 {_period_text(row)}입니다. 마감 당일 창구가 닫히면 끝입니다.")
-    if re.search(r"융자|보증|이차보전|정책자금", title):
-        caution.append("제목에 융자·보증·이차보전·정책자금이 있으면 원금은 남습니다. 이자만 봐도 빚입니다.")
-    elif "바우처" in title or "선착순" in title:
-        caution.append("바우처·선착순이면 완벽한 서류보다 잔여 예산이 먼저 끊깁니다.")
-    else:
-        caution.append("같은 연도에 유사 항목을 받았다면 중복 지원이 제한될 수 있습니다.")
-    method0 = method.splitlines()[0].strip() if method else "공고문 참조"
-    euro = _josa(method0, "으로", "로")
-    caution.append(f"신청은 {method0}{euro} 받습니다. 이 사이트에서 대신 접수하지 않습니다.")
-
-    checklist = ["사업자등록증명원(예비창업이면 공고의 등록 시점 확인)",
-                 "국세·지방세 완납증명서",
-                 "최근 연도 재무제표 또는 부가세과세표준증명"]
-    if category == "인력":
-        checklist.append("4대보험 가입자명부")
-    elif re.search(r"융자|보증|이차보전|정책자금", title):
-        checklist.append("공고문 양식의 자금 사용·상환 계획")
-    else:
-        checklist.append("공고문 첨부 사업계획서 또는 신청서 양식")
-
-    return {"summary": head, "fit": fit, "caution": caution, "checklist": checklist}
+def ground_ai(ai, row):
+    """캐시에 남은 공통 문장(적합 업종, 공통 서류)을 공고 필드로 바꾼다."""
+    ai = dict(ai or {})
+    summary = _FILLER_SUMMARY.sub("", (ai.get("summary") or "")).strip()
+    if not summary:
+        summary = _fallback(row).get("summary") or ""
+    ai["summary"] = summary
+    ai["fit"] = []
+    ai["caution"] = caution_from_fields(row)
+    ai["checklist"] = docs_from_notice(row)
+    return ai
 
 
 # 예전 규칙기반 fallback이 조사(이/가, 을/를)를 문법에 안 맞게 리터럴로

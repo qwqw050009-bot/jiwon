@@ -42,7 +42,8 @@ def test_notice_faqs_are_grounded_and_visible_length():
     assert "신용보증재단" in blob
     assert "사업자등록증" in blob
     assert "최대 2,000만원" in blob
-    assert "심사하거나 보장하지 않습니다" in blob
+    assert "심사하거나 보장하지 않습니다" not in blob
+    assert "대상 지역 표기는 서울입니다" in blob
     assert "업력 3년 이내" not in blob
     ld = intros.faq_jsonld(faqs)
     for f in faqs:

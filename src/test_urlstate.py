@@ -102,6 +102,13 @@ process.stdout.write(JSON.stringify({{ grant: qs, bid: bqs }}));
     assert "kind=" in data["bid"]
 
 
+def test_field_href_keeps_one_list():
+    href = urlstate.field_href("/region/busan/", "창업")
+    assert href.startswith("/region/busan/?field=")
+    assert "/startup/" not in href
+    assert urlstate.parse_grant(href.split("?", 1)[1])["field"] == ["창업"]
+
+
 def test_describe_does_not_invent():
     assert urlstate.describe_grant({}) == "전체"
     assert "검색" in urlstate.describe_grant({"q": "보증"})
@@ -112,6 +119,7 @@ if __name__ == "__main__":
     test_grant_roundtrip_multi_and_aliases()
     test_grant_open_default_omitted_and_false_emitted()
     test_bid_roundtrip_kind_and_due_alias()
+    test_field_href_keeps_one_list()
     test_describe_does_not_invent()
     test_js_state_roundtrip_if_node()
     print("urlstate tests ok")

@@ -8,7 +8,7 @@
 다중값은 쉼표 구분 한 키. 새로고침·공유·뒤로가기가 같은 목록을 복원한다.
 페이지 경로가 이미 잠근 값(지역 페이지의 region 등)은 쿼리에 넣지 않는다.
 """
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs, quote, urlencode
 
 GRANT_KEYS = (
     "q", "region", "field", "deadline", "org", "amount",
@@ -236,6 +236,18 @@ def describe_grant(state):
     if st.get("open") is False:
         bits.append("마감 포함")
     return " / ".join(bits) or "전체"
+
+
+def field_href(path, field_name):
+    """지역·시군구 목록에 분야 필터를 건 주소.
+
+    /region/{지역}/{분야}/ 처럼 같은 카드를 한 번 더 만들지 않는다.
+    """
+    base = path if str(path).endswith("/") else str(path) + "/"
+    name = (field_name or "").strip()
+    if not name:
+        return base
+    return base + "?field=" + quote(name, safe="")
 
 
 def describe_bid(state):

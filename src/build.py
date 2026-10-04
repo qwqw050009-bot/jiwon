@@ -10,9 +10,9 @@ python3 src/build.py  → dist/ 에 전체 사이트 생성.
   /category/{분야}/      분야별
   /region/              지역 허브
   /region/{지역}/        지역별
-  /region/{지역}/{분야}/  ← 롱테일 조합 (핵심 트래픽 소스)
+  /region/{지역}/?field=  분야는 이 목록의 필터. 조합 HTML은 만들지 않고 301
   /region/{지역}/{시군구}/  시군구 허브 (해시태그 정확 일치, 3건 이상)
-  /region/{지역}/{시군구}/{분야}/  시군구×분야 (3건 이상만)
+  /region/{지역}/{시군구}/?field=  시군구×분야도 같은 목록의 필터. 301
   /notice/{id}/         공고 상세
   /bid/                 나라장터 입찰 허브 (지원 목록과 분리)
   /bid/urgent/          이번 주 마감 입찰
@@ -50,6 +50,7 @@ import serp
 import districts as distmod
 import bid_build
 import filters as filt
+import urlstate
 import landing
 import detail_faq
 
@@ -114,6 +115,24 @@ def cf_redirects_contents():
         "/ads.txt /ads.txt 200\n"
         "/app-ads.txt /app-ads.txt 200\n"
     )
+
+
+def append_list_redirects(dist, pairs):
+    """지역×분야 옛 주소를 지역 목록의 field 쿼리로 보낸다.
+
+    파일을 남겨 두면 Cloudflare가 리다이렉트보다 파일을 먼저 준다.
+    스플랫은 넣지 않는다. ads.txt 규칙은 그대로 둔다.
+    """
+    if not pairs:
+        return
+    lines = []
+    for src, dest in pairs:
+        if "*" in src or "*" in dest or not src.startswith("/region/"):
+            raise SystemExit(f"조합 리다이렉트가 아닙니다: {src} -> {dest}")
+        lines.append(f"{src} {dest} 301\n")
+    path = os.path.join(dist, "_redirects")
+    with open(path, "a", encoding="utf-8", newline="\n") as f:
+        f.writelines(lines)
 
 
 def emit_root_text_files(dist):
@@ -273,7 +292,39 @@ def decorate(a, collected_at=None, today=None):
     a["signals"] = enrich.notice_signals(a)
     who = ((a.get("target") or "").splitlines() or [""])[0].strip()
     a["target_short"] = (who[:23].rstrip(" ·,/") + "…") if len(who) > 24 else who
+    a["ai"] = enrich.ground_ai(enrich.heal_broken_josa(a.get("ai"), a), a)
+    label, note, pill = enrich.region_display(a)
+    a["region_label"] = label
+    a["region_note"] = note
+    a["region_pill"] = pill
     return a
+
+
+def home_sections(rows, new_rows, week):
+    """홈 섹션. 앞에서 이미 보여 준 공고는 다음 섹션에 다시 넣지 않는다."""
+    shown = set()
+    sections = []
+    if week:
+        items = week[:5]
+        shown.update(a.get("id") for a in items)
+        sections.append({
+            "title": "이번 주에 닫히는 공고", "items": items,
+            "href": "/urgent/", "total": len(week),
+        })
+    fresh = [a for a in new_rows if a.get("id") not in shown][:5]
+    if fresh:
+        shown.update(a.get("id") for a in fresh)
+        sections.append({
+            "title": "오늘 새로 올라온 공고", "items": fresh,
+            "href": "/new/", "total": len(new_rows),
+        })
+    open_items = [a for a in rows if a.get("is_open") and a.get("id") not in shown][:5]
+    if open_items:
+        sections.append({
+            "title": "접수 중인 공고", "items": open_items,
+            "href": "/all/", "total": sum(1 for a in rows if a.get("is_open")),
+        })
+    return sections
 
 
 def tally(items):
@@ -433,14 +484,17 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 new_cnt=0, ics_url=None, limit=None, more_href=None,
                 sections=None, tally_items=None, beginner_cta=False,
                 crumbs=None, website_jsonld="", home_guides=None,
-                list_guides=None, region_n=0):
+                list_guides=None, region_n=0, show_rail=True):
     n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
     crumbs = crumbs or []
     pool = tally_items if tally_items is not None else items
-    today_items = filt.today_rail(pool)
-    week_rail = [a for a in filt.urgent_rail(pool) if a.get("dday") != 0]
+    if show_rail:
+        today_items = filt.today_rail(pool)
+        week_rail = [a for a in filt.urgent_rail(pool) if a.get("dday") != 0]
+    else:
+        today_items, week_rail = [], []
     today_n = today or sum(1 for a in pool if a.get("dday") == 0)
     related = intros.related_hubs(
         path=path, region=sel_region, category=sel_category, district=sel_district,
@@ -552,18 +606,10 @@ def main():
     hub = [{"title": "분야로 찾기", "items": cat_chips},
            {"title": "지역으로 찾기", "items": reg_chips}]
 
-    # 메인: 요약판 (섹션마다 5건 + 더보기)
+    # 메인: 요약판 (섹션마다 5건 + 더보기). 같은 카드는 한 섹션에만.
     new_rows = [a for a in rows if a["is_new"]]
     week = [a for a in rows if 0 <= a["dday"] <= 7]
-    sections = []
-    if week:
-        sections.append({"title": "이번 주에 닫히는 공고", "items": week[:5],
-                         "href": "/urgent/", "total": len(week)})
-    if new_rows:
-        sections.append({"title": "오늘 새로 올라온 공고", "items": new_rows[:5],
-                         "href": "/new/", "total": len(new_rows)})
-    sections.append({"title": "접수 중인 공고", "items": [a for a in rows if a["is_open"]][:5],
-                     "href": "/all/", "total": sum(1 for a in rows if a["is_open"])})
+    sections = home_sections(rows, new_rows, week)
 
     today_n = sum(1 for a in rows if a["dday"] == 0)
     week_n = sum(1 for a in rows if 0 <= a["dday"] <= 7)
@@ -582,6 +628,7 @@ def main():
         faqs=intros.home_faqs(today_n, week_n, open_n),
         faq_jsonld=intros.faq_jsonld(intros.home_faqs(today_n, week_n, open_n)),
         region_n=len(reg_chips),
+        show_rail=False,
     )
 
     # 전체 목록
@@ -656,12 +703,16 @@ def main():
         desc=serp.region_hub_desc(len(rows), len(regs)),
     )
 
+    # 옛 /region/{지역}/{분야}/ 는 파일을 만들지 않고 지역 목록 필터로 보낸다.
+    combo_redirects = []
+
     # 분야별
     for name, c in cats.items():
         items = by_cat[name]
         if not items:
             continue
-        sub = [{"name": f"{r} {name}", "url": f"/region/{regs[r]['slug']}/{c['slug']}/",
+        sub = [{"name": f"{r} {name}",
+                "url": urlstate.field_href(f"/region/{regs[r]['slug']}/", name),
                 "count": len([a for a in items if a["region"] == r])}
                for r in regs if any(a["region"] == r for a in items)]
         other_cats = [x for x in cat_chips if x["name"] != name]
@@ -688,7 +739,8 @@ def main():
         items = by_reg[rname]
         if not items:
             continue
-        sub = [{"name": f"{rname} {cn}", "url": f"/region/{r['slug']}/{cats[cn]['slug']}/",
+        sub = [{"name": f"{rname} {cn}",
+                "url": urlstate.field_href(f"/region/{r['slug']}/", cn),
                 "count": len([a for a in items if a["category"] == cn])}
                for cn in cats if any(a["category"] == cn for a in items)]
         other_regs = [x for x in reg_chips if x["name"] != rname]
@@ -719,33 +771,14 @@ def main():
                     {"name": rname, "url": f"/region/{r['slug']}/"}],
         )
         for cn, c in cats.items():
-            cross = [a for a in items if a["category"] == cn]
-            if not cross:
+            if not any(a["category"] == cn for a in items):
                 continue
-            intro_paras, faqs = intros.build(rname, cn, c, cross)
-            other_regs_same_cat = [
-                {"name": r2, "url": f"/region/{regs[r2]['slug']}/{c['slug']}/",
-                 "count": len([a for a in by_reg[r2] if a["category"] == cn])}
-                for r2 in regs if r2 != rname and any(a["category"] == cn for a in by_reg[r2])
-            ]
-            render_list(
-                f"/region/{r['slug']}/{c['slug']}/", serp.combo_h1(rname, cn),
-                serp.combo_lede(rname, cn, cross),
-                cross,
-                title=serp.combo_title(rname, cn, cross),
-                desc=serp.combo_desc(rname, cn, c, cross),
-                intro_paras=intro_paras, faqs=faqs, faq_jsonld=intros.faq_jsonld(faqs),
-                list_guides=intros.list_guides(category=cn, region=rname),
-                blocks=[{"title": f"{rname} 다른 분야", "items": sub},
-                        {"title": f"다른 지역의 {cn}", "items": other_regs_same_cat}],
-                sel_region=rname, sel_category=cn, limit=20,
-                crumbs=[{"name": "홈", "url": "/"},
-                        {"name": "지역", "url": "/region/"},
-                        {"name": rname, "url": f"/region/{r['slug']}/"},
-                        {"name": cn, "url": f"/region/{r['slug']}/{c['slug']}/"}],
-            )
+            combo_redirects.append((
+                f"/region/{r['slug']}/{c['slug']}/",
+                urlstate.field_href(f"/region/{r['slug']}/", cn),
+            ))
 
-        # 시군구 허브 + 시군구×분야. 허용 목록 해시태그 정확 일치, MIN_COUNT 이상만 파일로 씀.
+        # 시군구 허브. 시군구×분야는 같은 허브의 field 필터로 보낸다.
         siblings = [
             {"name": d["name_ko"],
              "url": f"/region/{r['slug']}/{d['slug']}/",
@@ -763,7 +796,7 @@ def main():
                     d_cross[cn] = cross
                     d_cat_chips.append({
                         "name": f"{dname} {cn}",
-                        "url": f"{dpath}{c['slug']}/",
+                        "url": urlstate.field_href(dpath, cn),
                         "count": len(cross),
                     })
             other_d = [x for x in siblings if x["url"] != dpath]
@@ -794,32 +827,15 @@ def main():
                         {"name": rname, "url": f"/region/{r['slug']}/"},
                         {"name": dname, "url": dpath}],
             )
-            for cn, cross in d_cross.items():
+            for cn in d_cross:
                 c = cats[cn]
-                intro_paras, faqs = intros.district_combo_intro(rname, dname, cn, c, cross)
-                other_cats = [x for x in d_cat_chips if x["url"] != f"{dpath}{c['slug']}/"]
-                combo_blocks = []
-                if other_cats:
-                    combo_blocks.append({"title": f"{dname} 다른 분야", "items": other_cats})
-                if other_d:
-                    combo_blocks.append({"title": f"{rname} 다른 시군구", "items": other_d})
-                render_list(
-                    f"{dpath}{c['slug']}/", serp.district_combo_h1(rname, dname, cn),
-                    serp.district_combo_lede(rname, dname, cn, cross),
-                    cross,
-                    title=serp.district_combo_title(rname, dname, cn, cross),
-                    desc=serp.district_combo_desc(rname, dname, cn, c, cross),
-                    intro_paras=intro_paras, faqs=faqs, faq_jsonld=intros.faq_jsonld(faqs),
-                    list_guides=intros.list_guides(category=cn, region=rname),
-                    blocks=combo_blocks,
-                    sel_region=rname, sel_category=cn, limit=20,
-                    sel_district=dname,
-                    crumbs=[{"name": "홈", "url": "/"},
-                            {"name": "지역", "url": "/region/"},
-                            {"name": rname, "url": f"/region/{r['slug']}/"},
-                            {"name": dname, "url": dpath},
-                            {"name": cn, "url": f"{dpath}{c['slug']}/"}],
-                )
+                combo_redirects.append((
+                    f"{dpath}{c['slug']}/",
+                    urlstate.field_href(dpath, cn),
+                ))
+
+    # 리다이렉트 파일은 빌드 마지막 emit_root_text_files() 가 다시 쓰므로
+    # 여기서 붙이지 않는다. combo_redirects 는 main 끝에서 붙인다.
 
     # 공고 상세 (접수 중 + 마감 후 최근 것)
     def render_notice(a, pool):
@@ -832,7 +848,7 @@ def main():
             "url": SITE["domain"] + npath,
             "identifier": a.get("notice_no") or a.get("id") or "",
             "provider": {"@type": "GovernmentOrganization", "name": a.get("org") or ""},
-            "areaServed": a.get("region") or "",
+            "areaServed": a.get("region_label") or a.get("region") or "",
             "audience": {"@type": "Audience", "audienceType": a.get("target") or ""},
             "description": (a.get("ai") or {}).get("summary") or "",
         }
@@ -849,9 +865,9 @@ def main():
         if rslug:
             crumbs.append({"name": a.get("region") or "지역",
                            "url": f"/region/{rslug}/"})
-        if rslug and cslug:
+        if cslug:
             crumbs.append({"name": a.get("category") or "분야",
-                           "url": f"/region/{rslug}/{cslug}/"})
+                           "url": f"/category/{cslug}/"})
         crumbs.append({"name": a.get("title") or "공고", "url": npath})
         faqs = detail_faq.notice_faqs(a)
         howto = detail_faq.notice_howto(a)
@@ -1092,6 +1108,9 @@ def main():
     # ads.txt 는 빌드 초반에도 쓰지만, 마지막에 한 번 더 써서 중간 단계가
     # dist 를 비우거나 덮어써도 크롤러가 HTML 홈을 받지 않게 한다.
     emit_root_text_files(DIST)
+    append_list_redirects(DIST, combo_redirects)
+    if combo_redirects:
+        print(f"지역×분야 리다이렉트 {len(combo_redirects)}건 (목록 HTML은 만들지 않음)")
     print("ads.txt·app-ads.txt 루트 확인:", ADS_TXT_LINE)
     fs = env.globals.get("formspree_url") or ""
     print("알림 전달:", "Formspree " + fs if fs else "mailto 폴백 (FORMSPREE_ID 없음)")

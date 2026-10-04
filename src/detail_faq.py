@@ -33,15 +33,16 @@ def notice_faqs(a):
     a = a or {}
     faqs = []
     target = _short(a.get("target"))
-    region = _txt(a.get("region"))
+    region = _txt(a.get("region_label")) or _txt(a.get("region"))
+    note = _txt(a.get("region_note"))
     if target:
         who = f"이 공고에 적힌 지원대상은 {target}입니다."
         if region:
             who += f" 대상 지역 표기는 {region}입니다."
-        who += (
-            " 업력·매출·체납·중복지원 같은 세부 요건은 공고마다 다르니 원문에서 확인하세요. "
-            "이 사이트에서 자격을 심사하거나 보장하지 않습니다."
-        )
+        if note:
+            who += " " + note
+        else:
+            who += " 세부 요건은 원문에서 확인하세요."
     else:
         who = (
             "이 페이지에는 지원대상 표기가 없습니다. "
@@ -89,8 +90,8 @@ def notice_faqs(a):
         docs += " 공고마다 서류가 다르니 원문 목록을 기준으로 하세요."
     else:
         docs = (
-            "이 페이지에 서류 목록이 없습니다. 사업자등록증·국세완납 등 공통 서류는 "
-            "준비서류 가이드를 참고하고, 최종 목록은 원문에서 확인하세요."
+            "이 공고 본문에서 제출 서류 문장을 찾지 못했습니다. "
+            "없는 서류 이름은 적지 않습니다. 원문 목록을 확인하세요."
         )
     faqs.append({"q": "신청에 필요한 서류는 무엇인가요?", "a": docs})
 
@@ -105,11 +106,7 @@ def notice_faqs(a):
                 "없는 숫자를 지어내지 않으며, 최종 한도는 원문을 따릅니다."
             ),
         })
-    else:
-        faqs.append({
-            "q": "지원규모는 얼마인가요?",
-            "a": "이 공고 본문에서 원 단위 표기를 읽지 못했습니다. 지원규모는 원문에서 확인하세요.",
-        })
+    # 금액이 없으면 같은 질문을 모든 공고에 붙이지 않는다. 상세의 지원규모 칸이 비어 있다.
 
     src = _txt(a.get("source_label")) or "기업마당"
     col = _txt(a.get("collected_at"))
@@ -125,7 +122,7 @@ def notice_howto(a):
     """지원사업 상세 신청 순서 3단계. 화면에 그대로 노출한다."""
     a = a or {}
     target = _short(a.get("target")) or "원문 확인"
-    region = _txt(a.get("region")) or "원문 확인"
+    region = _txt(a.get("region_label")) or _txt(a.get("region")) or "원문 확인"
     if a.get("period_type") == "always":
         period = _txt(a.get("period_raw")) or "상시 접수"
     else:
