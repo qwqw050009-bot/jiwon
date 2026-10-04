@@ -403,6 +403,49 @@ def test_gsc_notice_longtail_keeps_keywords():
     assert "소재지 제한" in ld
 
 
+def test_notice_desc_follows_stated_area_not_nationwide_bucket():
+    """출처 칸이 전국이어도 신청대상 문장의 지역을 설명에 쓴다."""
+    row = _item(
+        id="ks-179339",
+        title="2026 「Go to Market」동남권 창업기업 온라인 판로개척 교육 참가자 모집",
+        region="전국",
+        category="경영",
+        org="경상국립대학교 창업중심대학사업단",
+        target="동남권(부산·울산·경남) 소재, 업력 7년 미만 (예비)창업기업",
+        dday=0,
+        apply_end="2026-10-04",
+        points=["신청대상: 동남권(부산·울산·경남) 소재, 업력 7년 미만 (예비)창업기업"],
+    )
+    d = serp.notice_desc(row)
+    assert "동남권(부산·울산·경남)" in d
+    assert "소재지 제한 없이" not in d
+    assert row["region"] == "전국"
+    labeled = dict(row)
+    labeled["region_label"] = "동남권(부산·울산·경남)"
+    same = serp.notice_desc(labeled)
+    assert same == d
+    assert "동남권(부산·울산·경남)" in same
+    assert "소재지 제한 없이" not in same
+    import json
+    import detail_faq
+    howto = json.loads(detail_faq.howto_jsonld(
+        "신청 순서", same, detail_faq.notice_howto(labeled)))
+    assert "소재지 제한 없이" not in howto["description"]
+    assert "동남권(부산·울산·경남)" in howto["description"]
+    titled = _item(title="[대전] 웰컴 스테이", region="전국", target="참가기업", dday=3)
+    td = serp.notice_desc(titled)
+    assert "소재지 제한 없이" in td
+    assert "대전" not in td
+    pref = _item(
+        region="전국",
+        target="서초구 거주자 또는 서초구 소재 기업 우대",
+        dday=3,
+    )
+    pd = serp.notice_desc(pref)
+    assert "소재지 제한 없이" in pd
+    assert "대상 지역은" not in pd
+
+
 def test_region_and_combo_openings_differ():
     """17개 지역 스니펫 둘째 문장과 지역/조합 앞머리가 같은 틀이 아니어야 한다."""
     items = [_item(dday=4) for _ in range(5)]
@@ -624,6 +667,7 @@ if __name__ == "__main__":
     test_static_and_guide_pages()
     test_gsc_region_and_nationwide_copy()
     test_gsc_notice_longtail_keeps_keywords()
+    test_notice_desc_follows_stated_area_not_nationwide_bucket()
     test_region_and_combo_openings_differ()
     test_ctr_magnets_keep_gsc_heads()
     test_query_intent_pages()

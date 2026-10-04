@@ -13,7 +13,7 @@ from datetime import date
 import re
 
 import config
-from enrich import _josa, amount_card
+from enrich import _josa, amount_card, region_display
 
 
 BRAND = config.SITE["name"]
@@ -997,10 +997,19 @@ def _deadline_lead(row, closed, d):
     return ""
 
 
+def _shown_region(row):
+    """상세에 보이는 대상지역. 신청대상 문장에 적힌 곳이면 그 표기."""
+    label = (row.get("region_label") or "").strip()
+    if label:
+        return label
+    return (region_display(row)[0] or "").strip()
+
+
 def notice_desc(row, limit=150):
     """
     대상·금액(본문에서 뽑힌 것만)·마감을 앞에 두고, 가입 없이 CTA.
     없는 금액을 만들지 않는다. 깨진 조사 요약은 쓰지 않는다.
+    출처 지역이 전국이어도, 신청대상 문장에 지역이 있으면 그 표기를 쓴다.
     """
     row = row or {}
     closed = _notice_closed(row)
@@ -1021,7 +1030,12 @@ def notice_desc(row, limit=150):
         parts.append(f"본문 기준 {amt}.")
     if deadline:
         parts.append(deadline if deadline.endswith(".") else deadline + ".")
-    if region == "전국":
+    # 목록 버킷이 전국이어도 화면에 보이는 대상지역이 신청대상 문장이면
+    # 그 곳을 적는다. 제목의 [지역]만으로는 전국 문장을 바꾸지 않는다.
+    shown = _shown_region(row)
+    if shown and shown not in (region, "전국"):
+        parts.append(f"대상 지역은 {shown}입니다.")
+    elif region == "전국":
         parts.append("소재지 제한 없이 신청할 수 있습니다.")
     elif region:
         parts.append(f"{_region_query(region)} 사업장 기준.")
