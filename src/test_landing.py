@@ -42,7 +42,9 @@ def test_copy_has_three_plans_and_no_fake_review():
     assert "준비 중" in pro["badge"]
     assert "가장 인기있는 플랜" not in (basic.get("badge") or "")
     blob = " ".join(ctx["alert_faqs"][i]["a"] for i in range(len(ctx["alert_faqs"])))
-    assert "최대 1시간" in blob
+    assert "하루 1회, 새 공고가 있을 때만" in blob
+    assert "최대 1시간" not in blob
+    assert "1시간 이내" not in blob
     assert "카드로 매월 자동" not in blob
     assert "결제대행사" not in blob
     assert "낙찰까지 받았습니다" not in blob
