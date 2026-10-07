@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # 알림 id 기록 커밋만 있으면 빌드·배포를 다시 돌리지 않는다.
+    paths-ignore:
+      - data/alert_sent.json
 
 permissions:
   contents: write
@@ -41,3 +44,24 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           command: pages deploy dist --project-name=jiwon --branch=main
+      # 키워드 알림. 배포 뒤에 돌려 링크가 살아 있게 한다.
+      # 시크릿 세 개 (저장소에 구독자 이메일을 넣지 말 것):
+      #   RESEND_API_KEY   — Resend API 키. 없으면 건너뛰고 exit 0.
+      #   RESEND_FROM      — 발신자. 비우면 마감판 <alerts@magampan.com>.
+      #   SUBSCRIBERS_JSON — [{email, keyword, plan}] 배열. 비우면 건너뜀.
+      #     예: [{"email":"name@example.com","keyword":"제조업","plan":"free"}]
+      # 무료(plan=free)만. 하루 1회, 키워드가 맞는 새 공고가 있을 때만 보낸다.
+      # 발송한 공고 id는 data/alert_sent.json (이메일 없음, seen.json 과 같은 배열).
+      - name: alert digest
+        run: python src/alert_digest.py
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+          SUBSCRIBERS_JSON: ${{ secrets.SUBSCRIBERS_JSON }}
+      - name: commit alert state
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data/alert_sent.json || true
+          git diff --staged --quiet || git commit -m "알림 발송 공고 id 기록"
+          git push || true
