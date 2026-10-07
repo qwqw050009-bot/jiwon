@@ -5,11 +5,10 @@ import re
 
 
 def formspree_url(raw=None):
-    """정적 알림 폼 엔드포인트. 없으면 빈 문자열 → mailto 폴백.
+    """예전 알림 폼 엔드포인트. 신청은 /api/alerts/subscribe 로 간다.
 
-    `FORMSPREE_ID` 는 Formspree 공개 폼 ID (`xpzgkjyz`) 또는
-    `https://formspree.io/f/...` 전체 URL. Getform 등 https 웹훅도 허용.
-    코드에 실제 ID를 넣지 않는다. 키가 없거나 형식이 이상하면 빈 값.
+    `FORMSPREE_ID` 는 더 이상 알림 신청에 쓰지 않는다. 값이 있어도
+    폼 action 은 Pages Function 이다. 형식 검사는 기존 호출과의 호환용.
     """
     if raw is None:
         raw = os.environ.get("FORMSPREE_ID") or os.environ.get("FORMSPREE_ENDPOINT") or ""

@@ -89,6 +89,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
 </head>
 <body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}"
       data-formspree="{{ formspree_url|default('') }}"
+      data-alert-endpoint="/api/alerts/subscribe"
       data-alert-email="{{ site.email or '' }}">
 <a class="skip" href="#main">본문으로 건너뛰기</a>
 <header class="top">

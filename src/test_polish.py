@@ -29,7 +29,8 @@ def _env():
 
 def test_alerts_serp_and_template_noindex():
     assert "알림 조건" in serp.alerts_title()
-    assert "mailto" in serp.alerts_desc()
+    assert "확인" in serp.alerts_desc()
+    assert "수신 거부" in serp.alerts_desc()
     assert "결제" in serp.alerts_desc()
     html = _env().get_template("alerts.html").render(
         site=config.SITE, path="/alerts/", page="alerts", section="support",
@@ -77,7 +78,7 @@ def test_alert_preview_in_filters():
     assert "하루 1회" in ajs
     assert "일시정지" in ajs
     assert "결제" in ajs
-    assert "formspree" in ajs
+    assert "/api/alerts/subscribe" in ajs
     assert "fetch(" in ajs
     sjs = open(os.path.join(ROOT, "static", "suggest.js"), encoding="utf-8").read()
     assert "aria-autocomplete" in sjs
@@ -166,8 +167,10 @@ def test_scrap_toast_and_formspree_helpers():
     assert config.formspree_url("not a key!") == ""
     form = open(os.path.join(ROOT, "templates", "_alert_form.html"), encoding="utf-8").read()
     assert "data-formspree" in form
+    assert 'action="/api/alerts/subscribe"' in form
     assert "alert-done" in form
     assert "mailto:" in form
+    assert "확인 메일" in form
 
 
 if __name__ == "__main__":

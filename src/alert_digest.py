@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """키워드 알림 다이제스트.
 
-구독자는 SUBSCRIBERS_JSON 환경변수(JSON 배열)로만 받는다.
-저장소에 이메일을 쓰지 않는다. 발송 이력 data/alert_sent.json 은
-data/seen.json 과 같이 공고 id 배열만 담는다.
+구독자는 두 곳에서 온다. 저장소에는 이메일을 쓰지 않는다.
+  - SUBSCRIBERS_JSON 환경변수(JSON 배열). 운영자가 손으로 넣는 명단.
+  - Resend 연락처. 사이트 신청으로 확인된 키워드(속성 keywords).
+    blocked_keywords 이거나 unsubscribed 인 조합은 시크릿 명단에서도 뺀다.
+발송 이력 data/alert_sent.json 은 data/seen.json 과 같이 공고 id 배열만 담는다.
 
 하루 1회, 빌드·배포 뒤에 실행한다. 키워드가 맞는 새 공고가 있을 때만
 구독자당 메일 한 통을 보낸다. 상태 파일이 없으면 현재 공고 id를
@@ -11,11 +13,16 @@ data/seen.json 과 같이 공고 id 배열만 담는다.
 지원 공고 dist/notices.json 만 본다. 입찰(bids.json, /bid/)은 읽지 않는다.
 
 RESEND_API_KEY 가 없거나 구독자가 없으면 로그만 남기고 exit 0.
-잘못된 설정(JSON 깨짐, 공고 파일 없음 등)만 0이 아닌 코드.
+연락처 조회가 실패하면 공고 id를 보냈다고 표시하지 않고 exit 2.
+잘못된 설정(JSON 깨짐, 공고 파일 없음 등)도 0이 아닌 코드.
 """
+import base64
+import hashlib
+import hmac
 import json
 import os
 import time
+from urllib.parse import quote
 
 import requests
 
@@ -25,8 +32,13 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 NOTICES_PATH = os.path.join(ROOT, "dist", "notices.json")
 STATE_PATH = os.path.join(ROOT, "data", "alert_sent.json")
 RESEND_URL = "https://api.resend.com/emails"
+CONTACTS_URL = "https://api.resend.com/contacts"
+PROP_KEYWORDS = "keywords"
+PROP_BLOCKED = "blocked_keywords"
 DEFAULT_FROM = "마감판 <alerts@magampan.com>"
 SEND_GAP_SEC = 0.6
+CONTACT_GAP_SEC = 0.2
+MAX_CONTACTS = 500
 EXIT_CONFIG = 2
 
 
@@ -119,7 +131,198 @@ def sort_notices(notices):
     return sorted(notices, key=key)
 
 
-def compose_email(subscriber, notices):
+def normalize_keyword(raw):
+    return " ".join(str(raw or "").split())
+
+
+def pair_key(email, keyword):
+    return (str(email or "").strip().casefold(), normalize_keyword(keyword).casefold())
+
+
+def split_keywords(raw):
+    out = []
+    seen = set()
+    for part in str(raw or "").split("\n"):
+        kw = normalize_keyword(part)
+        if not kw:
+            continue
+        key = kw.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(kw)
+    return out
+
+
+def prop_value(props, key):
+    if not isinstance(props, dict):
+        return ""
+    raw = props.get(key)
+    if raw is None or isinstance(raw, bool):
+        return ""
+    if isinstance(raw, (str, int, float)):
+        return str(raw)
+    if isinstance(raw, dict):
+        val = raw.get("value")
+        if val is None or isinstance(val, bool):
+            return ""
+        return str(val)
+    return ""
+
+
+def sign_unsubscribe(secret, email, keyword):
+    """수신 거부 토큰. lib/alert_signup.mjs signUnsubscribe 과 같다."""
+    payload = str(email or "").strip().casefold() + "\n" + normalize_keyword(keyword)
+    sig = hmac.new(
+        str(secret or "").encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    body = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+    return body + "." + sig
+
+
+def unsubscribe_url(secret, email, keyword):
+    token = sign_unsubscribe(secret, email, keyword)
+    domain = str(config.SITE.get("domain") or "https://magampan.com").rstrip("/")
+    return f"{domain}/api/alerts/unsubscribe?token={quote(token, safe='-_.')}"
+
+
+def _auth_headers(api_key):
+    return {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+
+
+def _resend_get(http_get, url, api_key):
+    try:
+        resp = http_get(url, headers=_auth_headers(api_key), timeout=20)
+    except Exception as err:
+        raise ConfigError(f"Resend 연결 실패 ({type(err).__name__})") from err
+    if getattr(resp, "status_code", 0) == 429:
+        time.sleep(1.0)
+        try:
+            resp = http_get(url, headers=_auth_headers(api_key), timeout=20)
+        except Exception as err:
+            raise ConfigError(f"Resend 연결 실패 ({type(err).__name__})") from err
+    return resp
+
+
+def _resend_json(resp):
+    try:
+        data = resp.json()
+    except Exception as err:
+        raise ConfigError("Resend 응답이 JSON이 아닙니다") from err
+    if not isinstance(data, dict):
+        raise ConfigError("Resend 응답 형식이 아닙니다")
+    return data
+
+
+def _list_contacts(http_get, api_key):
+    out = []
+    seen = set()
+    after = ""
+    for _page in range(20):
+        params = "limit=100"
+        if after:
+            params += "&after=" + quote(after, safe="")
+        resp = _resend_get(http_get, CONTACTS_URL + "?" + params, api_key)
+        code = getattr(resp, "status_code", 0)
+        if code < 200 or code >= 300:
+            raise ConfigError(f"Resend 연락처 목록 실패 status={code}")
+        data = _resend_json(resp)
+        rows = data.get("data") or []
+        if not isinstance(rows, list):
+            raise ConfigError("Resend 연락처 목록이 배열이 아닙니다")
+        if not rows:
+            break
+        fresh = 0
+        last_id = ""
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            cid = str(row.get("id") or row.get("email") or "").strip()
+            if cid and cid in seen:
+                continue
+            if cid:
+                seen.add(cid)
+            out.append(row)
+            fresh += 1
+            if row.get("id"):
+                last_id = str(row.get("id"))
+        if len(out) > MAX_CONTACTS:
+            raise ConfigError("Resend 연락처가 너무 많아 다이제스트를 중단합니다")
+        if not data.get("has_more"):
+            break
+        if not last_id or last_id == after or fresh == 0:
+            raise ConfigError("Resend 연락처 목록 페이지가 진행되지 않습니다")
+        after = last_id
+    else:
+        raise ConfigError("Resend 연락처 목록 페이지가 너무 많습니다")
+    return out
+
+
+def _get_contact(http_get, api_key, email):
+    url = CONTACTS_URL + "/" + quote(email, safe="@")
+    resp = _resend_get(http_get, url, api_key)
+    code = getattr(resp, "status_code", 0)
+    if code < 200 or code >= 300:
+        raise ConfigError(f"Resend 연락처 조회 실패 status={code}")
+    data = _resend_json(resp)
+    if not data.get("email"):
+        data["email"] = email
+    return data
+
+
+def fetch_resend_subscribers(api_key, http_get=None):
+    """확인된 키워드만 활성. 수신 거부 조합은 blocked 로 돌려준다."""
+    getter = http_get or requests.get
+    rows = _list_contacts(getter, api_key)
+    active = []
+    blocked = set()
+    for index, row in enumerate(rows):
+        if index:
+            time.sleep(CONTACT_GAP_SEC)
+        if not isinstance(row, dict):
+            continue
+        email = str(row.get("email") or "").strip()
+        if not email or "@" not in email:
+            continue
+        detail = row if "properties" in row else _get_contact(getter, api_key, email)
+        props = detail.get("properties") if isinstance(detail, dict) else None
+        for kw in split_keywords(prop_value(props, PROP_BLOCKED)):
+            blocked.add(pair_key(email, kw))
+        keywords = split_keywords(prop_value(props, PROP_KEYWORDS))
+        if detail.get("unsubscribed") is True:
+            for kw in keywords:
+                blocked.add(pair_key(email, kw))
+            continue
+        for kw in keywords:
+            active.extend(parse_subscribers(json.dumps([
+                {"email": email, "keyword": kw, "plan": "free"},
+            ])))
+    return active, blocked
+
+
+def merge_subscribers(manual, remote, blocked):
+    """시크릿 명단 뒤에 Resend 확인 구독을 붙인다. 수신 거부·중복은 뺀다."""
+    blocked = blocked or set()
+    out = []
+    seen = set()
+    for item in list(manual or []) + list(remote or []):
+        if not isinstance(item, dict):
+            continue
+        key = pair_key(item.get("email"), item.get("keyword"))
+        if not key[0] or not key[1] or key in seen or key in blocked:
+            continue
+        seen.add(key)
+        out.append({
+            "email": str(item.get("email") or "").strip(),
+            "keyword": normalize_keyword(item.get("keyword")),
+            "plan": "free",
+        })
+    return out
+
+
+def compose_email(subscriber, notices, unsub_url=""):
     """제목, 텍스트, HTML. 제목·마감·링크와 운영 안내만."""
     keyword = subscriber["keyword"]
     site_name = config.SITE.get("name") or "지원사업 마감판"
@@ -128,10 +331,16 @@ def compose_email(subscriber, notices):
     n = len(ordered)
     subject = f"[{site_name}] {keyword} 새 공고 {n}건"
     footer = "개인이 운영하는 지원사업·입찰 마감 안내 사이트입니다."
-    unsub = (
-        "알림을 그만 받으려면 이 메일에 회신하거나 "
-        f"{site_email} 로 중단을 요청해 주세요."
-    )
+    if unsub_url:
+        unsub = (
+            "이 키워드 알림을 그만 받으려면 아래 주소를 열고 수신 거부를 누르세요.\n"
+            + unsub_url
+        )
+    else:
+        unsub = (
+            "알림을 그만 받으려면 이 메일에 회신하거나 "
+            f"{site_email} 로 중단을 요청해 주세요."
+        )
     lines = [
         f"{site_name} 키워드 알림",
         "",
@@ -156,8 +365,12 @@ def compose_email(subscriber, notices):
         items.append(bit)
     lines.extend(["", footer])
     if site_email:
-        lines.append(f"문의 {site_email}")
+        lines.append(f"문의는 회신하거나 {site_email} 로 보내 주세요.")
     lines.extend(["", unsub])
+    if unsub_url:
+        unsub_html = f'<p><a href="{_esc(unsub_url)}">이 키워드 알림 수신 거부</a></p>'
+    else:
+        unsub_html = f"<p>{_esc(unsub)}</p>"
     html = (
         '<!DOCTYPE html><html lang="ko"><body>'
         f"<p>{_esc(site_name)} 키워드 알림</p>"
@@ -166,12 +379,12 @@ def compose_email(subscriber, notices):
         f"<ul>{''.join(items)}</ul>"
         f"<p>{_esc(footer)}"
         + (
-            f' 문의 <a href="mailto:{_esc(site_email)}">{_esc(site_email)}</a>.'
+            f' 문의는 회신하거나 <a href="mailto:{_esc(site_email)}">{_esc(site_email)}</a>.'
             if site_email else ""
         )
         + "</p>"
-        f"<p>{_esc(unsub)}</p>"
-        "</body></html>"
+        + unsub_html
+        + "</body></html>"
     )
     return subject, "\n".join(lines), html
 
@@ -284,7 +497,7 @@ def _from_address(raw):
     return text
 
 
-def post_resend(api_key, from_addr, to_addr, subject, text, html, reply_to):
+def post_resend(api_key, from_addr, to_addr, subject, text, html, reply_to, unsub_url=""):
     payload = {
         "from": from_addr,
         "to": [to_addr],
@@ -294,6 +507,11 @@ def post_resend(api_key, from_addr, to_addr, subject, text, html, reply_to):
     }
     if reply_to:
         payload["reply_to"] = reply_to
+    if unsub_url:
+        payload["headers"] = {
+            "List-Unsubscribe": f"<{unsub_url}>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
     resp = requests.post(
         RESEND_URL,
         headers={
@@ -308,14 +526,21 @@ def post_resend(api_key, from_addr, to_addr, subject, text, html, reply_to):
 
 def execute(environ=None, notices_path=None, state_path=None):
     env = os.environ if environ is None else environ
-    subscribers = parse_subscribers(env.get("SUBSCRIBERS_JSON") or "")
-    if not subscribers:
-        print("알림 다이제스트: 구독자 없음 (SUBSCRIBERS_JSON 비어 있음) — 건너뜀")
-        return 0
+    manual = parse_subscribers(env.get("SUBSCRIBERS_JSON") or "")
     api_key = (env.get("RESEND_API_KEY") or "").strip()
+    remote = []
+    blocked = set()
+    if api_key:
+        remote, blocked = fetch_resend_subscribers(api_key)
+        print(f"알림 다이제스트: Resend 활성 {len(remote)}건, 수신거부 {len(blocked)}건")
+    subscribers = merge_subscribers(manual, remote, blocked)
+    if not subscribers:
+        print("알림 다이제스트: 구독자 없음 — 건너뜀")
+        return 0
     if not api_key:
         print("알림 다이제스트: RESEND_API_KEY 없음 — 건너뜀")
         return 0
+    secret = (env.get("ALERT_SIGNING_SECRET") or api_key).strip()
     from_addr = _from_address(env.get("RESEND_FROM") or "")
     notices_file = notices_path or (env.get("ALERT_NOTICES_PATH") or "").strip() or NOTICES_PATH
     state_file = state_path or (env.get("ALERT_STATE_PATH") or "").strip() or STATE_PATH
@@ -349,10 +574,11 @@ def execute(environ=None, notices_path=None, state_path=None):
         if index:
             time.sleep(SEND_GAP_SEC)
         ids = {notice_id(n) for n in hits}
-        subject, text, html = compose_email(sub, hits)
+        link = unsubscribe_url(secret, sub["email"], sub["keyword"]) if secret else ""
+        subject, text, html = compose_email(sub, hits, link)
         try:
             status = post_resend(
-                api_key, from_addr, sub["email"], subject, text, html, reply_to,
+                api_key, from_addr, sub["email"], subject, text, html, reply_to, link,
             )
         except Exception as err:
             print(f"알림 다이제스트: 발송 오류 ({type(err).__name__})")
