@@ -98,6 +98,10 @@ def cf_headers_contents():
         "/rss.xml\n"
         "  X-Robots-Tag: noindex\n"
         "\n"
+        "/api/*\n"
+        "  X-Robots-Tag: noindex\n"
+        "  Cache-Control: no-store\n"
+        "\n"
         "/static/*\n"
         "  Cache-Control: public, max-age=86400\n"
     )
@@ -1093,6 +1097,7 @@ def main():
             "Allow: /app-ads.txt\n"
             "Disallow: /scrap/\n"
             "Disallow: /alerts/\n"
+            "Disallow: /api/\n"
             "Allow: /\n"
             f"Sitemap: {SITE['domain']}/sitemap.xml\n"
         )
@@ -1113,7 +1118,9 @@ def main():
         print(f"지역×분야 리다이렉트 {len(combo_redirects)}건 (목록 HTML은 만들지 않음)")
     print("ads.txt·app-ads.txt 루트 확인:", ADS_TXT_LINE)
     fs = env.globals.get("formspree_url") or ""
-    print("알림 전달:", "Formspree " + fs if fs else "mailto 폴백 (FORMSPREE_ID 없음)")
+    print("알림 신청: /api/alerts/subscribe (Resend 연락처, 확인 메일)")
+    if fs:
+        print("FORMSPREE_ID 는 알림 신청에 쓰지 않습니다.")
     for rel in ("index.html", "static/style.css", "static/filter.js", "static/alert.js"):
         p = os.path.join(DIST, rel)
         if os.path.isfile(p):

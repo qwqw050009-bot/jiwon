@@ -9,12 +9,40 @@ on:
     # 알림 id 기록 커밋만 있으면 빌드·배포를 다시 돌리지 않는다.
     paths-ignore:
       - data/alert_sent.json
+  pull_request:
 
 permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements.txt
+      - name: unit tests
+        run: |
+          python - << 'PY'
+          import pathlib, subprocess, sys
+          failed = 0
+          for path in sorted(pathlib.Path("src").glob("test_*.py")):
+              print("==", path, flush=True)
+              result = subprocess.run([sys.executable, str(path)])
+              if result.returncode:
+                  failed = result.returncode
+          if failed:
+              sys.exit(failed)
+          PY
+          node --test lib/alert_signup.test.mjs
   build:
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +66,31 @@ jobs:
           git add data/enrich_cache.json data/seen.json data/archive.json data/kstartup_cache.json data/api_cache.json data/bid_cache.json || true
           git diff --staged --quiet || git commit -m "data update"
           git push || true
+      # 신청 함수가 쓰는 Resend 키. Pages 시크릿은 배포 전에 있어야 한다.
+      # 토큰 권한이 없으면 이 단계는 실패로 남고, 정적 배포는 계속한다.
+      # 그때는 Pages → jiwon → Settings → Environment variables (Production)에
+      #   RESEND_API_KEY = GitHub secret 과 같은 값 (연락처 권한 필요)
+      # 을 넣고 한 번 더 배포해야 신청이 저장된다.
+      - name: sync alert secret to Pages
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ secrets.RESEND_FROM }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RESEND_API_KEY}" ]; then
+            echo "RESEND_API_KEY 가 비어 있습니다. Pages 신청 함수는 저장하지 못합니다."
+            exit 1
+          fi
+          echo "Pages 프로젝트 jiwon 에 RESEND_API_KEY 를 넣습니다."
+          printf '%s' "$RESEND_API_KEY" | npx --yes wrangler@3 pages secret put RESEND_API_KEY --project-name=jiwon
+          if [ -n "${RESEND_FROM}" ]; then
+            printf '%s' "$RESEND_FROM" | npx --yes wrangler@3 pages secret put RESEND_FROM --project-name=jiwon \
+              || echo "RESEND_FROM 동기화에 실패했습니다. 함수는 기본 발신자를 씁니다."
+          fi
       - name: deploy
         uses: cloudflare/wrangler-action@v3
         with:
@@ -45,11 +98,12 @@ jobs:
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           command: pages deploy dist --project-name=jiwon --branch=main
       # 키워드 알림. 배포 뒤에 돌려 링크가 살아 있게 한다.
-      # 시크릿 세 개 (저장소에 구독자 이메일을 넣지 말 것):
+      # 구독자 이메일은 저장소에 넣지 않는다.
       #   RESEND_API_KEY   — Resend API 키. 없으면 건너뛰고 exit 0.
+      #                      연락처 조회와 발송에 쓴다. 발송 전용 키는 연락처를 못 읽는다.
       #   RESEND_FROM      — 발신자. 비우면 마감판 <alerts@magampan.com>.
-      #   SUBSCRIBERS_JSON — [{email, keyword, plan}] 배열. 비우면 건너뜀.
-      #     예: [{"email":"name@example.com","keyword":"제조업","plan":"free"}]
+      #   SUBSCRIBERS_JSON — 손으로 넣는 [{email, keyword, plan}] 배열. 비우면 Resend 만.
+      # 사이트에서 확인한 연락처와 시크릿 명단을 합친다. 수신 거부한 조합은 뺀다.
       # 무료(plan=free)만. 하루 1회, 키워드가 맞는 새 공고가 있을 때만 보낸다.
       # 발송한 공고 id는 data/alert_sent.json (이메일 없음, seen.json 과 같은 배열).
       - name: alert digest

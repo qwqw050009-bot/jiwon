@@ -1,0 +1,21 @@
+# Cloudflare Pages 프로젝트 jiwon (magampan.com).
+# `wrangler pages deploy dist` 는 저장소 루트의 functions/ 를 같이 올린다.
+# functions 를 dist 안에 넣지 않는다.
+name = "jiwon"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "dist"
+
+# 런타임 시크릿은 코드에 두지 않는다. Pages → jiwon → Settings →
+# Environment variables (Production) 에 넣는다. 빌드 워크플로가
+# GitHub secret RESEND_API_KEY 와 같은 값을 넣으려 한다.
+#   RESEND_API_KEY   필수. 연락처 권한이 있는 키 (발송 전용 키는 연락처를 못 읽음)
+#   RESEND_FROM      선택. 비우면 마감판 <alerts@magampan.com>
+# 수신 거부 서명은 RESEND_API_KEY 를 쓴다. 다이제스트와 같아야 한다.
+# ALERT_SIGNING_SECRET 을 따로 쓰면 GitHub Actions 와 Pages 양쪽에 같은 값을 넣는다.
+#
+# 신청 한도는 워커 메모리와 Cache API 로 기본 동작한다.
+# 더 오래 막으려면 KV 를 만들어 ALERTS_KV 로 묶는다. id 없이 두면 배포가 실패하므로
+# 네임스페이스를 만든 뒤에만 아래를 연다.
+# [[kv_namespaces]]
+# binding = "ALERTS_KV"
+# id = ""

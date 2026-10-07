@@ -164,7 +164,7 @@ def test_alert_js_is_mailto_not_checkout():
     root = os.path.join(os.path.dirname(__file__), "..")
     js = open(os.path.join(root, "static", "alert.js"), encoding="utf-8").read()
     assert "mailto:" in js
-    assert "formspree" in js
+    assert "/api/alerts/subscribe" in js
     assert "localStorage" in js
     assert "IMP.init" not in js
     assert "Kakao.init" not in js

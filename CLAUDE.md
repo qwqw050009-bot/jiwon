@@ -13,7 +13,7 @@
 
 ## 파일 역할
 - `src/config.py` — 사이트 설정, 분야 8종, 지역 17종, 입찰 종류 4종.
-  `FORMSPREE_ID` 가 있으면 알림 폼 실전달, 없으면 mailto
+ 알림 신청은 `/api/alerts/subscribe`. `FORMSPREE_ID` 는 더 이상 신청 경로가 아니다
 - `src/bizinfo.py` — 기업마당 API 어댑터. 응답을 내부 스키마로 정규화
 - `src/kstartup.py` — K-Startup(창업진흥원) API 어댑터. 창업 분야 데이터
   깊이 보강용 선택적 소스. `KSTARTUP_KEY` 없으면 완전히 건너뛰고
@@ -25,6 +25,10 @@
 - `src/sources.py` — 데이터 로더. D-day 계산, 정렬, 보강 소스 병합(`merge_extra`)
 - `src/enrich.py` — 공고별 해설 생성. 캐시 필수
 - `src/build.py` — 전체 페이지 생성, sitemap, robots
+- `src/alert_digest.py` — 키워드 알림. Resend 연락처의 확인된 키워드와
+ `SUBSCRIBERS_JSON` 을 합쳐 보낸다. 이메일은 저장소에 쓰지 않는다
+- `lib/alert_signup.mjs`, `functions/api/alerts/` — 셀프 신청·확인·수신거부.
+ 구독자는 Resend 연락처 속성 `keywords` 에 둔다. 확인 전에는 보내지 않는다
 - `src/ics.py` — 캘린더 구독 파일
 - `src/pages.py` — 애드센스 필수 고정 페이지 (about/privacy/terms/contact)
 - `src/guides.py` — `/guide/` 상시 콘텐츠(신청자격/바우처차이/서류/
@@ -74,9 +78,10 @@ JS가 꺼져도 서버 렌더 목록이 보여야 한다.
 **7. 인증키를 코드에 쓰지 마라**
 `BIZINFO_KEY`, `KSTARTUP_KEY`, `ANTHROPIC_API_KEY`, `NARA_API_KEY`,
 `DATA_GO_KR_SERVICE_KEY`는 환경변수로만 읽는다.
-알림 실전달은 `FORMSPREE_ID`(Formspree 공개 폼 ID 또는
-`https://formspree.io/f/...` URL). GitHub Actions secret 으로만 넣고
-코드에 ID를 쓰지 마라. 비어 있으면 mailto 폴백이라 빌드가 죽지 않는다.
+알림 신청은 Cloudflare Pages Function 이 Resend 연락처에 저장한다.
+`RESEND_API_KEY` 는 GitHub Actions 와 Pages 환경변수에만 넣고 코드에 쓰지 마라.
+구독자 이메일은 저장소·`SUBSCRIBERS_JSON` 이외의 커밋에 넣지 마라.
+`FORMSPREE_ID` 는 신청에 쓰지 않는다. 비어 있어도 빌드는 죽지 않는다.
 
 **8. 보강 데이터소스는 항상 선택적으로(optional) 연결하라**
 K-Startup처럼 나중에 추가하는 소스는 해당 API 키 환경변수가 없으면
