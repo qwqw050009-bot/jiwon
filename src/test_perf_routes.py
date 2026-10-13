@@ -24,10 +24,15 @@ def test_minify_html_keeps_lines_and_pre():
     assert build.minify_html(raw) == raw
 
 
-def test_ad_slot_height_reserved_inline():
+def test_ad_slot_collapsed_until_filled():
+    """미승인·미로드 광고가 빈 박스로 보이지 않게 높이를 미리 잡지 않고, 채워진 단위에만 여백을 준다."""
     base = open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
     head = base.split("</style>")[0]
-    assert ".ad-slot ins.adsbygoogle{display:block;width:100%;min-height:200px}" in head
+    assert "min-height:200px" not in head and "min-height:250px" not in head
+    assert '.ad-slot:has(ins.adsbygoogle[data-ad-status="filled"])' in head
+    assert '.ad-slot:has(ins.adsbygoogle[data-ad-status="unfilled"]){display:none}' in head
+    css = open(os.path.join(ROOT, "static", "style.css"), encoding="utf-8").read()
+    assert "min-height:200px" not in css
     assert 'rel="preconnect" href="https://pagead2.googlesyndication.com"' in base
 
 

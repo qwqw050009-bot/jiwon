@@ -34,10 +34,12 @@
   <p>{{ lede }}</p>
   {% if tally and not bid_empty %}
   <div class="tally">
-    {% if tally.today %}<span class="u"><b>{{ tally.today }}</b>오늘 마감</span>{% endif %}
-    <span {% if tally.urgent %}class="u"{% endif %}><b>{{ tally.urgent }}</b>이번 주 마감</span>
-    <span><b>{{ tally.open }}</b>진행중</span>
+    {% set plus = ' 이상' if tally.more else '' %}
+    {% if tally.today %}<span class="u"><b>{{ '{:,}'.format(tally.today) }}{{ plus }}</b>오늘 마감</span>{% endif %}
+    <span {% if tally.urgent %}class="u"{% endif %}><b>{{ '{:,}'.format(tally.urgent) }}{{ plus }}</b>이번 주 마감</span>
+    <span><b>{{ '{:,}'.format(tally.open) }}{{ plus }}</b>진행중</span>
   </div>
+  {% if tally.more %}<p class="note">나라장터 응답을 끝까지 받지 못한 날은 건수를 최소값으로 적습니다.</p>{% endif %}
   {% endif %}
 </div>
 {% endif %}
@@ -82,7 +84,6 @@
   data-kind="{{ sel_kind or '' }}"
   data-due="{{ sel_due or '' }}"
   data-region="{{ sel_region or '' }}"
-  data-email="{{ alert_email or site.email or '' }}"
   data-formspree="{{ formspree_url|default('') }}">
   <form class="find-search" action="/bid/" method="get" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
@@ -117,7 +118,7 @@
     <button type="button" class="f-chip f-chip--ghost" data-bid-panel="load">조건 불러오기</button>
   </div>
   <div class="active-pills" id="bid-pills" hidden></div>
-  <p class="f-count" id="bid-count" aria-live="polite">{% if tally %}{{ tally.open }}건{% if tally.urgent %} · 이번 주 마감 {{ tally.urgent }}건{% endif %}{% endif %}</p>
+  <p class="f-count" id="bid-count" aria-live="polite">{% if tally %}{{ '{:,}'.format(tally.open) }}건{{ ' 이상' if tally.more }}{% if tally.urgent %} · 이번 주 마감 {{ '{:,}'.format(tally.urgent) }}건{{ ' 이상' if tally.more }}{% endif %}{% endif %}</p>
   <p class="sr-only" id="bid-live" aria-live="assertive" aria-atomic="true"></p>
 
   <div class="f-overlay" id="bid-overlay" hidden aria-hidden="true">
@@ -158,11 +159,12 @@
     {% else %}
       <p class="note">{{ empty }}</p>
     {% endif %}
+    {% if ad_mid_after and not loop.last and loop.index <= 3 %}{{ ad_slot('list_mid') }}{% endif %}
     {% endfor %}
   {% else %}
     {% for a in items[:limit or 20] %}
     {{ row(a) }}
-    {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
+    {% if ad_mid_after and loop.index % ad_mid_after == 0 and loop.index <= ad_mid_after * 3 and not loop.last %}{{ ad_slot('list_mid') }}{% endif %}
     {% else %}
     <p class="note">{{ empty }}</p>
     {% endfor %}

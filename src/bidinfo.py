@@ -42,10 +42,13 @@ ARCHIVE_DAYS = 180              # 마감 입찰 상세페이지 보관 일수 (�
 MOCK = os.path.join(os.path.dirname(__file__), "..", "data", "bid_mock.json")
 
 # 페이지네이션·배포 용량 상한. 나라장터는 하루 수천 건이라 전부 정적화하지 않는다.
-MAX_PAGES_PER_KIND = 4          # 100건 × 4페이지 × 4종류 = 최대 1,600건 수신
+# 페이지네이션은 totalCount 까지 끝까지 돈다. 아래는 무한 루프·과금 방지용 안전 상한
+# (100건 × 50페이지 = 종류당 5,000건, 7일치로는 넉넉함). 상한에 걸리거나 중간 페이지가
+# 실패하면 META["complete"] 가 False 가 되고, 화면 건수는 "N건 이상" 으로 표기된다.
+MAX_PAGES_PER_KIND = 50
 NUM_OF_ROWS = 100
 INQRY_DAYS = 7                  # 공고게시일 기준 최근 N일 (API는 보통 1개월 이내)
-MAX_BIDS = 500                  # 정렬 후 최종 목록 상한
+MAX_BIDS = 500                  # 목록·상세 페이지를 만드는 상한 (배포 파일 수 제한). 건수 표기는 상한 전 전체 기준
 KEEP_CLOSED_DAYS = 3            # 마감된 지 이 일수 이내만 목록 하단에 남김
 MAX_CLOSE_AHEAD_DAYS = 30       # 마감이 너무 먼 건은 마감판 성격에 안 맞아 제외
 
@@ -65,6 +68,13 @@ READ_TIMEOUT = 60
 HTTP_ATTEMPTS = 5          # 재시도 4회 (3–5 범위)
 HTTP_BACKOFF = 5          # 라운드 사이 대기 = HTTP_BACKOFF * attempt 초
 RETRY_HTTP = {408, 429, 500, 502, 503, 504}
+
+# 수집 메타. complete=False 면 일부 페이지·종류를 못 받아 건수가 하한값이다.
+# 기본은 CACHE 와 같은 폴더의 bid_meta.json (테스트가 CACHE 를 바꾸면 같이 따라간다).
+META_PATH = None
+META = {"complete": True}
+# 상한(MAX_BIDS) 적용 전, 정정공고 병합 후 전체 목록. bid_build 가 건수 표기에 쓴다.
+FULL = []
 AUTH_RESULT_CODES = {"01", "30", "31", "32"}
 AUTH_HTTP = {401, 403}
 
@@ -354,8 +364,48 @@ def _sort_key(row):
     return (row.get("status") != "open", row.get("dday", 9999), row.get("title") or "")
 
 
+def _seq_num(row):
+    seq = str(row.get("seq") or "")
+    if not seq:
+        seq = str(row.get("id") or "").rpartition("-")[2]
+    return int(seq) if seq.isdigit() else -1
+
+
+def _bid_base(row):
+    no = str(row.get("bid_no") or "")
+    if no:
+        return no
+    base, _, ordr = str(row.get("id") or "").rpartition("-")
+    return base if base and ordr.isdigit() else str(row.get("id") or "")
+
+
+def latest_only(rows):
+    """
+    정정공고 병합. 같은 공고번호(bidNtceNo)의 차수(-000 원공고, -001 정정 …) 중
+    가장 높은 차수 1건만 남긴다. 예: R26BK01755554-000, -001 → -001 만.
+    순서는 입력 순서를 따른다.
+    """
+    best = {}
+    for r in rows or []:
+        b = _bid_base(r)
+        if b not in best or _seq_num(r) > _seq_num(best[b]):
+            best[b] = r
+    keep = {id(v) for v in best.values()}
+    return [r for r in rows or [] if id(r) in keep]
+
+
+def superseded_ids(rows):
+    """rows 안에서 더 높은 차수가 있는 이전 차수 id 집합."""
+    best = {}
+    for r in rows or []:
+        b = _bid_base(r)
+        best[b] = max(best.get(b, -1), _seq_num(r))
+    return {r.get("id") for r in rows or [] if _seq_num(r) < best.get(_bid_base(r), -1)}
+
+
 def process(rows, now=None, cap=MAX_BIDS):
-    """캐시/목업/라이브 공통. D-day를 다시 계산하고 상한을 적용한다."""
+    """캐시/목업/라이브 공통. D-day를 다시 계산하고, 정정공고를 병합하고, 상한을 적용한다.
+    상한 전 전체 목록은 FULL 에 남긴다(건수 표기용)."""
     now = now_kst(now)
     out, seen = [], set()
     for r in rows or []:
@@ -369,7 +419,9 @@ def process(rows, now=None, cap=MAX_BIDS):
             continue
         seen.add(row["id"])
         out.append(row)
+    out = latest_only(out)
     out.sort(key=_sort_key)
+    FULL[:] = out
     if cap and len(out) > cap:
         out = out[:cap]
     return out
@@ -578,9 +630,11 @@ def _get(key, op, page, bgn, end):
     raise last
 
 
-def _fetch_kind(key, kind, bgn, end, pages):
+def _fetch_kind(key, kind, bgn, end, pages, status=None):
+    """totalCount 까지 끝까지 받는다. 중간 실패·안전 상한이면 status["complete"]=False."""
     out, page = [], 1
     op = kind["op"]
+    complete = False
     while page <= pages:
         try:
             items, total = _get(key, op, page, bgn, end)
@@ -593,8 +647,13 @@ def _fetch_kind(key, kind, bgn, end, pages):
         out.extend(items)
         print(f"  [입찰 {kind['name']}] {page}페이지 수신 ({len(out)}/{total})")
         if not items or page * NUM_OF_ROWS >= total:
+            complete = True
             break
         page += 1
+    if not complete:
+        print(f"  [입찰 {kind['name']}] 전체를 받지 못함 — 건수는 'N건 이상'으로 표기")
+    if status is not None and not complete:
+        status["complete"] = False
     return out
 
 
@@ -609,13 +668,14 @@ def fetch_live(key=None, pages=None, now=None):
     print(f"  [입찰] HTTP timeout connect={CONNECT_TIMEOUT}s read={READ_TIMEOUT}s "
           f"attempts={HTTP_ATTEMPTS}")
     rows, errors = [], []
+    status = {"complete": True}
     auth_dead = False
     for kind in config.BID_KINDS:
         if auth_dead:
             errors.append(f"{kind['name']}: skipped (auth)")
             continue
         try:
-            raw = _fetch_kind(key, kind, bgn, end, pages)
+            raw = _fetch_kind(key, kind, bgn, end, pages, status)
         except Exception as e:
             reason = _err_reason(e)
             errors.append(f"{kind['name']}: {reason}")
@@ -630,13 +690,42 @@ def fetch_live(key=None, pages=None, now=None):
                 rows.append(row)
     processed = process(rows, now=now)
     if processed:
-        _save_cache(processed)
+        # 캐시에는 상한 전 전체(FULL)를 둔다. 캐시로 빌드해도 건수가 맞게.
+        _save_cache(list(FULL))
+        _save_meta({"complete": status["complete"] and not errors,
+                    "fetched_at": now.strftime("%Y-%m-%d %H:%M")})
         if errors:
             print(f"  [입찰] 일부 종류 실패, {len(processed)}건은 유지")
         return processed
     if errors:
         raise RuntimeError("; ".join(errors))
     return processed
+
+
+def _meta_path():
+    return META_PATH or os.path.join(os.path.dirname(os.path.abspath(CACHE)), "bid_meta.json")
+
+
+def _save_meta(meta):
+    META.clear()
+    META.update(meta)
+    try:
+        with open(_meta_path(), "w", encoding="utf-8") as f:
+            json.dump(META, f, ensure_ascii=False)
+    except OSError as e:
+        print(f"  [입찰] 메타 저장 실패({e})")
+
+
+def _load_meta():
+    """캐시 빌드용. 파일이 없으면(예전 캐시) 500건 상한으로 잘렸을 수 있어 하한값으로 본다."""
+    try:
+        with open(_meta_path(), encoding="utf-8") as f:
+            d = json.load(f)
+        meta = {"complete": bool(d.get("complete")), "fetched_at": d.get("fetched_at") or ""}
+    except Exception:
+        meta = {"complete": False}
+    META.clear()
+    META.update(meta)
 
 
 def load_cache(now=None):
@@ -649,6 +738,7 @@ def load_cache(now=None):
         return []
     if not isinstance(raw, list) or not raw:
         return []
+    _load_meta()
     return process(raw, now=now)
 
 
@@ -676,6 +766,8 @@ def load_mock(now=None, path=None):
         row = _materialize_mock(spec, now=now)
         if row:
             rows.append(row)
+    META.clear()
+    META.update({"complete": True})
     return process(rows, now=now, cap=MAX_BIDS)
 
 
@@ -746,6 +838,8 @@ def archived_bids(rows, now=None, path=None, save=False):
             live.add(r["id"])
             arc[r["id"]] = {k: r.get(k) for k in CACHE_FIELDS}
     kept, out = {}, []
+    # 정정공고로 목록에서 빠진 이전 차수. 상세 URL 은 남겨 최신 차수로 canonical 한다.
+    old_revs = superseded_ids(list(rows or []) + list(arc.values()))
     for bid_id, r in arc.items():
         close = parse_dt(r.get("close_dt"))
         if not close or (now - close).days > ARCHIVE_DAYS:
@@ -754,8 +848,8 @@ def archived_bids(rows, now=None, path=None, save=False):
         if bid_id in live:
             continue
         row = decorate(dict(r), now=now)
-        if not row or row.get("is_open"):
-            continue      # 아직 열린 건은 라이브 목록 몫
+        if not row or (row.get("is_open") and bid_id not in old_revs):
+            continue      # 아직 열린 건은 라이브 목록 몫 (이전 차수는 예외)
         row["is_archived"] = True
         out.append(row)
     if save:

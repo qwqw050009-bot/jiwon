@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""알림·요금제 랜딩: 카피 반영, 가짜 후기/결제/로그인 없음."""
+"""무료 알림 랜딩: 카피 반영, 유료 플랜·가짜 후기/결제/로그인 없음."""
 import os
 import sys
 
@@ -23,41 +23,17 @@ def _env():
     return env
 
 
-def test_copy_has_three_plans_and_no_fake_review():
+def test_no_paid_plans_and_no_fake_review():
+    """사업자 없음 → 유료 플랜·요금제·결제 문구를 두지 않는다(광고 수익만)."""
     ctx = landing.context()
-    names = [p["name"] for p in ctx["plans"]]
-    assert names == ["무료", "베이직", "프로"]
-    prices = [p["price"] for p in ctx["plans"]]
-    assert prices == ["₩0", "₩9,900", "₩29,000"]
-    free = next(p for p in ctx["plans"] if p["id"] == "free")
-    basic = next(p for p in ctx["plans"] if p["id"] == "basic")
-    pro = next(p for p in ctx["plans"] if p["id"] == "pro")
-    assert free["popular"] is True
-    assert free["available"] is True
-    assert "지금 이용 가능" in free["badge"]
-    assert basic["popular"] is False
-    assert basic["available"] is False
-    assert pro["available"] is False
-    assert "사업자 등록 후 오픈" in basic["badge"]
-    assert "준비 중" in pro["badge"]
-    assert "가장 인기있는 플랜" not in (basic.get("badge") or "")
-    blob = " ".join(ctx["alert_faqs"][i]["a"] for i in range(len(ctx["alert_faqs"])))
+    assert "plans" not in ctx and "pro_lock" not in ctx and "pricing_h1" not in ctx
+    blob = " ".join(f["q"] + " " + f["a"] for f in ctx["alert_faqs"]) + ctx["mid_cta_lede"]
     assert "하루 1회, 새 공고가 있을 때만" in blob
-    assert "최대 1시간" not in blob
-    assert "1시간 이내" not in blob
-    assert "카드로 매월 자동" not in blob
-    assert "결제대행사" not in blob
-    assert "낙찰까지 받았습니다" not in blob
+    for bad in ("베이직", "프로", "사업자 등록", "유료 구독", "구독료", "카드로 매월 자동", "결제대행사",
+                "낙찰까지 받았습니다", "최대 1시간", "1시간 이내"):
+        assert bad not in blob, bad
     assert "OO기업" not in ctx["hero_h1"]
-    assert "프로 전용" not in ctx["pro_lock"]
-    assert "추후" in ctx["pro_lock"]
     assert "무료" in ctx["hero_hint"]
-    for p in ctx["plans"]:
-        assert p["cta_href"] in ("/#alert", "/#alert")
-        assert p["cta_href"].startswith("/")
-        assert "checkout" not in p["cta_href"]
-        assert "kakao" not in p["cta_href"].lower()
-        assert "toss" not in p["cta_href"].lower()
 
 
 def test_business_placeholders_are_not_invented():
@@ -70,42 +46,6 @@ def test_business_placeholders_are_not_invented():
     assert "123-45-67890" not in (biz.get("biz_no") or "")
     assert "000-00-00000" not in (biz.get("biz_no") or "")
     assert config.SITE["email"] == "qwqw050009@gmail.com"
-
-
-def test_pricing_page_render():
-    html = _env().get_template("pricing.html").render(
-        site=config.SITE, path="/pricing/", page="pricing", section="support",
-        title="t", desc="d", h1=landing.PRICING_H1, lede=landing.PRICING_LEDE,
-        faqs=landing.ALERT_FAQS, faq_jsonld="", crumbs=[], crumb_jsonld="",
-    )
-    assert "지금은 무료입니다" in html
-    assert "₩0" in html and "₩9,900" in html and "₩29,000" in html
-    assert "지금 이용 가능" in html
-    assert "사업자 등록 후 오픈 / 준비 중" in html
-    assert "가장 인기있는 플랜" not in html
-    assert "무료 알림 등록" in html
-    assert "무료 알림으로 받기" in html
-    assert "베이직 시작하기" not in html
-    assert "프로 시작하기" not in html
-    assert "알림 신청" in html
-    assert "준비 중" in html
-    assert "카드로 매월 자동" not in html
-    assert "결제대행사" not in html
-    assert "언제든 해지" not in html
-    assert "낙찰까지 받았습니다" not in html
-    assert "후기" not in html
-    assert 'href="/login' not in html
-    assert ">로그인<" not in html
-    assert "로그인</a>" not in html
-    assert "[대표자명]" not in html
-    assert "[000-00-00000]" not in html
-    assert "통신판매업" not in html
-    assert "qwqw050009@gmail.com" in html
-    assert "개인이 운영하는 지원사업·입찰 마감 안내 사이트" in html
-    assert 'href="/pricing/"' in html
-    assert 'href="/#alert"' in html
-    assert landing.PLAN_LEGAL[:20] in html
-    assert "카드결제·토스·PG는 연결되어 있지 않습니다" in html
 
 
 def test_home_hero_and_footer():
@@ -129,26 +69,27 @@ def test_home_hero_and_footer():
     assert "가입 없이 이메일로 무료 마감 알림" in home
     assert "이 조건 저장하고 알림받기" in home
     assert "프로 전용" not in home
-    assert "인테리어·마감공사" in home
-    assert "설비·기계" in home
-    assert "IT·소프트웨어" in home
-    assert "기타 용역" in home
+    # 업종 칩(입찰용 분류)은 지원 홈에 두지 않는다
+    assert "인테리어·마감공사" not in home
+    assert "IT·소프트웨어" not in home
     assert "매번 검색하기 번거로우신가요?" in home
-    assert "요금제 안내" in home
-    assert 'href="/pricing/"' in home
-    assert 'href="/#alert"' in home
+    assert "요금제" not in home and "/pricing/" not in home and "구독하기" not in home
+    assert 'href="#alert"' in home and "무료 알림 받기" in home
     assert "알림은 얼마나 정확하고 빠른가요?" in home
-    assert "mailto:qwqw050009@gmail.com" in home
+    # 개인 메일 주소는 평문·mailto 로 두지 않고 문의 페이지로
+    assert "qwqw050009@gmail.com" not in home
+    assert 'href="/contact/"' in home
+    assert 'href="https://tool.magampan.com/"' in home
     assert "카카오톡 · 준비 중" in home
     assert "path-card" in home
     assert "오늘 마감" in home
-    assert "내 지역부터 보기" in home
+    assert "개 시·도에서 고르기" in home
     assert "처음이세요?" in home
     assert "입찰 탭" in home
     assert "로그인</a>" not in home
     assert 'href="/login' not in home
     assert "낙찰까지 받았습니다" not in home
-    footer_bits = ("지원사업", "입찰공고", "요금제", "사이트 소개",
+    footer_bits = ("지원사업", "입찰공고", "지원금 계산기", "사이트 소개",
                    "개인정보처리방침", "이용약관", "문의")
     for bit in footer_bits:
         assert bit in home
@@ -160,10 +101,11 @@ def test_home_hero_and_footer():
     assert "사업장 주소" not in home
 
 
-def test_alert_js_is_mailto_not_checkout():
+def test_alert_js_is_free_signup_not_checkout():
     root = os.path.join(os.path.dirname(__file__), "..")
     js = open(os.path.join(root, "static", "alert.js"), encoding="utf-8").read()
-    assert "mailto:" in js
+    assert "@gmail.com" not in js
+    assert "/contact/" in js
     assert "/api/alerts/subscribe" in js
     assert "localStorage" in js
     assert "IMP.init" not in js
@@ -180,10 +122,9 @@ def test_home_faqs_keep_counts_and_landing():
 
 
 if __name__ == "__main__":
-    test_copy_has_three_plans_and_no_fake_review()
+    test_no_paid_plans_and_no_fake_review()
     test_business_placeholders_are_not_invented()
-    test_pricing_page_render()
     test_home_hero_and_footer()
-    test_alert_js_is_mailto_not_checkout()
+    test_alert_js_is_free_signup_not_checkout()
     test_home_faqs_keep_counts_and_landing()
     print("ok")

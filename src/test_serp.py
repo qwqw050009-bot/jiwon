@@ -296,15 +296,12 @@ def test_intros_wrappers_match_serp():
 def test_static_and_guide_pages():
     assert "2026" in serp.guide_hub_title()
     assert "자격" in serp.guide_hub_desc()
-    for slug in ("about", "privacy", "terms", "contact", "pricing"):
+    for slug in ("about", "privacy", "terms", "contact"):
         d = serp.static_desc(slug)
         assert len(d) >= 40
         assert "이(가)" not in d
-    assert "요금제" in serp.pricing_title()
-    assert "무료" in serp.pricing_title()
-    assert "이메일" in serp.pricing_desc()
-    assert "사업자 등록 후" in serp.pricing_desc()
-    assert "카드결제" in serp.pricing_desc() or "PG" in serp.pricing_desc()
+    assert not hasattr(serp, "pricing_title")      # 요금제 페이지 없음 (/pricing/ → / 301)
+    assert "/pricing/ / 301" in __import__("build").cf_redirects_contents()
     assert "ICS" in serp.calendar_title()
     start = next(g for g in __import__("guides").build() if g[0] == "start")
     assert "소상공인 지원금 신청" in start[1]

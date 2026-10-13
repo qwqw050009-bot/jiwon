@@ -51,11 +51,22 @@ UNIT = r"(?:억|천만|백만|십만|만|천)?"
 MONEY = re.compile(
     r"(?:기업당|업체당|점포당|인당|1인당|개소당)?"
     r"(?:\s*(?:최대|한도))?\s*"
-    r"[\d,]+\s*" + UNIT + r"\s*원(?:\s*(?:이내|한도|이하|까지))?"
+    r"\d[\d,]*\s*" + UNIT + r"\s*원(?:\s*(?:이내|한도|이하|까지))?"
     r"|최대\s*(?:억|천만|백만|십만|만)\s*원"
     r"|총\s*사업비의?\s*\d+\s*%[^\s,]*"
     r"|사업비의?\s*\d+~?\d*\s*%"
 )
+
+
+# 금액 표기로 인정하는 최소 조건: 숫자가 하나라도 있다.
+# '최대 억원', ', 원'은 원문 표의 숫자가 빠진 흔적이라 버린다.
+_AMOUNT_OK = re.compile(r"\d")
+
+
+def valid_amount(text):
+    """', 원'처럼 숫자 없이 남은 금액 표기는 버린다 (원문 표의 숫자가 빠진 경우)."""
+    t = (text or "").strip()
+    return bool(t) and t != "공고문 참조" and bool(_AMOUNT_OK.search(t))
 
 
 def _pick_amount(text):
@@ -63,7 +74,7 @@ def _pick_amount(text):
     if not text:
         return None
     cands = MONEY.findall(text) or [m.group(0) for m in MONEY.finditer(text)]
-    cands = [c.strip() for c in cands if c and c.strip()]
+    cands = [c.strip() for c in cands if c and c.strip() and valid_amount(c)]
     if not cands:
         return None
     # '최대'/'한도'/'이내'가 붙은 표현을 우선한다
@@ -99,7 +110,7 @@ def amount_of(row):
     지원내용은 보통 마지막 ☞ 항목이므로 뒤에서부터 훑는다.
     """
     raw = (row.get("amount") or "").strip()
-    if raw and raw != "공고문 참조":
+    if valid_amount(raw):
         return raw
     for p in reversed(row.get("points") or []):
         got = _pick_amount(p)
@@ -111,7 +122,7 @@ def amount_of(row):
 def amount_card(row):
     """카드용 금액. 본문에서 뽑힌 표기만. 자리표시 '공고문 참조'는 비운다."""
     got = amount_of(row)
-    if not got or got == "공고문 참조":
+    if not valid_amount(got):
         return ""
     return got.strip()[:28]
 
@@ -448,6 +459,10 @@ _BULLET_LEAK = re.compile(r"[￭•▪]")
 _WRONG_EURO = re.compile(r"접수으로")
 
 
+# 캐시에 남은 "규모 표기는 , 원입니다" (원문 표의 숫자가 빠진 금액). 금액 문장을 빼고 다시 만든다.
+_NO_DIGIT_AMOUNT = re.compile(r"표기는\s*[^0-9가-힣]*원입니다")
+
+
 def heal_broken_josa(ai, row):
     """
     옛날 조사 버그 문구이거나, 카드에서 버리는 상투구 fallback이면
@@ -461,6 +476,7 @@ def heal_broken_josa(ai, row):
         or _STRAY_OLD_FALLBACK.search(s)
         or _BULLET_LEAK.search(s)
         or _WRONG_EURO.search(s)
+        or _NO_DIGIT_AMOUNT.search(s)
     ):
         return _fallback(row)
     return ai

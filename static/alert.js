@@ -74,6 +74,8 @@
       (b && b.getAttribute('data-alert-endpoint')) ||
       '/api/alerts/subscribe';
   }
+  // 화면·HTML 에 개인 메일 주소를 두지 않는다. 신청이 실패하면 문의 페이지로 안내한다.
+  var CONTACT = '/contact/';
   function mailtoOf() {
     var form = document.getElementById('alert-form');
     var b = document.body;
@@ -172,9 +174,7 @@
   }
   function failMessage(res) {
     if (res && res.message) return res.message;
-    var to = mailtoOf();
-    if (to) return '알림 신청을 저장하지 못했습니다. 잠시 뒤 다시 시도하거나 ' + to + ' 로 키워드와 이메일을 보내 주세요.';
-    return '알림 신청을 저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
+    return '알림 신청을 저장하지 못했습니다. 잠시 뒤 다시 시도하거나 문의 페이지(' + CONTACT + ')로 알려 주세요.';
   }
   function sayToast(res) {
     var msg = res && res.ok

@@ -18,12 +18,12 @@
     </a>
     <a class="path-card" href="/region/" data-howto="region">
       <b>{{ region_n|default(all_regions|length) }}</b>
-      <span>내 지역부터 보기</span>
+      <span>개 시·도에서 고르기</span>
     </a>
   </div>
   {% include "_alert_form.html" %}
-  {% include "_industry_chips.html" %}
-  <p class="how-aside">나라장터 입찰은 위 <a href="/bid/">입찰 탭</a>에서 따로 봅니다. <a href="/guide/start/">처음이세요?</a></p>
+  {# 업종 칩(조명·전기공사 등)은 입찰용 분류라 지원 홈에는 두지 않는다. /bid/ 에만 있다. #}
+  <p class="how-aside">나라장터 입찰은 위 <a href="/bid/">입찰 탭</a>에서 따로 봅니다. <a href="/guide/start/">처음이세요?</a> 받을 수 있는 정부 지원금은 <a href="https://tool.magampan.com/">지원금 계산기</a>로 먼저 확인할 수 있습니다.</p>
 </section>
 {% else %}
 <div class="head">
@@ -74,11 +74,12 @@
     <div class="sec-head"><h2>{{ s.title }}</h2><span>{{ s.total }}건</span></div>
     {% for a in s["items"] %}{{ row(a) }}{% endfor %}
     {% if s.total > 5 %}<a class="more" href="{{ s.href }}">{{ s.title }} {{ s.total }}건 모두 보기</a>{% endif %}
+    {% if ad_mid_after and not loop.last and loop.index <= 3 %}{{ ad_slot('list_mid') }}{% endif %}
     {% endfor %}
   {% else %}
     {% for a in items[:limit or 20] %}
     {{ row(a) }}
-    {% if ad_mid_after and loop.index == ad_mid_after %}{{ ad_slot('list_mid') }}{% endif %}
+    {% if ad_mid_after and loop.index % ad_mid_after == 0 and loop.index <= ad_mid_after * 3 and not loop.last %}{{ ad_slot('list_mid') }}{% endif %}
     {% else %}
     <p class="note">지금 접수 중인 공고가 없습니다. 새 공고는 매일 아침 갱신됩니다.</p>
     <ul class="empty-actions">

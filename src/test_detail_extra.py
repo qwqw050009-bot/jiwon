@@ -59,10 +59,21 @@ def test_agency_others_same_org_only():
 
 
 def test_thin_detection():
-    assert not dx.is_thin(RICH)
+    # 요약 150자 미만은 필드가 차 있어도 얇다.
+    assert dx.is_thin(RICH)
     assert dx.is_thin({"title": "x", "amount": "공고문 참조"})
     assert dx.is_thin({"title": "x", "target": "중소기업"})
-    assert not dx.is_thin({"title": "x", "target": "중소기업", "method": "온라인", "contact": "02"})
+    assert dx.is_thin({"title": "x", "target": "중소기업", "method": "온라인", "contact": "02"})
+    long_body = "서울 소재 창업기업의 사업화를 돕는 공고입니다. " * 6   # 약 160자
+    longer = long_body * 2                                            # 약 320자
+    dated = dict(RICH, overview=long_body)
+    assert not dx.is_thin(dated)                                      # 마감일·금액 있음
+    always = {"title": "x", "period_type": "always", "period_raw": "예산 소진 시까지",
+              "amount": "공고문 참조", "overview": long_body}
+    assert dx.is_thin(always)                                         # 금액·마감일 없고 250자 미만
+    assert not dx.is_thin(dict(always, overview=longer))              # 본문이 충분히 길면 색인
+    assert not dx.is_thin(dict(always, amount="최대 1억원"))           # 금액이 있으면 색인
+    assert dx.is_thin(dict(always, amount=", 원"))                    # 숫자 없는 금액은 없는 것
 
 
 def test_pages_differ():

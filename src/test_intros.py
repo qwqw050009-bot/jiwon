@@ -127,10 +127,11 @@ def test_jeonnam_gwangju_stays_united():
 
 def test_ad_plan_thin_vs_long():
     assert intros.ad_plan(2) == (False, 0, False)
+    assert intros.ad_plan(2, hub=True) == (True, 0, False)       # 지역·분야 허브 상단 1개
     assert intros.ad_plan(6) == (True, 0, False)
-    assert intros.ad_plan(10) == (True, 0, True)
-    assert intros.ad_plan(20) == (True, 8, True)
-    assert intros.ad_plan(0, has_sections=True) == (True, 0, True)
+    assert intros.ad_plan(10) == (True, intros.INFEED_EVERY, True)
+    assert intros.ad_plan(20) == (True, intros.INFEED_EVERY, True)
+    assert intros.ad_plan(0, has_sections=True) == (True, intros.INFEED_EVERY, True)
     empty = {"adsense_client": "ca-pub-x", "adsense_slots": {}}
     assert intros.resolve_ads((True, 8, True), empty) == (False, 0, False)
     filled = {"adsense_client": "ca-pub-x", "adsense_slots": {

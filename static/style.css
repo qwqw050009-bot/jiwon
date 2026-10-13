@@ -676,21 +676,21 @@ a.more{text-align:center}
 .empty-cta{display:inline-flex;align-items:center;text-decoration:none!important;min-width:12rem}
 
 /* ── 광고 ── */
+/* 광고 자리를 미리 잡지 않는다(미승인·미로드 때 빈 박스 방지). 채워진 단위에만 여백·배경을 준다. */
 .ad,.ad-slot{
-  margin:20px 0;min-height:0;display:block;background:transparent;border:0;
+  margin:0;min-height:0;display:block;background:transparent;border:0;
 }
-/* CLS 방지: 광고가 들어올 자리를 미리 잡는다(인라인 핵심 CSS 와 같은 값). 채워지지 않으면 접는다. */
-.ad-slot ins.adsbygoogle{display:block;width:100%;min-height:200px}
-@media(max-width:560px){.ad-slot ins.adsbygoogle{min-height:250px}}
+.ad-slot ins.adsbygoogle{display:block;width:100%;min-height:0}
 .ad-slot:has(ins.adsbygoogle[data-ad-status="unfilled"]){display:none}
 .ad-slot ins.adsbygoogle[data-ad-status="unfilled"]{
   display:none!important;height:0!important;min-height:0!important;
 }
-.ad-slot--mid{
+.ad-slot:has(ins.adsbygoogle[data-ad-status="filled"]){margin:20px 0}
+.ad-slot--mid:has(ins.adsbygoogle[data-ad-status="filled"]){
   margin:0;padding:12px 18px;background:var(--sheet);
   border:1px solid var(--line);border-radius:var(--radius);
 }
-.ad-slot--bottom{margin:28px 0 8px}
+.ad-slot--bottom:has(ins.adsbygoogle[data-ad-status="filled"]){margin:28px 0 8px}
 .ad:empty{display:none}
 /* 채워진 광고 단위에만 "광고" 표시 (콘텐츠와 구분, 애드센스 정책). 빈 단위는 높이 0. */
 .ad-slot:has(ins.adsbygoogle[data-ad-status="filled"])::before{

@@ -37,13 +37,34 @@ def _crumb_ld(crumbs, site):
     }, ensure_ascii=False)
 
 
-def tally(items):
+def tally(items, full=None, more=None):
+    """
+    건수. full 을 주면 목록 상한(500건) 전 전체 기준으로 센다.
+    more=True 면 수집이 끝까지 되지 않아 하한값이다 → 화면에 "N건 이상".
+    """
+    src = items if full is None else full
+    if more is None:
+        more = not bidinfo.META.get("complete", True)
     return {
-        "today": sum(1 for a in items if a.get("is_open") and a.get("dday") == 0),
-        "urgent": sum(1 for a in items if a.get("is_open") and 0 <= a["dday"] <= 7),
-        "soon": sum(1 for a in items if a.get("is_open") and 7 < a["dday"] <= 14),
-        "open": sum(1 for a in items if a.get("is_open")),
+        "today": sum(1 for a in src if a.get("is_open") and a.get("dday") == 0),
+        "urgent": sum(1 for a in src if a.get("is_open") and 0 <= a["dday"] <= 7),
+        "soon": sum(1 for a in src if a.get("is_open") and 7 < a["dday"] <= 14),
+        "open": sum(1 for a in src if a.get("is_open")),
+        "more": bool(more),
     }
+
+
+def n_label(t, key):
+    """'12건' 또는 수집이 덜 됐으면 '500건 이상'."""
+    n = int((t or {}).get(key) or 0)
+    return f"{n:,}건 이상" if (t or {}).get("more") and n else f"{n:,}건"
+
+
+def cap_note(shown, total):
+    """목록에 보이는 카드 수가 전체보다 적을 때 붙이는 안내."""
+    if total > shown:
+        return f" 목록에는 마감이 가까운 {shown:,}건까지 보여 줍니다."
+    return ""
 
 
 def hub_intro(t):
@@ -51,8 +72,8 @@ def hub_intro(t):
         "<p>입찰은 공공기관이 물품·용역·공사·외자를 살 때 나라장터에 올리는 공고입니다. "
         "기업이 신청해서 받는 지원사업과는 성격이 다릅니다. "
         f'<a href="/">지원사업 마감일</a>은 홈에서 따로 봅니다.</p>'
-        f"<p>이 목록 기준으로 오늘 마감 {int(t['today'])}건, "
-        f"이번 주 마감 {int(t['urgent'])}건, 진행 중 {int(t['open'])}건입니다.</p>"
+        f"<p>나라장터 수집 기준으로 오늘 마감 {n_label(t, 'today')}, "
+        f"이번 주 마감 {n_label(t, 'urgent')}, 진행 중 {n_label(t, 'open')}입니다.</p>"
     )
 
 
@@ -86,8 +107,8 @@ def hub_faqs(t):
               "지원사업은 기업이 신청해서 받는 공고라 따로 정리합니다. "
               "지원사업은 홈에서 마감일 순으로 볼 수 있습니다."},
         {"q": "오늘 마감되는 입찰은 몇 건인가요?",
-         "a": f"이 목록 기준으로 오늘 마감 {int(t['today'])}건, "
-              f"이번 주 마감 {int(t['urgent'])}건입니다."},
+         "a": f"나라장터 수집 기준으로 오늘 마감 {n_label(t, 'today')}, "
+              f"이번 주 마감 {n_label(t, 'urgent')}입니다."},
         {"q": "추정가격이 없는 공고는 왜 보이나요?",
          "a": "나라장터 응답에 추정가격이 비어 있는 경우가 있습니다. "
               "없는 숫자를 채워 넣지 않고, 원문 공고에서 확인하도록 비워 둡니다."},
@@ -101,9 +122,9 @@ def kind_faqs(kind, items, t):
     name = kind["name"]
     return [
         {"q": f"{name} 입찰은 무엇을 사나요?",
-         "a": f"{kind['desc']}입니다. 이 목록에는 진행 중 {int(t['open'])}건이 있습니다."},
+         "a": f"{kind['desc']}입니다. 이 목록에는 진행 중 {n_label(t, 'open')}이 있습니다."},
         {"q": f"{name} 입찰 중 이번 주 마감은 몇 건인가요?",
-         "a": f"이 목록 기준으로 이번 주 마감 {int(t['urgent'])}건입니다."},
+         "a": f"나라장터 수집 기준으로 이번 주 마감 {n_label(t, 'urgent')}입니다."},
         {"q": "참가 자격은 이 사이트에서 보이나요?",
          "a": "면허·실적 같은 참가 자격은 원문 공고를 기준으로 합니다. "
               "이 목록은 마감일시와 수요기관을 먼저 보여 줍니다."},
@@ -116,7 +137,7 @@ def region_faqs(rname, items, t):
          "a": f"나라장터 참가제한·참가가능 지역 표기가 '{rname}'과 정확히 같은 공고만 모았습니다. "
               "제목에서 지역을 추측하지 않습니다."},
         {"q": f"{rname}에서 이번 주 마감은 몇 건인가요?",
-         "a": f"이 목록 기준으로 이번 주 마감 {int(t['urgent'])}건, 진행 중 {int(t['open'])}건입니다."},
+         "a": f"나라장터 수집 기준으로 이번 주 마감 {n_label(t, 'urgent')}, 진행 중 {n_label(t, 'open')}입니다."},
     ]
 
 
@@ -150,7 +171,9 @@ def build(env, write, site, urls, dist, noindex_sink=None):
     """입찰 트리를 dist/ 에 추가하고, 생성한 경로 수를 반환한다."""
     before = len(urls)
     rows = bidinfo.load()
-    t_all = tally(rows)
+    # 건수는 상한(MAX_BIDS) 전 전체 기준. 카드·상세 페이지는 rows(상한 적용)만 만든다.
+    full_rows = list(bidinfo.FULL) or list(rows)
+    t_all = tally(rows, full_rows)
     by_kind = {k["name"]: [a for a in rows if a.get("kind") == k["name"]]
                for k in BID_KINDS}
     by_reg = {r["name"]: [a for a in rows if a.get("region") == r["name"]]
@@ -166,7 +189,8 @@ def build(env, write, site, urls, dist, noindex_sink=None):
     def render_list(path, h1, lede, items, *, title=None, desc=None,
                     intro=None, faqs=None, blocks=None, sections=None,
                     beginner=False, crumbs=None, empty=None, bid_empty=None,
-                    sel_kind="", sel_due="", sel_region="", limit=20, page="list"):
+                    sel_kind="", sel_due="", sel_region="", limit=20, page="list",
+                    full=None):
         n = len(items)
         sections = sections or []
         blocks = blocks or []
@@ -179,7 +203,7 @@ def build(env, write, site, urls, dist, noindex_sink=None):
             site=site, path=path, section="bid", page=page,
             title=title or f"{h1} | {site['name']}",
             desc=desc or lede, h1=h1, lede=lede, items=items,
-            tally=None if bid_empty else (tally(items) if not sections else t_all),
+            tally=None if bid_empty else (tally(items, full) if not sections else t_all),
             intro=intro or "", faqs=faqs or [],
             faq_jsonld=intros.faq_jsonld(faqs or []),
             blocks=[] if bid_empty else blocks, sections=[] if bid_empty else sections,
@@ -206,6 +230,9 @@ def build(env, write, site, urls, dist, noindex_sink=None):
 
     open_rows = [a for a in rows if a.get("is_open")]
     week = [a for a in open_rows if 0 <= a["dday"] <= 7]
+    full_open = [a for a in full_rows if a.get("is_open")]
+    full_week = [a for a in full_open if 0 <= a["dday"] <= 7]
+    t_week = tally(week, full_week)
 
     hub_empty = not open_rows
     if hub_empty:
@@ -217,7 +244,8 @@ def build(env, write, site, urls, dist, noindex_sink=None):
     else:
         faqs = hub_faqs(t_all)
         intro = hub_intro(t_all)
-        lede = "오늘 마감되는 입찰부터 봅니다. 물품·용역·공사·외자로 나눕니다."
+        lede = ("오늘 마감되는 입찰부터 봅니다. 물품·용역·공사·외자로 나눕니다."
+                + cap_note(len(open_rows), len(full_open)))
         hub_blocks = [{"title": "종류로 찾기", "items": kind_chips}]
         if reg_chips:
             hub_blocks.append({"title": "참가지역으로 찾기", "items": reg_chips})
@@ -228,6 +256,7 @@ def build(env, write, site, urls, dist, noindex_sink=None):
         hub_items,
         title=serp.bid_hub_title(None if hub_empty else t_all),
         desc=serp.bid_hub_desc(None if hub_empty else t_all),
+        full=full_open,
         intro=intro, faqs=faqs, beginner=not hub_empty,
         blocks=hub_blocks, limit=20,
         crumbs=[{"name": "홈", "url": "/"}, {"name": "입찰", "url": "/bid/"}],
@@ -238,13 +267,14 @@ def build(env, write, site, urls, dist, noindex_sink=None):
 
     render_list(
         "/bid/urgent/", serp.bid_urgent_h1(),
-        "7일 안에 마감일시가 있는 입찰만 모았습니다.",
+        "7일 안에 마감일시가 있는 입찰만 모았습니다." + cap_note(len(week), len(full_week)),
         week,
-        title=serp.bid_urgent_title(len(week)),
-        desc=serp.bid_urgent_desc(len(week)),
+        title=serp.bid_urgent_title(t_week["urgent"], more=t_week["more"]),
+        desc=serp.bid_urgent_desc(t_week["urgent"], more=t_week["more"]),
+        full=full_week,
         faqs=[
             {"q": "이번 주 마감 입찰은 몇 건인가요?",
-             "a": f"이 목록 기준으로 {len(week)}건입니다. 마감일시는 나라장터 원문을 따릅니다."},
+             "a": f"나라장터에서 받은 전체 기준으로 {n_label(t_week, 'urgent')}입니다. 마감일시는 나라장터 원문을 따릅니다."},
             {"q": "지원사업 마감임박은 어디에 있나요?",
              "a": "지원사업 마감임박은 홈의 마감임박 메뉴에서 봅니다. 이 페이지는 입찰만 다룹니다."},
         ],
@@ -258,21 +288,23 @@ def build(env, write, site, urls, dist, noindex_sink=None):
 
     for kind in BID_KINDS:
         items = by_kind[kind["name"]]
-        kt = tally(items)
+        kfull = [a for a in full_rows if a.get("kind") == kind["name"]]
+        kt = tally(items, kfull)
         kfaqs = kind_faqs(kind, items, kt)
         render_list(
             f"/bid/kind/{kind['slug']}/",             f"{kind['name']} 입찰공고",
             (
                 f"{kind['desc']}. 마감일시가 가까운 순입니다. "
-                + (f"오늘 마감 {kt['today']}건입니다." if kt.get("today") else
-                   f"이번 주 마감 {kt['urgent']}건입니다." if kt.get("urgent") else
-                   f"진행 중 {kt['open']}건입니다.")
+                + (f"오늘 마감 {n_label(kt, 'today')}입니다." if kt.get("today") else
+                   f"이번 주 마감 {n_label(kt, 'urgent')}입니다." if kt.get("urgent") else
+                   f"진행 중 {n_label(kt, 'open')}입니다.")
             ),
             items,
-            title=serp.bid_kind_title(kind["name"], kt["open"]),
-            desc=serp.bid_kind_desc(kind["name"], kt["open"], kind.get("desc") or ""),
-            intro=(f"<p>{kind['desc']}입니다. 이 목록 기준으로 진행 중 {kt['open']}건, "
-                   f"이번 주 마감 {kt['urgent']}건입니다. "
+            title=serp.bid_kind_title(kind["name"], kt["open"], more=kt["more"]),
+            desc=serp.bid_kind_desc(kind["name"], kt["open"], kind.get("desc") or "", more=kt["more"]),
+            full=kfull,
+            intro=(f"<p>{kind['desc']}입니다. 나라장터 수집 기준으로 진행 중 {n_label(kt, 'open')}, "
+                   f"이번 주 마감 {n_label(kt, 'urgent')}입니다. "
                    "추정가격은 나라장터에 값이 있을 때만 보여 줍니다.</p>"),
             faqs=kfaqs,
             blocks=[{"title": "다른 종류", "items": [c for c in kind_chips if c["name"] != kind["name"]]}],
@@ -308,13 +340,15 @@ def build(env, write, site, urls, dist, noindex_sink=None):
             items = by_reg[r["name"]]
             if not items:
                 continue
-            rt = tally(items)
+            rfull = [a for a in full_rows if a.get("region") == r["name"]]
+            rt = tally(items, rfull)
             render_list(
                 f"/bid/region/{r['slug']}/", f"{r['name']} 참가지역 입찰",
                 f"참가지역 표기가 {r['name']}과 정확히 같은 공고입니다.",
                 items,
-                title=serp.bid_region_title(r["name"], len(items)),
-                desc=serp.bid_region_desc(r["name"], len(items)),
+                title=serp.bid_region_title(r["name"], len(rfull), more=rt["more"]),
+                desc=serp.bid_region_desc(r["name"], len(rfull), more=rt["more"]),
+                full=rfull,
                 faqs=region_faqs(r["name"], items, rt),
                 blocks=[{"title": "다른 지역", "items": [c for c in reg_chips if c["name"] != r["name"]]}],
                 crumbs=[{"name": "홈", "url": "/"},

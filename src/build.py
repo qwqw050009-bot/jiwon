@@ -123,6 +123,9 @@ def cf_redirects_contents():
     return (
         "/ads.txt /ads.txt 200\n"
         "/app-ads.txt /app-ads.txt 200\n"
+        # 유료 플랜을 열지 않는다(사업자 없음, 광고 수익만). 예전 요금제 주소는 홈으로.
+        "/pricing / 301\n"
+        "/pricing/ / 301\n"
     )
 
 
@@ -352,11 +355,16 @@ URL_META = {}
 NOINDEX_DETAIL = []   # 얇은 상세페이지: HTML 은 남기되 sitemap 제외·noindex
 
 
+# 이번 빌드가 직접 쓴 HTML 파일(dist 기준 상대 경로). stray_html_files() 가드용.
+WRITTEN = set()
+
+
 def write(path, html, index=True, lastmod=None, changefreq=None, priority=None):
     """path='/region/seoul/' → dist/region/seoul/index.html"""
     out = os.path.join(DIST, path.strip("/"), "index.html") if path != "/" \
         else os.path.join(DIST, "index.html")
     os.makedirs(os.path.dirname(out), exist_ok=True)
+    WRITTEN.add(os.path.relpath(out, DIST).replace(os.sep, "/"))
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
     if index:
@@ -366,6 +374,28 @@ def write(path, html, index=True, lastmod=None, changefreq=None, priority=None):
             "changefreq": changefreq,
             "priority": priority,
         }
+
+
+# write() 를 거치지 않고 일부러 두는 HTML. static/ 아래 파일도 허용한다.
+EXPECTED_EXTRA_HTML = {"404.html", "naver0defc699223f8ffa807d6d0bc99bb36c.html"}
+
+
+def stray_html_files(dist, written, extra=EXPECTED_EXTRA_HTML):
+    """
+    이번 빌드가 만들지 않은 HTML 이 dist 에 있으면 그 목록을 돌려준다.
+    예전 /bid/ 처럼 오래된 bid.html 이 남아 Cloudflare Pages 가 /bid 요청을
+    그쪽으로 보내는 일을 막는다(Pages 는 /bid 를 bid.html 로도 찾는다).
+    """
+    out = []
+    for root, _dirs, files in os.walk(dist):
+        for name in files:
+            if not name.endswith(".html"):
+                continue
+            rel = os.path.relpath(os.path.join(root, name), dist).replace(os.sep, "/")
+            if rel in written or rel in extra or rel.startswith("static/"):
+                continue
+            out.append(rel)
+    return sorted(out)
 
 
 def _date_of(row, fallback=None):
@@ -391,7 +421,8 @@ def fill_defaults(a):
     """실데이터에 없는 필드를 채운다. 목업/실데이터 스키마 차이를 흡수."""
     a.setdefault("amount", "")
     parsed = enrich.amount_of(a)
-    if not a["amount"] or a["amount"] == "공고문 참조":
+    # ', 원'처럼 숫자가 빠진 원문 표기는 금액으로 보지 않는다(카드·상세·FAQ 모두).
+    if not enrich.valid_amount(a["amount"]):
         a["amount"] = parsed or "공고문 참조"
     a["amount_card"] = enrich.amount_card(a)
     a.setdefault("target", "")
@@ -518,6 +549,8 @@ def archived_notices(rows, today):
 
     kept, out = {}, []
     for aid, a in arc.items():
+        if sources.is_excluded_title(a.get("title")):
+            continue          # 포상·표창 등 지원사업이 아닌 공고는 아카이브에도 두지 않는다
         try:
             end = date.fromisoformat(a.get("apply_end") or "")
         except Exception:
@@ -621,7 +654,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
                 list_guides=None, region_n=0, show_rail=True):
     n_for_ads = len(tally_items) if (tally_items is not None and sections) else len(items)
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
-        intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
+        intros.ad_plan(n_for_ads, has_sections=bool(sections),
+                       hub=path.startswith(("/region/", "/category/"))), SITE)
     crumbs = crumbs or []
     if intro_paras and path.startswith(("/region/", "/category/")) and items:
         st = detail_extra.list_stats(tally_items if tally_items is not None else items)
@@ -668,9 +702,12 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
 
 
 def main():
+    # 빌드 전에 출력 폴더를 통째로 비운다(이전 빌드의 잔재 HTML 이 배포되지 않게).
     if os.path.exists(DIST):
         shutil.rmtree(DIST)
     os.makedirs(DIST)
+    WRITTEN.clear()
+    browse.WRITTEN.clear()
     shutil.copytree(
         os.path.join(ROOT, "static"), os.path.join(DIST, "static"),
         ignore=shutil.ignore_patterns(*STATIC_ROOT_FILES),
@@ -1127,21 +1164,6 @@ def main():
         )
         write(f"/{slug}/", html)
 
-    write("/pricing/", env.get_template("pricing.html").render(
-        site=SITE, path="/pricing/", page="pricing", section="support",
-        title=serp.pricing_title(),
-        desc=serp.pricing_desc(),
-        h1=landing.PRICING_H1,
-        lede=landing.PRICING_LEDE,
-        faqs=landing.ALERT_FAQS,
-        faq_jsonld=intros.faq_jsonld(landing.ALERT_FAQS),
-        crumbs=[{"name": "홈", "url": "/"}, {"name": "요금제", "url": "/pricing/"}],
-        crumb_jsonld=crumb_ld([
-            {"name": "홈", "url": "/"},
-            {"name": "요금제", "url": "/pricing/"},
-        ]),
-    ))
-
     # 캘린더 구독 파일
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     os.makedirs(os.path.join(DIST, "calendar"), exist_ok=True)
@@ -1243,7 +1265,7 @@ def main():
         else:
             freq = meta.get("changefreq") or "daily"
         pr = meta.get("priority") or (
-            "1.0" if u in ("/", "/bid/", "/pricing/") else
+            "1.0" if u in ("/", "/bid/") else
             ("0.8" if u.count("/") <= 3 else "0.6")
         )
         sm.append(f"<url><loc>{SITE['domain']}{u}</loc><lastmod>{lm}</lastmod>"
@@ -1339,6 +1361,12 @@ def main():
     # 실제 제출은 배포 뒤 alert_digest.py 단계에서 src/indexnow.py 가 한다 (키 파일이 라이브여야 함).
     import indexnow
     indexnow.save_list(URLS, URL_META, dl.today_kst())
+
+    stray = stray_html_files(DIST, WRITTEN | browse.WRITTEN)
+    if stray:
+        raise SystemExit("이번 빌드가 만들지 않은 HTML 이 dist 에 있습니다(잔재 파일): "
+                         + ", ".join(stray[:20]))
+    print("잔재 HTML 점검: 이번 빌드가 만든 파일만 있음")
 
     print(f"지원 {len(rows)}건(신규 {new_cnt}건) → {support_n}페이지, "
           f"입찰 +{bid_n}페이지, 합계 {len(URLS)}페이지, "
