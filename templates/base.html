@@ -78,7 +78,10 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
 </style>
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="/static/style.css?v={{ asset_v }}"></noscript>
+{% set _parts = (path or '/').strip('/').split('/') %}
+{% set page_feed = (rss_feeds or {}).get('/' ~ _parts[0] ~ '/' ~ _parts[1] ~ '/') if _parts|length >= 2 and _parts[0] in ('region', 'category') else none %}
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
+{% if page_feed %}<link rel="alternate" type="application/rss+xml" title="{{ h1|default(site.name) }} RSS" href="{{ page_feed }}">{% endif %}
 {% if site.adsense_client and not no_ads %}
 <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
 <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
@@ -175,6 +178,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     <a href="/bid/">입찰공고</a>
     {% if (section|default('support')) != 'bid' %}<a href="https://tool.magampan.com/">지원금 계산기</a>{% endif %}
     <a href="/browse/">전체 공고 목록</a>
+    <a href="/rss.xml">RSS</a>
     <a href="/about/">사이트 소개</a>
     <a href="/about/#operator">운영 주체</a>
     <a href="/privacy/">개인정보처리방침</a>

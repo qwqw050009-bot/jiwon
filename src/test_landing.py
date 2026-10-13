@@ -80,7 +80,8 @@ def test_home_hero_and_footer():
     assert "qwqw050009@gmail.com" not in home
     assert 'href="/contact/"' in home
     assert 'href="https://tool.magampan.com/"' in home
-    assert "카카오톡 · 준비 중" in home
+    assert "카카오" not in home       # 알림톡은 사업자가 필요해 열지 않는다
+    assert "RSS" in home
     assert "path-card" in home
     assert "오늘 마감" in home
     assert "개 시·도에서 고르기" in home

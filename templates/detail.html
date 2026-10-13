@@ -62,15 +62,18 @@
   </section>
   {% endif %}
 
-  <dl class="facts">
-    <div><dt>소관기관</dt><dd>{{ a.org }}</dd></div>
-    <div><dt>지원분야</dt><dd>{{ a.category }}</dd></div>
+  {# 원문에서 읽은 값이 있는 항목만 보여 준다. 비었거나 '공고문 참조'인 항목은 줄째 뺀다(지어내지 않음). #}
+  {% set _ref = ['', '공고문 참조', '원문 확인', '-'] %}
+  <dl class="facts" aria-label="공고 핵심 항목">
+    {% if a.org and a.org not in _ref %}<div><dt>소관기관</dt><dd>{{ a.org }}</dd></div>{% endif %}
+    {% if a.category %}<div><dt>지원분야</dt><dd>{{ a.category }}</dd></div>{% endif %}
     <div><dt>대상지역</dt><dd>{{ a.region_label or a.region }}{% if a.region_note %}<small class="amt-note">{{ a.region_note }}</small>{% endif %}</dd></div>
-    <div><dt>지원대상</dt><dd>{{ a.target }}</dd></div>
-    <div><dt>지원규모</dt><dd>{{ a.amount }}<small class="amt-note">본문 표기. 없으면 공고문 참조</small></dd></div>
-    <div><dt>접수기간</dt><dd>{% if a.period_type == 'always' %}{{ a.period_raw }}{% else %}{{ a.apply_start }} ~ {{ a.apply_end }}{% endif %}</dd></div>
-    <div><dt>신청방법</dt><dd>{{ a.method }}</dd></div>
-    {% if a.contact %}<div><dt>문의처</dt><dd>{{ a.contact }}</dd></div>{% endif %}
+    {% if a.target and a.target|trim not in _ref %}<div><dt>지원대상</dt><dd>{{ a.target }}</dd></div>{% endif %}
+    {% if a.amount_card %}<div><dt>지원금액</dt><dd>{{ a.amount }}<small class="amt-note">공고 본문 표기</small></dd></div>{% endif %}
+    {% if a.period_type == 'always' %}{% if a.period_raw %}<div><dt>접수기간</dt><dd>{{ a.period_raw }}</dd></div>{% endif %}
+    {% elif a.apply_end %}<div><dt>접수기간</dt><dd>{% if a.apply_start %}{{ a.apply_start }} ~ {% endif %}{{ a.apply_end }}</dd></div>{% endif %}
+    {% if a.method and a.method|trim not in _ref %}<div><dt>신청방법</dt><dd>{{ a.method }}</dd></div>{% endif %}
+    {% if a.contact and a.contact|trim not in _ref %}<div><dt>문의처</dt><dd>{{ a.contact }}</dd></div>{% endif %}
   </dl>
 
   {% if howto %}
@@ -150,6 +153,14 @@
   <section class="sec agency" id="agency">
     <h2>{{ a.org }}의 다른 접수 중 공고{% if agency_total %} ({{ agency_total }}건 중 {{ agency|length }}건){% endif %}</h2>
     <ul>{% for c in agency %}<li><a href="/notice/{{ c.id }}/">{{ c.title }}</a> — {{ c.dlabel }}{% if c.deadline %} ({{ c.deadline }}){% endif %}{% if c.amount %} · {{ c.amount }}{% endif %}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if same_rc %}
+  <section class="sec agency" id="same-region-category">
+    <h2>{{ a.region }} · {{ a.category }} 분야의 다른 접수 중 공고</h2>
+    <ul>{% for c in same_rc %}<li><a href="/notice/{{ c.id }}/">{{ c.title }}</a> — {{ c.dlabel }}{% if c.deadline %} ({{ c.deadline }}){% endif %}{% if c.amount %} · {{ c.amount }}{% endif %}</li>{% endfor %}</ul>
+    {% if region_slug %}<p class="note"><a href="/region/{{ region_slug }}/">{{ a.region }} 지원사업 전체 보기</a></p>{% endif %}
   </section>
   {% endif %}
 

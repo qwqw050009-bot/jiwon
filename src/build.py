@@ -102,6 +102,10 @@ def cf_headers_contents():
         "/rss.xml\n"
         "  X-Robots-Tag: noindex\n"
         "\n"
+        "/rss/*\n"
+        "  X-Robots-Tag: noindex\n"
+        "  Content-Type: application/rss+xml; charset=utf-8\n"
+        "\n"
         "/api/*\n"
         "  X-Robots-Tag: noindex\n"
         "  Cache-Control: no-store\n"
@@ -701,6 +705,70 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
     write(path, html)
 
 
+RSS_MAX = 50
+COMBO_MIN = 3     # 지역×분야 허브를 만드는 최소 접수 중 공고 수
+
+
+def _rss_date(a, fallback):
+    """공고 게시일(없으면 빌드 시각)을 RFC 822 로. 없는 날짜를 짓지 않는다."""
+    d = _date_of(a)
+    if d:
+        try:
+            return format_datetime(datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=9))))
+        except ValueError:
+            pass
+    return fallback
+
+
+def rss_xml(title, link, desc, items, now_rfc822):
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<rss version="2.0"><channel>',
+           f"<title>{html_module.escape(title)}</title>",
+           f"<link>{link}</link>",
+           f"<description>{html_module.escape(desc)}</description>",
+           "<language>ko</language>",
+           f"<lastBuildDate>{now_rfc822}</lastBuildDate>"]
+    for a in items:
+        t = html_module.escape(f"[{a['region']}] {a['title']}")
+        d = html_module.escape((a.get("ai") or {}).get("summary", ""))
+        url = f"{SITE['domain']}/notice/{a['id']}/"
+        out.append(
+            f"<item><title>{t}</title><link>{url}</link>"
+            f'<guid isPermaLink="true">{url}</guid>'
+            f"<pubDate>{_rss_date(a, now_rfc822)}</pubDate>"
+            f"<description>{d}</description></item>"
+        )
+    out.append("</channel></rss>")
+    return "\n".join(out)
+
+
+def _feed_pick(items):
+    live = [a for a in items if a.get("is_open")]
+    return sorted(live, key=lambda a: (not a.get("is_new"), a["dday"]))[:RSS_MAX]
+
+
+def write_rss_feeds(rows, by_reg, by_cat, regs, cats):
+    """/rss.xml(전체), /rss/region/<slug>.xml, /rss/category/<slug>.xml. 반환: 만든 피드 수."""
+    now_rfc822 = format_datetime(datetime.now(timezone.utc))
+    with open(os.path.join(DIST, "rss.xml"), "w", encoding="utf-8") as f:
+        f.write(rss_xml(SITE["name"], f"{SITE['domain']}/", SITE["tagline"], _feed_pick(rows), now_rfc822))
+    n = 1
+    for kind, groups, meta in (("region", by_reg, regs), ("category", by_cat, cats)):
+        os.makedirs(os.path.join(DIST, "rss", kind), exist_ok=True)
+        for name, items in groups.items():
+            picked = _feed_pick(items)
+            if not picked or name not in meta:
+                continue
+            slug = meta[name]["slug"]
+            label = f"{name} 지원사업" if kind == "region" else f"{name} 분야 지원사업"
+            with open(os.path.join(DIST, "rss", kind, f"{slug}.xml"), "w", encoding="utf-8") as f:
+                f.write(rss_xml(f"{label} 마감 · {SITE['name']}", f"{SITE['domain']}/{kind}/{slug}/",
+                                f"{label} 공고를 새 공고 먼저, 마감이 가까운 순으로 담은 피드입니다.",
+                                picked, now_rfc822))
+            n += 1
+    return n
+
+
 def main():
     # 빌드 전에 출력 폴더를 통째로 비운다(이전 빌드의 잔재 HTML 이 배포되지 않게).
     if os.path.exists(DIST):
@@ -776,6 +844,13 @@ def main():
     regs = {r["name"]: r for r in config.REGIONS}
     by_cat = {n: [a for a in rows if a["category"] == n] for n in cats}
     by_reg = {n: [a for a in rows if a["region"] == n] for n in regs}
+    # 지역·분야 RSS 피드 주소(접수 중 공고가 있는 것만 만든다). 목록 페이지 <head>·본문 링크에 쓴다.
+    env.globals["rss_feeds"] = {
+        **{f"/region/{regs[n]['slug']}/": f"/rss/region/{regs[n]['slug']}.xml"
+           for n, v in by_reg.items() if any(a.get("is_open") for a in v)},
+        **{f"/category/{cats[n]['slug']}/": f"/rss/category/{cats[n]['slug']}.xml"
+           for n, v in by_cat.items() if any(a.get("is_open") for a in v)},
+    }
     # 시군구는 허용 목록×해시태그 정확 일치만. 3건 미만은 페이지를 만들지 않는다.
     by_district = distmod.grouped(rows)
     n_dist_hubs = sum(len(v) for v in by_district.values())
@@ -886,8 +961,19 @@ def main():
         desc=serp.region_hub_desc(len(rows), len(regs)),
     )
 
-    # 옛 /region/{지역}/{분야}/ 는 파일을 만들지 않고 지역 목록 필터로 보낸다.
+    # 지역×분야 조합 허브: 접수 중 공고가 COMBO_MIN 건 이상인 조합만 /region/{지역}/{분야}/ 페이지를 만든다.
+    # 그보다 적은 조합의 옛 주소는 파일을 만들지 않고 지역 목록 필터(?field=)로 301 한다.
     combo_redirects = []
+    combo_pages = {}
+    for rname, r in regs.items():
+        for cn, c in cats.items():
+            citems = [a for a in by_reg[rname] if a["category"] == cn]
+            if sum(1 for a in citems if a.get("is_open")) >= COMBO_MIN:
+                combo_pages[(rname, cn)] = (f"/region/{r['slug']}/{c['slug']}/", citems)
+
+    def combo_href(rname, cn):
+        hit = combo_pages.get((rname, cn))
+        return hit[0] if hit else urlstate.field_href(f"/region/{regs[rname]['slug']}/", cn)
 
     # 분야별
     for name, c in cats.items():
@@ -895,7 +981,7 @@ def main():
         if not items:
             continue
         sub = [{"name": f"{r} {name}",
-                "url": urlstate.field_href(f"/region/{regs[r]['slug']}/", name),
+                "url": combo_href(r, name),
                 "count": len([a for a in items if a["region"] == r])}
                for r in regs if any(a["region"] == r for a in items)]
         other_cats = [x for x in cat_chips if x["name"] != name]
@@ -923,7 +1009,7 @@ def main():
         if not items:
             continue
         sub = [{"name": f"{rname} {cn}",
-                "url": urlstate.field_href(f"/region/{r['slug']}/", cn),
+                "url": combo_href(rname, cn),
                 "count": len([a for a in items if a["category"] == cn])}
                for cn in cats if any(a["category"] == cn for a in items)]
         other_regs = [x for x in reg_chips if x["name"] != rname]
@@ -956,10 +1042,44 @@ def main():
         for cn, c in cats.items():
             if not any(a["category"] == cn for a in items):
                 continue
-            combo_redirects.append((
-                f"/region/{r['slug']}/{c['slug']}/",
-                urlstate.field_href(f"/region/{r['slug']}/", cn),
-            ))
+            hit = combo_pages.get((rname, cn))
+            if not hit:
+                combo_redirects.append((
+                    f"/region/{r['slug']}/{c['slug']}/",
+                    urlstate.field_href(f"/region/{r['slug']}/", cn),
+                ))
+                continue
+            cpath, citems = hit
+            c_paras, c_faqs = intros.build(rname, cn, c, citems)
+            sib_cats = [{"name": f"{rname} {x}", "url": combo_pages[(rname, x)][0],
+                         "count": len(combo_pages[(rname, x)][1])}
+                        for x in cats if x != cn and (rname, x) in combo_pages]
+            sib_regs = [{"name": f"{y} {cn}", "url": combo_pages[(y, cn)][0],
+                         "count": len(combo_pages[(y, cn)][1])}
+                        for y in regs if y != rname and (y, cn) in combo_pages]
+            c_blocks = [{"title": f"{rname} 다른 분야", "items": sib_cats}] if sib_cats else []
+            if sib_regs:
+                c_blocks.append({"title": f"다른 지역의 {cn}", "items": sib_regs})
+            c_blocks.append({"title": "더 넓게", "items": [
+                {"name": f"{rname} 전체", "url": f"/region/{r['slug']}/", "count": len(items)},
+                {"name": f"{cn} 전체", "url": f"/category/{c['slug']}/", "count": len(by_cat[cn])},
+            ]})
+            render_list(
+                cpath, serp.combo_h1(rname, cn),
+                serp.combo_lede(rname, cn, citems),
+                citems,
+                title=serp.combo_title(rname, cn, citems),
+                desc=serp.combo_desc(rname, cn, c, citems),
+                intro_paras=c_paras,
+                faqs=c_faqs, faq_jsonld=intros.faq_jsonld(c_faqs),
+                list_guides=intros.list_guides(region=rname, category=cn),
+                blocks=c_blocks,
+                sel_region=rname, sel_category=cn, limit=20,
+                crumbs=[{"name": "홈", "url": "/"},
+                        {"name": "지역", "url": "/region/"},
+                        {"name": rname, "url": f"/region/{r['slug']}/"},
+                        {"name": cn, "url": cpath}],
+            )
 
         # 시군구 허브. 시군구×분야는 같은 허브의 field 필터로 보낸다.
         siblings = [
@@ -1021,6 +1141,8 @@ def main():
     # 여기서 붙이지 않는다. combo_redirects 는 main 끝에서 붙인다.
 
     # 공고 상세 (접수 중 + 마감 후 최근 것)
+    config_regs = {r["name"]: r for r in config.REGIONS}
+
     def render_notice(a, pool):
         rel = filt.related_notices(a, pool, limit=6)
         npath = f"/notice/{a['id']}/"
@@ -1058,12 +1180,15 @@ def main():
         compare = detail_extra.compare_rows(a, pool, limit=5, exclude=rel_ids)
         agency = detail_extra.agency_others(
             a, pool, limit=5, exclude=rel_ids + [c["id"] for c in compare])
+        same_rc = detail_extra.same_region_category(
+            a, pool, limit=5, exclude=[c["id"] for c in compare] + [c["id"] for c in agency])
         thin = detail_extra.is_thin(a) and npath not in KEEP_INDEXED
         html = env.get_template("detail.html").render(
             summary=detail_extra.summary_box(a),
             sections=detail_extra.desc_sections(a),
             overview_paras=detail_extra.overview_paras(a),
-            compare=compare, agency=agency,
+            compare=compare, agency=agency, same_rc=same_rc,
+            region_slug=(config_regs.get(a.get("region")) or {}).get("slug", ""),
             agency_total=detail_extra.agency_total(a, pool),
             stats_line=detail_extra.notice_stats_line(a, pool),
             noindex=thin,
@@ -1193,28 +1318,10 @@ def main():
 
     # RSS 피드. 피드리더 구독뿐 아니라 Zapier/IFTTT 같은 무료 자동화 도구가
     # "새 글 뜨면 알림" 트리거로 쓸 수 있는 표준 포맷이라 만들어둔다.
-    # 전부 다 넣으면 무의미해지니 신규 공고 우선, 그다음 마감 임박순으로 최대 50건.
-    rss_items = sorted(rows, key=lambda a: (not a["is_new"], a["dday"]))[:50]
-    now_rfc822 = format_datetime(datetime.now(timezone.utc))
-    rss = ['<?xml version="1.0" encoding="UTF-8"?>',
-           '<rss version="2.0"><channel>',
-           f"<title>{SITE['name']}</title>",
-           f"<link>{SITE['domain']}/</link>",
-           f"<description>{SITE['tagline']}</description>",
-           "<language>ko</language>",
-           f"<lastBuildDate>{now_rfc822}</lastBuildDate>"]
-    for a in rss_items:
-        title = html_module.escape(f"[{a['region']}] {a['title']}")
-        desc = html_module.escape(a.get("ai", {}).get("summary", ""))
-        rss.append(
-            f"<item><title>{title}</title>"
-            f"<link>{SITE['domain']}/notice/{a['id']}/</link>"
-            f"<guid isPermaLink=\"true\">{SITE['domain']}/notice/{a['id']}/</guid>"
-            f"<pubDate>{now_rfc822}</pubDate>"
-            f"<description>{desc}</description></item>"
-        )
-    rss.append("</channel></rss>")
-    open(os.path.join(DIST, "rss.xml"), "w", encoding="utf-8").write("\n".join(rss))
+    # 카카오 알림톡은 사업자가 필요해 열지 않는다. 그 대신 전체·지역별·분야별 피드를 둔다.
+    # 피드마다 신규 공고 우선, 그다음 마감 임박순으로 최대 50건. 마감된 공고는 넣지 않는다.
+    n_feeds = write_rss_feeds(rows, by_reg, by_cat, regs, cats)
+    print(f"RSS 피드 {n_feeds}개 (전체 1 + 지역·분야별)")
     # rss.xml noindex 와 ads.txt Content-Type 은 emit_root_text_files() 가
     # 빌드 초반에 dist/_headers 로 이미 쓴다. 여기서 덮어쓰지 않는다.
 
@@ -1335,8 +1442,9 @@ def main():
     print(f"상세페이지 {len(detail_now)}건 (라이브 {live_n}, 시드 {seed_count})")
     if msg and not os.environ.get("ALLOW_DETAIL_DROP"):
         raise SystemExit(msg)
+    print(f"지역×분야 허브 {len(combo_pages)}개 (접수 중 {COMBO_MIN}건 이상)")
     if combo_redirects:
-        print(f"지역×분야 리다이렉트 {len(combo_redirects)}건 (목록 HTML은 만들지 않음)")
+        print(f"지역×분야 리다이렉트 {len(combo_redirects)}건 (공고가 적은 조합은 지역 목록 필터로)")
     print("ads.txt·app-ads.txt 루트 확인:", ADS_TXT_LINE)
     fs = env.globals.get("formspree_url") or ""
     print("알림 신청: /api/alerts/subscribe (Resend 연락처, 확인 메일)")

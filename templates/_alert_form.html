@@ -1,5 +1,5 @@
 {# 알림 신청은 Pages Function 으로 POST 한다. 확인 메일의 링크를 눌러야 발송이 시작된다.
-   결제·카카오·계정은 없다. data-formspree 는 예전 속성으로 남겨 둔다. #}
+   결제·계정은 없다. 카카오톡 알림톡은 사업자가 필요해 열지 않는다(대신 RSS·캘린더). data-formspree 는 예전 속성으로 남겨 둔다. #}
 {% set fs = formspree_url|default('') %}
 <div class="alert-box{{ ' alert-box--compact' if compact|default(false) else '' }}" id="alert">
   {% if not compact|default(false) %}
@@ -23,8 +23,6 @@
       <label class="sr-only" for="alert-email">알림 받을 이메일</label>
       <input type="email" id="alert-email" name="email" required
              placeholder="알림 받을 이메일" autocomplete="email">
-      <button type="button" class="alert-kakao" disabled aria-disabled="true"
-              title="카카오톡 알림은 준비 중입니다">카카오톡 · 준비 중</button>
     </div>
     <p class="alert-hint" id="alert-hint">{{ landing.hero_hint }}</p>
     <div class="alert-actions">
