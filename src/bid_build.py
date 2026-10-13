@@ -178,11 +178,16 @@ def build(env, write, site, urls, dist, noindex_sink=None):
                for k in BID_KINDS}
     by_reg = {r["name"]: [a for a in rows if a.get("region") == r["name"]]
               for r in BID_REGIONS}
+    # 칩 건수도 목록 상한(500) 전 전체 기준. 페이지는 상한 안의 카드로만 만든다.
+    full_by_kind = {k["name"]: sum(1 for a in full_rows if a.get("kind") == k["name"] and a.get("is_open"))
+                    for k in BID_KINDS}
+    full_by_reg = {r["name"]: sum(1 for a in full_rows if a.get("region") == r["name"] and a.get("is_open"))
+                   for r in BID_REGIONS}
     kind_chips = [{"name": k["name"], "url": f"/bid/kind/{k['slug']}/",
-                   "count": len(by_kind[k["name"]])}
+                   "count": full_by_kind[k["name"]]}
                   for k in BID_KINDS]
     reg_chips = [{"name": r["name"], "url": f"/bid/region/{r['slug']}/",
-                  "count": len(v)}
+                  "count": full_by_reg[r["name"]]}
                  for r, v in ((r, by_reg[r["name"]]) for r in BID_REGIONS) if v]
     env.globals["bid_has_regions"] = bool(reg_chips)
 
@@ -232,7 +237,8 @@ def build(env, write, site, urls, dist, noindex_sink=None):
     week = [a for a in open_rows if 0 <= a["dday"] <= 7]
     full_open = [a for a in full_rows if a.get("is_open")]
     full_week = [a for a in full_open if 0 <= a["dday"] <= 7]
-    t_week = tally(week, full_week)
+    # "진행중"은 전체 진행 중(full_open), "이번 주 마감"은 그중 7일 안. 같은 목록으로 세면 둘이 늘 같아진다.
+    t_week = tally(week, full_open)
 
     hub_empty = not open_rows
     if hub_empty:
@@ -271,7 +277,7 @@ def build(env, write, site, urls, dist, noindex_sink=None):
         week,
         title=serp.bid_urgent_title(t_week["urgent"], more=t_week["more"]),
         desc=serp.bid_urgent_desc(t_week["urgent"], more=t_week["more"]),
-        full=full_week,
+        full=full_open,
         faqs=[
             {"q": "이번 주 마감 입찰은 몇 건인가요?",
              "a": f"나라장터에서 받은 전체 기준으로 {n_label(t_week, 'urgent')}입니다. 마감일시는 나라장터 원문을 따릅니다."},
