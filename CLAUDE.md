@@ -32,6 +32,9 @@
 - `src/ics.py` — 캘린더 구독 파일
 - `functions/_middleware.js` + `lib/host_redirect.mjs` — *.pages.dev·www·http → https://magampan.com 같은 경로 301
 - `src/seo_dedupe.py` — 빌드 후처리. 색인 페이지 중복 제목·설명에 기관명/공고번호
+- `src/notice_dedupe.py` — 같은 공고(정규화 제목+소관·수행기관+마감, 상시는 always) 병합. keep_indexed → 최신 게시를 남기고 나머지 /notice/<id>/ 는 대표로 301. 빌드 가드는 이 301 건수를 감소로 세지 않는다
+- `_routes.json`(build.py `ROUTES_EXCLUDE`) — /static/* 등 정적 파일은 Functions 를 거치지 않는다. HTML·/api/* 는 계속 미들웨어를 거친다
+- 광고 자리 높이(min-height)는 base.html 인라인 CSS 에 있다(style.css 는 비동기)
 - `src/browse.py` — `/browse/` 전체 상세 링크 목록(noindex,follow, 광고 없음). 고아 상세 방지
 - `src/indexnow.py` — 배포 뒤 바뀐 URL 만 IndexNow 제출(1만 개씩). 빌드는 build/indexnow_urls.json 만 쓴다
 - 날짜는 `deadline.today_kst()` 만 쓴다. `date.today()` 금지(러너는 UTC)

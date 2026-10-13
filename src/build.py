@@ -56,6 +56,7 @@ import detail_faq
 import detail_extra
 import seo_dedupe
 import browse
+import notice_dedupe
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -155,6 +156,7 @@ def _load_keep():
 
 
 KEEP_INDEXED = _load_keep()
+DUP_ALIAS = {}   # 병합된 중복 공고 id → 대표 공고 id (main 에서 채움)
 KNOWN_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "known_detail_urls.json")
 MAX_STATIC_REDIRECTS = 2000      # Cloudflare Pages 정적 리다이렉트 한도
 DETAIL_DROP_LIMIT = 0.20         # 상세페이지 수가 이 비율 넘게 줄면 빌드 실패
@@ -220,6 +222,49 @@ def detail_guard(now_count, baselines, limit=DETAIL_DROP_LIMIT):
     return None
 
 
+# Pages Functions(호스트 301 미들웨어·/api/alerts)를 거치지 않아도 되는 정적 파일.
+# HTML 경로는 모두 미들웨어를 거쳐 *.pages.dev·www → magampan.com 301 이 유지된다.
+# 여기 있는 파일은 별칭 호스트에서도 200 으로 나가지만 HTML 이 아니라 중복 색인 대상이 아니다.
+ROUTES_EXCLUDE = (
+    "/static/*", "/calendar/*", "/notices.json", "/bids.json",
+    "/ads.txt", "/app-ads.txt", "/promo.txt",
+    "/naver0defc699223f8ffa807d6d0bc99bb36c.html",
+)
+
+
+def routes_json_contents():
+    excl = list(ROUTES_EXCLUDE) + [f"/{config.INDEXNOW_KEY}.txt"]
+    return json.dumps({"version": 1, "include": ["/*"], "exclude": excl}, indent=2) + "\n"
+
+
+_PRE = re.compile(r"<(pre|textarea)\b", re.I)
+
+
+def minify_html(text):
+    """줄 앞뒤 공백과 빈 줄만 없앤다. 줄바꿈은 남겨 인라인 요소 사이 간격·렌더링이 같다."""
+    if _PRE.search(text):
+        return text
+    return "\n".join(l.strip() for l in text.split("\n") if l.strip()) + "\n"
+
+
+def minify_dist_html(dist):
+    before = after = 0
+    for root, _, files in os.walk(dist):
+        for name in files:
+            if not name.endswith(".html"):
+                continue
+            p = os.path.join(root, name)
+            with open(p, encoding="utf-8") as f:
+                raw = f.read()
+            out = minify_html(raw)
+            before += len(raw.encode("utf-8"))
+            after += len(out.encode("utf-8"))
+            if out != raw:
+                with open(p, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(out)
+    return before, after
+
+
 def emit_root_text_files(dist):
     """ads.txt·app-ads.txt·_headers·_redirects 를 dist 루트에 항상 쓴다."""
     os.makedirs(dist, exist_ok=True)
@@ -231,6 +276,8 @@ def emit_root_text_files(dist):
         f.write(cf_headers_contents())
     with open(os.path.join(dist, "_redirects"), "w", encoding="utf-8", newline="\n") as f:
         f.write(cf_redirects_contents())
+    with open(os.path.join(dist, "_routes.json"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(routes_json_contents())
     assert_ads_delivery(dist)
 
 
@@ -478,7 +525,7 @@ def archived_notices(rows, today):
         if (today - end).days > ARCHIVE_DAYS:
             continue          # 너무 오래돼서 버림
         kept[aid] = a
-        if aid in live_ids:
+        if aid in live_ids or str(aid) in DUP_ALIAS:
             continue          # 오늘 목록에 이미 있으면 아카이브 페이지 별도 생성 불필요
         row = fill_defaults(dict(a))
         row["dday"] = (today - end).days * -1
@@ -663,6 +710,12 @@ def main():
         before = len(ks_raw)
         rows, dup_cnt = sources.merge_extra(rows, ks_raw)
         print(f"K-Startup 보강: {before - dup_cnt}건 추가 (제목 중복 {dup_cnt}건 제외, 총 {before}건 수신)")
+
+    # 같은 공고(정규화 제목+소관·수행기관+마감)가 여러 번 들어오면 하나만 남기고 나머지는 301.
+    rows, alias = notice_dedupe.dedupe(rows, KEEP_INDEXED)
+    DUP_ALIAS.clear()
+    DUP_ALIAS.update(alias)
+    print(f"같은 공고 병합: {len(alias)}건을 대표 공고로 301")
 
     use_llm = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     rows = enrich.enrich_all(rows, use_llm=use_llm)
@@ -1243,14 +1296,20 @@ def main():
         live = live_detail_urls(SITE["domain"])
     for u in live or []:
         known[u] = today
+    # 병합된 중복 공고 URL 은 대표 공고로 301 (목록으로 보내지 않는다).
+    dup_pairs = notice_dedupe.redirect_pairs(DUP_ALIAS)
+    append_gone_redirects(DIST, dup_pairs)
+    dup_src = [src for src, _ in dup_pairs]
+    print(f"중복 공고 301 {len(dup_pairs)}건")
     budget = MAX_STATIC_REDIRECTS - count_redirect_rules(DIST)
-    gone = gone_redirects(known, detail_live, budget)
+    gone = gone_redirects(known, detail_live + dup_src, budget)
     append_gone_redirects(DIST, gone)
     print(f"사라진 상세 URL 301 {len(gone)}건 (정적 규칙 여유 {budget})")
 
     # 빌드 가드: 라이브 sitemap(없으면 시드 기록) 대비 20% 넘게 줄면 실패
     live_n = len(live) if live is not None else None
-    msg = detail_guard(len(detail_live), [live_n if live_n is not None else seed_count])
+    # 중복 병합으로 줄어든 URL 은 대표 공고로 301 되어 살아 있으므로 가드에서 감소로 세지 않는다.
+    msg = detail_guard(len(detail_live) + len(dup_src), [live_n if live_n is not None else seed_count])
     print(f"상세페이지 {len(detail_now)}건 (라이브 {live_n}, 시드 {seed_count})")
     if msg and not os.environ.get("ALLOW_DETAIL_DROP"):
         raise SystemExit(msg)
@@ -1261,6 +1320,8 @@ def main():
     print("알림 신청: /api/alerts/subscribe (Resend 연락처, 확인 메일)")
     if fs:
         print("FORMSPREE_ID 는 알림 신청에 쓰지 않습니다.")
+    hb, ha = minify_dist_html(DIST)
+    print(f"HTML 공백 정리: {hb}B → {ha}B")
     for rel in ("index.html", "static/style.css", "static/filter.js", "static/alert.js"):
         p = os.path.join(DIST, rel)
         if os.path.isfile(p):
