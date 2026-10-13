@@ -615,6 +615,11 @@ SLUGMAP = json.dumps({
 }, ensure_ascii=False)
 
 
+def _crumbs_kw(crumbs):
+    """page.html 류 렌더에 넘길 빵가루(화면) + BreadcrumbList(JSON-LD)."""
+    return {"crumbs": crumbs, "crumb_jsonld": crumb_ld(crumbs)}
+
+
 def crumb_ld(crumbs):
     """화면에 보이는 빵가루와 같은 순서의 BreadcrumbList JSON-LD."""
     if not crumbs:
@@ -1245,7 +1250,8 @@ def main():
         site=SITE, path="/calendar/", section="support",
         title=serp.calendar_title(),
         desc=serp.calendar_desc(),
-        h1="마감일을 내 캘린더로", content=cal_html))
+        h1="마감일을 내 캘린더로", content=cal_html,
+        **_crumbs_kw([{"name": "홈", "url": "/"}, {"name": "캘린더", "url": "/calendar/"}])))
 
     # 가이드 (검색 유입용 상시 콘텐츠 — 공고와 달리 매일 안 바뀐다)
     guide_list = guides.build()
@@ -1260,7 +1266,8 @@ def main():
         site=SITE, path="/guide/", section="support",
         title=serp.guide_hub_title(),
         desc=serp.guide_hub_desc(),
-        h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>'),
+        h1="정부지원사업 가이드", content=f'<div class="guide-list">{guide_links}</div>',
+        **_crumbs_kw([{"name": "홈", "url": "/"}, {"name": "가이드", "url": "/guide/"}])),
         changefreq="weekly")
     for slug, h1, desc, content in guide_list:
         jsonld = howto_jsonld(h1, desc, content) if slug in (
@@ -1269,10 +1276,18 @@ def main():
             "calendar-howto", "sme-cert", "export-voucher", "rd-first",
             "hire-grant",
         ) else None
+        # 서류 가이드에는 서류 제출 흐름의 다음 단계(HWP 공고문 열기·제출용 PDF)를 붙인다.
+        if guides.tag_of(slug)[0] == "서류":
+            content += (
+                '<p class="note">공고문·신청서가 HWP 파일이라 열리지 않거나, 여러 서류를 PDF 하나로 묶어 '
+                '용량 제한에 맞춰야 한다면 <a href="https://schemaextract.shop/support-docs-pdf">HWP도우미의 제출 서류 PDF 만들기</a>'
+                '를 쓰세요. 파일은 업로드되지 않고 내 브라우저 안에서만 처리됩니다.</p>')
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", section="support",
             title=serp.guide_title(h1),
-            desc=desc, h1=h1, content=content, jsonld=jsonld),
+            desc=desc, h1=h1, content=content, jsonld=jsonld,
+            **_crumbs_kw([{"name": "홈", "url": "/"}, {"name": "가이드", "url": "/guide/"},
+                          {"name": h1, "url": f"/guide/{slug}/"}])),
             changefreq="weekly")
 
     # 고정 페이지 (애드센스 심사 필수)
@@ -1286,6 +1301,7 @@ def main():
             site=SITE, path=f"/{slug}/", section="support",
             title=serp.with_brand(h1),
             desc=serp.static_desc(slug, h1), h1=h1, content=content,
+            **_crumbs_kw([{"name": "홈", "url": "/"}, {"name": h1, "url": f"/{slug}/"}]),
         )
         write(f"/{slug}/", html)
 
