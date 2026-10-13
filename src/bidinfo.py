@@ -36,6 +36,9 @@ import detail_faq
 KST = timezone(timedelta(hours=9))
 
 CACHE = os.path.join(os.path.dirname(__file__), "..", "data", "bid_cache.json")
+# 마감 입찰 아카이브는 bid_cache.json 에 함께 둔다 (워크플로가 이미 커밋하는 파일).
+ARCHIVE = CACHE
+ARCHIVE_DAYS = 180              # 마감 입찰 상세페이지 보관 일수 (목록에는 안 나옴)
 MOCK = os.path.join(os.path.dirname(__file__), "..", "data", "bid_mock.json")
 
 # 페이지네이션·배포 용량 상한. 나라장터는 하루 수천 건이라 전부 정적화하지 않는다.
@@ -506,6 +509,14 @@ def _save_cache(rows):
     try:
         os.makedirs(os.path.dirname(os.path.abspath(CACHE)), exist_ok=True)
         serial = [{k: r.get(k) for k in CACHE_FIELDS} for r in rows]
+        # 이전 캐시의 마감 건을 ARCHIVE_DAYS 동안 보존 (상세페이지 유지용)
+        ids = {r.get("id") for r in serial}
+        now = now_kst()
+        for r in _load_list(CACHE):
+            close = parse_dt(r.get("close_dt"))
+            if r.get("id") and r["id"] not in ids and close and (now - close).days <= ARCHIVE_DAYS:
+                serial.append({k: r.get(k) for k in CACHE_FIELDS})
+                ids.add(r["id"])
         with open(CACHE, "w", encoding="utf-8") as f:
             json.dump(serial, f, ensure_ascii=False)
         print(f"  [입찰] 캐시 {len(serial)}건 저장")
@@ -704,3 +715,54 @@ def load(now=None):
         print(f"입찰 캐시 {len(cached)}건 (NARA_API_KEY 없음)")
         return cached
     return cache_or_empty_or_mock("NARA_API_KEY 없음")
+
+
+def _load_list(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:
+        return []
+    if isinstance(d, dict):
+        d = list(d.values())
+    return d if isinstance(d, list) else []
+
+
+def _load_archive(path=None):
+    return {r["id"]: r for r in _load_list(path or ARCHIVE) if isinstance(r, dict) and r.get("id")}
+
+
+def archived_bids(rows, now=None, path=None, save=False):
+    """
+    목록(rows)에서 빠진 마감 입찰도 ARCHIVE_DAYS일 동안 상세페이지를 살린다.
+    rows 를 아카이브에 합치고, 오래된 건 버리고, rows 에 없는 마감 건을
+    decorate 해서 돌려준다 (status=closed, 마감 배지).
+    """
+    now = now_kst(now)
+    arc = _load_archive(path)
+    live = set()
+    for r in rows or []:
+        if r.get("id"):
+            live.add(r["id"])
+            arc[r["id"]] = {k: r.get(k) for k in CACHE_FIELDS}
+    kept, out = {}, []
+    for bid_id, r in arc.items():
+        close = parse_dt(r.get("close_dt"))
+        if not close or (now - close).days > ARCHIVE_DAYS:
+            continue
+        kept[bid_id] = r
+        if bid_id in live:
+            continue
+        row = decorate(dict(r), now=now)
+        if not row or row.get("is_open"):
+            continue      # 아직 열린 건은 라이브 목록 몫
+        row["is_archived"] = True
+        out.append(row)
+    if save:
+        try:
+            with open(path or ARCHIVE, "w", encoding="utf-8") as f:
+                json.dump(list(kept.values()), f, ensure_ascii=False)
+        except OSError as e:
+            print(f"  [입찰] 아카이브 저장 실패({e})")
+    out.sort(key=lambda r: r.get("close_dt") or "", reverse=True)
+    return out
