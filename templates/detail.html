@@ -9,7 +9,8 @@
 {% block body %}
 <article class="notice">
   {% if a.is_closed %}
-  <p class="alert">이 공고는 접수가 마감되었습니다. 아래에서 현재 접수 중인 유사 공고를 확인하세요.</p>
+  <p class="alert"><span class="pill d-c">마감</span> 이 공고는 접수가 마감되었습니다. 아래에서 현재 접수 중인 유사 공고를 확인하세요.</p>
+  <p class="next-hint">다음 모집 힌트: {{ a.org or '주관기관' }}의 지원사업은 해마다 비슷한 시기에 다시 공고되는 경우가 많습니다{% if a.apply_end %} (이번 마감 {{ a.apply_end }}){% endif %}. <a href="/alerts/">키워드 알림</a>을 신청하면 새 공고가 올라올 때 알려 드립니다.</p>
   {% endif %}
 
   <header class="notice-head">

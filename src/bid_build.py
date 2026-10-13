@@ -347,7 +347,8 @@ def build(env, write, site, urls, dist):
             collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )
         lm = ""
-        for key in ("posted_at", "open_dt", "collected_at"):
+        keys = ("close_dt", "posted_at") if not a.get("is_open") else ("posted_at", "open_dt", "collected_at")
+        for key in keys:
             lm = str(a.get(key) or "")[:10]
             if len(lm) == 10 and lm[4] == "-" and lm[7] == "-":
                 break
@@ -367,6 +368,16 @@ def build(env, write, site, urls, dist):
 
     for a in rows:
         render_notice(a)
+
+    # 목록에서 빠진 마감 입찰도 180일간 상세를 살린다 (색인·백링크 유지).
+    archived = bidinfo.archived_bids(rows)
+    for a in archived:
+        a["collected_at"] = collected_at
+        a["notice_no"] = a.get("notice_no") or a.get("bid_no") or a.get("id") or ""
+        a["amount_band"] = filt.bid_amount_band_id(a)
+        render_notice(a)
+    if archived:
+        print(f"입찰 아카이브 상세페이지 {len(archived)}건 유지")
 
     feed = [filt.compact_bid(a) for a in rows]
     # write() 는 index.html 전용이라 피드 파일은 직접 둔다.

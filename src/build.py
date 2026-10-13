@@ -28,7 +28,7 @@ import os
 import re
 import shutil
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import format_datetime
 
 import deadline as dl
@@ -137,6 +137,71 @@ def append_list_redirects(dist, pairs):
     path = os.path.join(dist, "_redirects")
     with open(path, "a", encoding="utf-8", newline="\n") as f:
         f.writelines(lines)
+
+
+KNOWN_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "known_detail_urls.json")
+MAX_STATIC_REDIRECTS = 2000      # Cloudflare Pages 정적 리다이렉트 한도
+DETAIL_DROP_LIMIT = 0.20         # 상세페이지 수가 이 비율 넘게 줄면 빌드 실패
+
+
+def is_detail(u):
+    return u.startswith("/notice/") or u.startswith("/bid/notice/")
+
+
+def gone_redirects(known, generated, budget):
+    """예전에 내보냈던(검색엔진이 아는) 상세 URL 중 이번에 못 만든 것을 목록으로 301.
+
+    최근에 본 것(값이 큰 last_seen)부터 budget 개까지만. 나머지는 404.
+    """
+    gen = set(generated)
+    gone = [(seen or "", u) for u, seen in known.items() if is_detail(u) and u not in gen]
+    gone.sort(reverse=True)
+    out = []
+    for _, u in gone[:max(0, budget)]:
+        out.append((u, "/bid/" if u.startswith("/bid/notice/") else "/"))
+    return out
+
+
+def append_gone_redirects(dist, pairs):
+    if not pairs:
+        return
+    path = os.path.join(dist, "_redirects")
+    with open(path, "a", encoding="utf-8", newline="\n") as f:
+        for src, dest in pairs:
+            if "*" in src or not is_detail(src):
+                raise SystemExit(f"상세 리다이렉트가 아닙니다: {src}")
+            f.write(f"{src} {dest} 301\n")
+
+
+def count_redirect_rules(dist):
+    try:
+        lines = open(os.path.join(dist, "_redirects"), encoding="utf-8").read().splitlines()
+    except OSError:
+        return 0
+    return sum(1 for l in lines if l.strip() and not l.lstrip().startswith("#"))
+
+
+def live_detail_urls(domain, timeout=30):
+    """배포 중인 sitemap 의 상세 URL 목록. 못 읽으면 None."""
+    try:
+        import urllib.request
+        req = urllib.request.Request(domain + "/sitemap.xml", headers={"User-Agent": "Mozilla/5.0 (compatible; magampan-build/1.0)"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read().decode("utf-8", "replace")
+    except Exception as e:
+        print(f"라이브 sitemap 확인 실패(가드는 이전 기록만 사용): {e}")
+        return None
+    locs = [l.replace(domain, "", 1) for l in re.findall(r"<loc>([^<]+)</loc>", body)]
+    return [u for u in locs if is_detail(u)]
+
+
+def detail_guard(now_count, baselines, limit=DETAIL_DROP_LIMIT):
+    """기준값 중 최대 대비 limit 넘게 줄면 오류 메시지, 아니면 None."""
+    base = max([b for b in baselines if b] or [0])
+    if base and now_count < base * (1 - limit):
+        return (f"상세페이지 수가 {base}건 → {now_count}건으로 {limit:.0%} 넘게 줄었습니다. "
+                f"아카이브/캡 회귀 의심. 의도한 변경이면 ALLOW_DETAIL_DROP=1 로 빌드하세요.")
+    return None
 
 
 def emit_root_text_files(dist):
@@ -349,8 +414,9 @@ ARCHIVE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "archive.js
 ARCHIVE_DAYS = 180
 # 소스 전환(mock↔실데이터)이나 ID 생성 로직 변경 등으로 오늘 목록과 아카이브가
 # 통째로 안 겹치는 사고가 나면 상세페이지가 수백~수천 개로 폭증할 수 있다.
-# 그런 경우를 대비한 상한선. 정상 운영에서는 이 값에 걸릴 일이 없다.
-MAX_ARCHIVED = 300
+# 그런 경우를 대비한 경고선. 180일 보관 정책상 2,000건대는 정상이므로
+# (300 상한이 마감 공고 상세를 잘라 404를 냈다) 잘라내지 않고 경고만 남긴다.
+MAX_ARCHIVED = 5000
 
 ARCHIVE_FIELDS = (
     "id", "title", "category", "region", "org", "target", "amount",
@@ -410,10 +476,8 @@ def archived_notices(rows, today):
     _save_archive(kept)
     if len(out) > MAX_ARCHIVED:
         # 마감일이 가장 최근인 것부터 우선 유지 (오래된 것부터 잘라낸다)
-        out.sort(key=lambda r: r.get("apply_end") or "")
-        print(f"경고: 아카이브 대상이 {len(out)}건으로 비정상적으로 많음 "
-              f"(소스 전환/ID 생성 로직 변경 의심). 최근 {MAX_ARCHIVED}건만 생성합니다.")
-        out = out[-MAX_ARCHIVED:]
+        print(f"경고: 아카이브 대상이 {len(out)}건으로 경고선 {MAX_ARCHIVED}건을 넘었습니다 "
+              f"(소스 전환/ID 생성 로직 변경 의심). 자르지 않고 모두 생성합니다.")
     return out
 
 
@@ -1114,6 +1178,32 @@ def main():
     # dist 를 비우거나 덮어써도 크롤러가 HTML 홈을 받지 않게 한다.
     emit_root_text_files(DIST)
     append_list_redirects(DIST, combo_redirects)
+
+    # 검색엔진이 아는 상세 URL(시드 파일 + 라이브 sitemap) 중 사라진 것은 목록으로 301.
+    detail_now = [u for u in URLS if is_detail(u)]
+    try:
+        known = json.load(open(KNOWN_PATH, encoding="utf-8"))
+    except Exception:
+        known = {}
+    seed_count = known.pop("__count__", 0)
+    if not isinstance(seed_count, int):
+        seed_count = 0
+    live = None
+    if SITE.get("allow_index") and not os.environ.get("SKIP_LIVE_GUARD"):
+        live = live_detail_urls(SITE["domain"])
+    for u in live or []:
+        known[u] = today
+    budget = MAX_STATIC_REDIRECTS - count_redirect_rules(DIST)
+    gone = gone_redirects(known, detail_now, budget)
+    append_gone_redirects(DIST, gone)
+    print(f"사라진 상세 URL 301 {len(gone)}건 (정적 규칙 여유 {budget})")
+
+    # 빌드 가드: 라이브 sitemap(없으면 시드 기록) 대비 20% 넘게 줄면 실패
+    live_n = len(live) if live is not None else None
+    msg = detail_guard(len(detail_now), [live_n if live_n is not None else seed_count])
+    print(f"상세페이지 {len(detail_now)}건 (라이브 {live_n}, 시드 {seed_count})")
+    if msg and not os.environ.get("ALLOW_DETAIL_DROP"):
+        raise SystemExit(msg)
     if combo_redirects:
         print(f"지역×분야 리다이렉트 {len(combo_redirects)}건 (목록 HTML은 만들지 않음)")
     print("ads.txt·app-ads.txt 루트 확인:", ADS_TXT_LINE)

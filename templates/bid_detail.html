@@ -9,7 +9,8 @@
 {% block body %}
 <article class="notice">
   {% if not a.is_open %}
-  <p class="alert">이 공고는 입찰이 마감되었습니다. 아래에서 같은 종류의 진행 중 공고를 확인하세요.</p>
+  <p class="alert"><span class="pill d-c">마감</span> 이 공고는 입찰이 마감되었습니다. 아래에서 같은 종류의 진행 중 공고를 확인하세요.</p>
+  <p class="next-hint">다음 공고 힌트: {{ a.org or '같은 수요기관' }}은(는) 비슷한 {{ a.kind or '' }} 입찰을 주기적으로 다시 낼 수 있습니다. {% if a.kind_slug %}<a href="/bid/kind/{{ a.kind_slug }}/">{{ a.kind }} 진행 중 입찰</a>과 {% endif %}<a href="/bid/urgent/">이번 주 마감 입찰</a>에서 새 공고를 확인하세요.</p>
   {% endif %}
 
   <header class="notice-head">
