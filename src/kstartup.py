@@ -56,6 +56,7 @@ import os
 import re
 import xml.etree.ElementTree as ET
 from datetime import date
+from deadline import today_kst
 
 TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"[ \t\xa0]+")
@@ -226,7 +227,7 @@ class KstartupSource:
 
     def _get(self, page, per_page=100, debug=False):
         import time, urllib.parse, urllib.request
-        today8 = date.today().strftime("%Y%m%d")
+        today8 = today_kst().strftime("%Y%m%d")
         q = urllib.parse.urlencode({
             "serviceKey": self.key, "page": page, "perPage": per_page,
             "rcrt_prgs_yn": "Y",              # 실제로는 서버가 무시함(위 주석 참고). 밑져야 본전이라 유지.
