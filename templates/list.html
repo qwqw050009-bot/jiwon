@@ -29,6 +29,9 @@
 <div class="head">
   <h1>{{ h1 }}</h1>
   <p>{{ lede }}</p>
+  {% set _fp = (path or '/').strip('/').split('/') %}
+  {% set page_feed = (rss_feeds or {}).get('/' ~ _fp[0] ~ '/' ~ _fp[1] ~ '/') if _fp|length >= 2 and _fp[0] in ('region', 'category') else none %}
+  {% if page_feed %}<p class="feed-link"><a href="{{ page_feed }}" type="application/rss+xml">이 목록 RSS 피드</a> · 새 공고가 올라오면 피드 리더나 자동화 도구로 받습니다.</p>{% endif %}
   {% if tally %}
   <div class="tally">
     <span class="u"><b>{{ tally.urgent }}</b>이번 주 마감</span>

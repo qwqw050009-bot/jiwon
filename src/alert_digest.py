@@ -363,6 +363,14 @@ def compose_email(subscriber, notices, unsub_url=""):
             bit += f"<br>마감: {_esc(due)}"
         bit += "</li>"
         items.append(bit)
+    domain = (config.SITE.get("domain") or "https://magampan.com").rstrip("/")
+    week_url = f"{domain}/urgent/"
+    search_url = f"{domain}/all/?q={quote(keyword)}"
+    lines.extend([
+        "더 보기",
+        f"- 이번 주 마감 전체 보기: {week_url}",
+        f"- 「{keyword}」 사이트에서 모두 찾기: {search_url}",
+    ])
     lines.extend(["", footer])
     if site_email:
         lines.append(f"문의는 회신하거나 {site_email} 로 보내 주세요.")
@@ -377,6 +385,8 @@ def compose_email(subscriber, notices, unsub_url=""):
         f"<p>키워드 「{_esc(keyword)}」에 맞는 새 공고 {n}건입니다.</p>"
         "<p>신청은 소관기관이 게시한 원문 공고에서 하세요.</p>"
         f"<ul>{''.join(items)}</ul>"
+        f'<p><a href="{_esc(week_url)}">이번 주 마감 전체 보기</a> · '
+        f'<a href="{_esc(search_url)}">「{_esc(keyword)}」 사이트에서 모두 찾기</a></p>'
         f"<p>{_esc(footer)}"
         + (
             f' 문의는 회신하거나 <a href="mailto:{_esc(site_email)}">{_esc(site_email)}</a>.'

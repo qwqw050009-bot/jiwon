@@ -196,6 +196,19 @@ def agency_others(a, pool, limit=5, exclude=()):
     return [_cmp(x, a) for x in rows[:limit]]
 
 
+def same_region_category(a, pool, limit=5, exclude=()):
+    """같은 지역·같은 분야의 다른 접수 중 공고. 마감이 가까운 순. 앞 섹션과 겹치는 공고는 뺀다."""
+    a = a or {}
+    reg, cat = a.get("region"), a.get("category")
+    if not _has(reg) or not _has(cat):
+        return []
+    ex = set(exclude)
+    rows = [x for x in _open(a, pool)
+            if x.get("region") == reg and x.get("category") == cat and x.get("id") not in ex]
+    rows.sort(key=filt._dday_key)
+    return [_cmp(x, a) for x in rows[:limit]]
+
+
 def agency_total(a, pool):
     org = (a or {}).get("org")
     if not _has(org):
