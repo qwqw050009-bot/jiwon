@@ -1153,3 +1153,13 @@ footer a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 body.f-lock{overflow:hidden}
+.sum-box{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px 14px;margin:14px 0}
+.sum-box h2{font-size:1.05rem;margin:0 0 8px}
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:0}
+.sum-grid dt{font-size:.8rem;opacity:.7}.sum-grid dd{margin:0;font-weight:600}
+.sum-grid small{display:block;font-weight:400}
+.sum-stat{margin:8px 0 0;font-size:.9rem}
+.src-body h3{font-size:1rem;margin:12px 0 4px}
+.tbl-wrap{overflow-x:auto}.cmp{width:100%;border-collapse:collapse;font-size:.9rem}
+.cmp th,.cmp td{border-bottom:1px solid var(--line,#eee);padding:6px;text-align:left;vertical-align:top}
+.cmp td small{display:block;opacity:.7}.cmp-self{background:rgba(0,0,0,.03)}

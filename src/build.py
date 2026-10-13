@@ -53,6 +53,7 @@ import filters as filt
 import urlstate
 import landing
 import detail_faq
+import detail_extra
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -139,6 +140,18 @@ def append_list_redirects(dist, pairs):
         f.writelines(lines)
 
 
+KEEP_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "keep_indexed.json")
+
+
+def _load_keep():
+    """서치콘솔에서 노출·클릭이 있던 상세 URL. 얇아도 noindex 하지 않는다."""
+    try:
+        return set(json.load(open(KEEP_PATH, encoding="utf-8")))
+    except Exception:
+        return set()
+
+
+KEEP_INDEXED = _load_keep()
 KNOWN_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "known_detail_urls.json")
 MAX_STATIC_REDIRECTS = 2000      # Cloudflare Pages 정적 리다이렉트 한도
 DETAIL_DROP_LIMIT = 0.20         # 상세페이지 수가 이 비율 넘게 줄면 빌드 실패
@@ -284,6 +297,9 @@ env.globals["formspree_url"] = config.formspree_url()
 
 URLS = []
 URL_META = {}
+
+
+NOINDEX_DETAIL = []   # 얇은 상세페이지: HTML 은 남기되 sitemap 제외·noindex
 
 
 def write(path, html, index=True, lastmod=None, changefreq=None, priority=None):
@@ -557,6 +573,10 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
     ad_top, ad_mid_after, ad_bottom = intros.resolve_ads(
         intros.ad_plan(n_for_ads, has_sections=bool(sections)), SITE)
     crumbs = crumbs or []
+    if intro_paras and path.startswith(("/region/", "/category/")) and items:
+        st = detail_extra.list_stats(tally_items if tally_items is not None else items)
+        if st:
+            intro_paras = list(intro_paras) + [html_module.escape(st)]
     pool = tally_items if tally_items is not None else items
     if show_rail:
         today_items = filt.today_rail(pool)
@@ -918,7 +938,7 @@ def main():
             "provider": {"@type": "GovernmentOrganization", "name": a.get("org") or ""},
             "areaServed": a.get("region_label") or a.get("region") or "",
             "audience": {"@type": "Audience", "audienceType": a.get("target") or ""},
-            "description": (a.get("ai") or {}).get("summary") or "",
+            "description": (a.get("ai") or {}).get("summary") or " ".join(detail_extra.overview_paras(a))[:300],
         }
         if a.get("posted_at"):
             ld_obj["datePublished"] = a["posted_at"]
@@ -939,7 +959,19 @@ def main():
         crumbs.append({"name": a.get("title") or "공고", "url": npath})
         faqs = detail_faq.notice_faqs(a)
         howto = detail_faq.notice_howto(a)
+        rel_ids = [x.get("id") for x in rel]
+        compare = detail_extra.compare_rows(a, pool, limit=5, exclude=rel_ids)
+        agency = detail_extra.agency_others(
+            a, pool, limit=5, exclude=rel_ids + [c["id"] for c in compare])
+        thin = detail_extra.is_thin(a) and npath not in KEEP_INDEXED
         html = env.get_template("detail.html").render(
+            summary=detail_extra.summary_box(a),
+            sections=detail_extra.desc_sections(a),
+            overview_paras=detail_extra.overview_paras(a),
+            compare=compare, agency=agency,
+            agency_total=detail_extra.agency_total(a, pool),
+            stats_line=detail_extra.notice_stats_line(a, pool),
+            noindex=thin,
             site=SITE, path=npath, page="detail", section="support",
             title=serp.notice_title(a),
             desc=serp.notice_desc(a), a=a, related=rel,
@@ -951,7 +983,9 @@ def main():
             crumbs=crumbs, crumb_jsonld=crumb_ld(crumbs),
             collected_at=a.get("collected_at") or env.globals.get("collected_at") or "",
         )
-        write(npath, html, lastmod=_date_of(a), changefreq="weekly")
+        if thin:
+            NOINDEX_DETAIL.append(npath)
+        write(npath, html, index=not thin, lastmod=_date_of(a), changefreq="weekly")
 
     for a in rows:
         render_notice(a, rows)
@@ -1181,6 +1215,11 @@ def main():
 
     # 검색엔진이 아는 상세 URL(시드 파일 + 라이브 sitemap) 중 사라진 것은 목록으로 301.
     detail_now = [u for u in URLS if is_detail(u)]
+    # noindex 로 sitemap 에서만 뺀 페이지는 HTML 이 살아 있으므로 301 대상도,
+    # 가드의 감소분도 아니다.
+    _dn = set(detail_now)
+    detail_live = detail_now + [u for u in NOINDEX_DETAIL if u not in _dn]
+    print(f"얇은 상세페이지 noindex {len(NOINDEX_DETAIL)}건 (sitemap 제외)")
     try:
         known = json.load(open(KNOWN_PATH, encoding="utf-8"))
     except Exception:
@@ -1194,13 +1233,13 @@ def main():
     for u in live or []:
         known[u] = today
     budget = MAX_STATIC_REDIRECTS - count_redirect_rules(DIST)
-    gone = gone_redirects(known, detail_now, budget)
+    gone = gone_redirects(known, detail_live, budget)
     append_gone_redirects(DIST, gone)
     print(f"사라진 상세 URL 301 {len(gone)}건 (정적 규칙 여유 {budget})")
 
     # 빌드 가드: 라이브 sitemap(없으면 시드 기록) 대비 20% 넘게 줄면 실패
     live_n = len(live) if live is not None else None
-    msg = detail_guard(len(detail_now), [live_n if live_n is not None else seed_count])
+    msg = detail_guard(len(detail_live), [live_n if live_n is not None else seed_count])
     print(f"상세페이지 {len(detail_now)}건 (라이브 {live_n}, 시드 {seed_count})")
     if msg and not os.environ.get("ALLOW_DETAIL_DROP"):
         raise SystemExit(msg)
@@ -1225,7 +1264,7 @@ def main():
     # IndexNow(빙·네이버 지원): 소유확인 키 파일은 로그인/가입 없이 쓰는
     # 공개 토큰이라 늘 배포해두고, 실제 검색엔진 핑은 색인을 허용할 때만 보낸다.
     open(os.path.join(DIST, f"{config.INDEXNOW_KEY}.txt"), "w", encoding="utf-8").write(config.INDEXNOW_KEY)
-    if SITE.get("allow_index"):
+    if SITE.get("allow_index") and not os.environ.get("SKIP_INDEXNOW"):
         try:
             import urllib.request
             payload = json.dumps({

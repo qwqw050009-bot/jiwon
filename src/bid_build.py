@@ -15,6 +15,7 @@ import intros
 import serp
 import deadline as dl
 import detail_faq
+import detail_extra
 
 BID_KINDS = config.BID_KINDS
 BID_REGIONS = config.BID_REGIONS
@@ -331,7 +332,12 @@ def build(env, write, site, urls, dist):
         ld_obj["isBasedOn"] = "나라장터"
         faqs = detail_faq.bid_notice_faqs(a)
         howto = detail_faq.bid_notice_howto(a)
+        rel_ids = [x.get("id") for x in rel]
+        compare = detail_extra.bid_compare_rows(a, open_rows, limit=5, exclude=rel_ids)
+        agency = detail_extra.bid_agency_others(
+            a, open_rows, limit=5, exclude=rel_ids + [c["id"] for c in compare])
         html = env.get_template("bid_detail.html").render(
+            compare=compare, agency=agency,
             site=site, path=npath, section="bid", page="bid-detail",
             title=serp.bid_notice_title(a),
             desc=serp.bid_notice_desc(a),
