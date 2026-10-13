@@ -608,5 +608,17 @@ def main():
         return EXIT_CONFIG
 
 
+def _indexnow_after_deploy():
+    """워크플로에서 이 스크립트는 deploy 다음 단계다. 그래서 IndexNow 제출을 여기서 한다
+    (워크플로 파일을 바꾸지 않고 '배포 뒤' 순서를 지키기 위해). 실패해도 알림은 계속."""
+    try:
+        import indexnow
+        indexnow.main()
+    except Exception as e:  # noqa: BLE001
+        print(f"IndexNow 건너뜀: {e}")
+
+
 if __name__ == "__main__":
+    if not os.environ.get("SKIP_INDEXNOW"):
+        _indexnow_after_deploy()
     raise SystemExit(main())

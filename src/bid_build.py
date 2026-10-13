@@ -124,7 +124,29 @@ def empty_copy(what):
     return f"지금 표시할 {what}이 없습니다. 나라장터 자료는 매일 아침 갱신됩니다."
 
 
-def build(env, write, site, urls, dist):
+def latest_revisions(rows):
+    """같은 공고번호의 차수(-000, -001 …) 중 가장 높은 차수 id 를 돌려준다.
+    {id: 최신 id}. 차수 표기가 없으면 자기 자신."""
+    best = {}
+    for a in rows:
+        i = str(a.get("id") or "")
+        base, _, ordr = i.rpartition("-")
+        if not base or not ordr.isdigit():
+            continue
+        if base not in best or int(ordr) > int(best[base].rpartition("-")[2]):
+            best[base] = i
+    out = {}
+    for a in rows:
+        i = str(a.get("id") or "")
+        base, _, ordr = i.rpartition("-")
+        out[i] = best.get(base, i) if base and ordr.isdigit() else i
+    return out
+
+
+LATEST = {}
+
+
+def build(env, write, site, urls, dist, noindex_sink=None):
     """입찰 트리를 dist/ 에 추가하고, 생성한 경로 수를 반환한다."""
     before = len(urls)
     rows = bidinfo.load()
@@ -163,7 +185,7 @@ def build(env, write, site, urls, dist):
             blocks=[] if bid_empty else blocks, sections=[] if bid_empty else sections,
             beginner=False if bid_empty else beginner,
             empty=empty or empty_copy("입찰공고"),
-            bid_empty=bid_empty,
+            bid_empty=bid_empty, no_ads=bid_empty,
             crumbs=crumbs, crumb_jsonld=_crumb_ld(crumbs, site),
             ad_top=None if bid_empty else ad_top,
             ad_mid_after=None if bid_empty else ad_mid_after,
@@ -306,6 +328,9 @@ def build(env, write, site, urls, dist):
     def render_notice(a):
         rel = filt.related_bids(a, open_rows, limit=6)
         npath = f"/bid/notice/{a['id']}/"
+        # 이전 차수는 최신 차수로 canonical 하고 sitemap 에서 뺀다 (중복 제목 방지).
+        latest = LATEST.get(str(a.get("id") or ""), a.get("id"))
+        canonical_path = f"/bid/notice/{latest}/" if latest != a.get("id") else None
         kslug = a.get("kind_slug") or slug_of(a.get("kind"))
         crumbs = [{"name": "홈", "url": "/"},
                   {"name": "입찰", "url": "/bid/"}]
@@ -339,6 +364,7 @@ def build(env, write, site, urls, dist):
         html = env.get_template("bid_detail.html").render(
             compare=compare, agency=agency,
             site=site, path=npath, section="bid", page="bid-detail",
+            canonical_path=canonical_path,
             title=serp.bid_notice_title(a),
             desc=serp.bid_notice_desc(a),
             a=a, related=rel,
@@ -359,7 +385,12 @@ def build(env, write, site, urls, dist):
             if len(lm) == 10 and lm[4] == "-" and lm[7] == "-":
                 break
             lm = ""
-        write(npath, html, lastmod=lm or None, changefreq="weekly")
+        if canonical_path:
+            write(npath, html, index=False)
+            if noindex_sink is not None:
+                noindex_sink.append(npath)
+        else:
+            write(npath, html, lastmod=lm or None, changefreq="weekly")
 
     def slug_of(name):
         return bidinfo.slug_of_kind(name)
@@ -372,11 +403,13 @@ def build(env, write, site, urls, dist):
         a["notice_no"] = a.get("notice_no") or a.get("bid_no") or a.get("id") or ""
         a["amount_band"] = filt.bid_amount_band_id(a)
 
+    # 목록에서 빠진 마감 입찰도 180일간 상세를 살린다 (색인·백링크 유지).
+    archived = bidinfo.archived_bids(rows)
+    LATEST.update(latest_revisions(list(rows) + list(archived)))
+
     for a in rows:
         render_notice(a)
 
-    # 목록에서 빠진 마감 입찰도 180일간 상세를 살린다 (색인·백링크 유지).
-    archived = bidinfo.archived_bids(rows)
     for a in archived:
         a["collected_at"] = collected_at
         a["notice_no"] = a.get("notice_no") or a.get("bid_no") or a.get("id") or ""

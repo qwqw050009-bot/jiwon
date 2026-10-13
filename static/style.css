@@ -689,6 +689,10 @@ a.more{text-align:center}
 }
 .ad-slot--bottom{margin:28px 0 8px}
 .ad:empty{display:none}
+/* 채워진 광고 단위에만 "광고" 표시 (콘텐츠와 구분, 애드센스 정책). 빈 단위는 높이 0. */
+.ad-slot:has(ins.adsbygoogle[data-ad-status="filled"])::before{
+  content:"광고";display:block;margin:0 0 4px;font-size:11px;color:var(--muted);letter-spacing:.02em;
+}
 
 /* ── 소개 / FAQ ── */
 .intro{margin:22px 0 4px;max-width:62ch}

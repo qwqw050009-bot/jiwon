@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title }}</title>
 <meta name="description" content="{{ desc }}">
-{% if noindex %}<meta name="robots" content="noindex">{% endif %}
+{% if noindex %}<meta name="robots" content="noindex, follow">{% endif %}
 {% if site.google_site_verification %}<meta name="google-site-verification" content="{{ site.google_site_verification }}">{% endif %}
 {% if site.naver_site_verification %}<meta name="naver-site-verification" content="{{ site.naver_site_verification }}">{% endif %}
-<link rel="canonical" href="{{ site.domain }}{{ path }}">
+<link rel="canonical" href="{{ site.domain }}{{ canonical_path or path }}">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/favicon.svg">
 <meta property="og:type" content="website">
 <meta property="og:title" content="{{ title }}">
 <meta property="og:description" content="{{ desc }}">
-<meta property="og:url" content="{{ site.domain }}{{ path }}">
+<meta property="og:url" content="{{ site.domain }}{{ canonical_path or path }}">
 <meta property="og:site_name" content="{{ site.name }}">
 <meta property="og:image" content="{{ site.domain }}/static/og.png">
 <meta property="og:image:width" content="1200">
@@ -165,6 +165,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     <a href="/">지원사업</a>
     <a href="/bid/">입찰공고</a>
     <a href="/pricing/">요금제</a>
+    <a href="/browse/">전체 공고 목록</a>
     <a href="/about/">사이트 소개</a>
     <a href="/about/#operator">운영 주체</a>
     <a href="/privacy/">개인정보처리방침</a>
@@ -204,7 +205,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     <p class="f-help">입력 중에는 동작하지 않습니다. 결제는 없습니다.</p>
   </div>
 </div>
-{% if site.adsense_client %}
+{% if site.adsense_client and not no_ads %}
 <script>
 (function(){
   var client={{ site.adsense_client|tojson }};

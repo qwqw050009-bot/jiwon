@@ -10,6 +10,7 @@
 항상 `| 지원사업 마감판`.
 """
 from datetime import date
+from deadline import today_kst
 import re
 
 import config
@@ -152,7 +153,7 @@ _LIST_CTA = "소상공인·중소기업이 가입 없이 마감일순으로 보�
 
 
 def year(today=None):
-    return (today or date.today()).year
+    return (today or today_kst()).year
 
 
 def with_brand(core):

@@ -17,13 +17,15 @@ class BidArchiveTest(unittest.TestCase):
             p = os.path.join(d, "a.json")
             old = [self._row(1, now - timedelta(days=10)),
                    self._row(2, now - timedelta(days=200))]
-            json.dump(old, open(p, "w"))
+            with open(p, "w") as f:
+                json.dump(old, f)
             live = [self._row(3, now + timedelta(days=3))]
             out = bidinfo.archived_bids(live, now=now, path=p, save=True)
             self.assertEqual([r["id"] for r in out], ["R1-000"])
             self.assertEqual(out[0]["dlabel"], "마감")
             self.assertEqual(out[0]["status"], "closed")
-            saved = {r["id"] for r in json.load(open(p))}
+            with open(p) as f:
+                saved = {r["id"] for r in json.load(f)}
             self.assertIn("R3-000", saved)
             self.assertNotIn("R2-000", saved)
 

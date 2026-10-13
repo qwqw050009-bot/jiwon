@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 from datetime import date, timedelta
+from deadline import today_kst
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
@@ -77,7 +78,7 @@ class BizinfoSource:
 
 def _process(rows):
     """D-day 계산 + 마감 일주일 지난 것 제외. 정렬은 안 한다(호출부에서 합친 뒤 한 번에)."""
-    today = date.today()
+    today = today_kst()
     out = []
     for r in rows:
         if r.get("period_type") == "always":

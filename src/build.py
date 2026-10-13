@@ -54,6 +54,8 @@ import urlstate
 import landing
 import detail_faq
 import detail_extra
+import seo_dedupe
+import browse
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -104,7 +106,8 @@ def cf_headers_contents():
         "  Cache-Control: no-store\n"
         "\n"
         "/static/*\n"
-        "  Cache-Control: public, max-age=86400\n"
+        # CSS·JS 참조는 모두 ?v=<해시>. og.png·favicon 은 버전이 없어 immutable 은 쓰지 않는다.
+        "  Cache-Control: public, max-age=2592000\n"
     )
 
 
@@ -360,7 +363,7 @@ def fill_defaults(a):
 
 def decorate(a, collected_at=None, today=None):
     """D-day 표시용 값 계산. 상시 접수는 별도 표기. 마감 배지와 D-n을 동시에 쓰지 않는다."""
-    today = today or date.today()
+    today = today or dl.today_kst()
     a["status"] = dl.status_of(a, today=today)
     a["status_label"] = dl.status_label(a["status"])
     a["deadline_line"] = dl.deadline_line(a)
@@ -611,6 +614,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         collected_at=env.globals.get("collected_at") or "",
         alert_email=SITE.get("email") or "",
         region_n=region_n,
+        # 빈 목록에는 자동 광고도 싣지 않는다 (애드센스: 콘텐츠 없는 화면 광고 금지).
+        no_ads=not items and not sections,
     )
     write(path, html)
 
@@ -740,14 +745,14 @@ def main():
         site=SITE, path="/scrap/", page="scrap", section="support",
         title=serp.scrap_title(),
         desc=serp.scrap_desc(),
-        noindex=True,
+        noindex=True, no_ads=True,
         crumbs=[{"name": "홈", "url": "/"}, {"name": "스크랩", "url": "/scrap/"}],
     ), index=False)
     write("/alerts/", env.get_template("alerts.html").render(
         site=SITE, path="/alerts/", page="alerts", section="support",
         title=serp.alerts_title(),
         desc=serp.alerts_desc(),
-        noindex=True,
+        noindex=True, no_ads=True,
         crumbs=[{"name": "홈", "url": "/"}, {"name": "알림 조건", "url": "/alerts/"}],
     ), index=False)
 
@@ -992,7 +997,7 @@ def main():
 
     # 마감 후 7일이 지나 목록에서는 빠졌지만, 검색엔진이 이미 색인했을 상세페이지는
     # ARCHIVE_DAYS일까지 "마감됨 + 유사 공고 추천"으로 살려둔다 (색인/백링크 유지).
-    archived = archived_notices(rows, date.today())
+    archived = archived_notices(rows, dl.today_kst())
     for a in archived:
         render_notice(a, rows)   # 추천은 항상 지금 접수 중인 공고 풀에서 뽑는다
     if archived:
@@ -1145,7 +1150,7 @@ def main():
 
     # 입찰 트리. 지원 목록·지역·분야 페이지와 데이터·URL을 섞지 않는다.
     support_n = len(URLS)
-    bid_build.build(env, write, SITE, URLS, DIST)
+    bid_build.build(env, write, SITE, URLS, DIST, noindex_sink=NOINDEX_DETAIL)
     bid_n = len(URLS) - support_n
 
     # 404 페이지. Cloudflare Pages는 dist/404.html이 있으면 존재하지 않는
@@ -1157,12 +1162,18 @@ def main():
     # 않아 기존 지원 URL을 깨뜨릴 수 있다.
     html_404 = env.get_template("404.html").render(
         site=SITE, path="/404.html", title=f"페이지를 찾을 수 없습니다 | {SITE['name']}",
-        desc="요청하신 페이지를 찾을 수 없습니다.", noindex=True,
+        desc="요청하신 페이지를 찾을 수 없습니다. 지원사업·입찰 목록에서 다시 찾아보세요.", noindex=True,
+        no_ads=True,
     )
     open(os.path.join(DIST, "404.html"), "w", encoding="utf-8").write(html_404)
 
+    # 색인 페이지끼리 겹치는 제목·설명에 기관명/공고번호를 붙인다.
+    n_dedup = seo_dedupe.run(DIST, URLS, SITE["name"])
+    print(f"중복 제목·설명 구분 {n_dedup}건")
+    print(f"전체 공고 목록 /browse/ {browse.build(env, SITE, DIST, URLS, URL_META)}페이지")
+
     # sitemap / robots
-    today = date.today().isoformat()
+    today = dl.today_kst().isoformat()
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for u in URLS:
@@ -1264,23 +1275,9 @@ def main():
     # IndexNow(빙·네이버 지원): 소유확인 키 파일은 로그인/가입 없이 쓰는
     # 공개 토큰이라 늘 배포해두고, 실제 검색엔진 핑은 색인을 허용할 때만 보낸다.
     open(os.path.join(DIST, f"{config.INDEXNOW_KEY}.txt"), "w", encoding="utf-8").write(config.INDEXNOW_KEY)
-    if SITE.get("allow_index") and not os.environ.get("SKIP_INDEXNOW"):
-        try:
-            import urllib.request
-            payload = json.dumps({
-                "host": SITE["domain"].split("//")[-1],
-                "key": config.INDEXNOW_KEY,
-                "keyLocation": f"{SITE['domain']}/{config.INDEXNOW_KEY}.txt",
-                "urlList": [f"{SITE['domain']}{u}" for u in URLS],
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                "https://api.indexnow.org/indexnow", data=payload,
-                headers={"Content-Type": "application/json; charset=utf-8"},
-            )
-            with urllib.request.urlopen(req, timeout=20) as r:
-                print(f"IndexNow 제출: status={r.status}, {len(URLS)}개 URL")
-        except Exception as e:
-            print(f"IndexNow 제출 실패(무시하고 진행): {e}")
+    # 실제 제출은 배포 뒤 alert_digest.py 단계에서 src/indexnow.py 가 한다 (키 파일이 라이브여야 함).
+    import indexnow
+    indexnow.save_list(URLS, URL_META, dl.today_kst())
 
     print(f"지원 {len(rows)}건(신규 {new_cnt}건) → {support_n}페이지, "
           f"입찰 +{bid_n}페이지, 합계 {len(URLS)}페이지, "

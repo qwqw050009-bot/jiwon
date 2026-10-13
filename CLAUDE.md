@@ -30,6 +30,11 @@
 - `lib/alert_signup.mjs`, `functions/api/alerts/` — 셀프 신청·확인·수신거부.
  구독자는 Resend 연락처 속성 `keywords` 에 둔다. 확인 전에는 보내지 않는다
 - `src/ics.py` — 캘린더 구독 파일
+- `functions/_middleware.js` + `lib/host_redirect.mjs` — *.pages.dev·www·http → https://magampan.com 같은 경로 301
+- `src/seo_dedupe.py` — 빌드 후처리. 색인 페이지 중복 제목·설명에 기관명/공고번호
+- `src/browse.py` — `/browse/` 전체 상세 링크 목록(noindex,follow, 광고 없음). 고아 상세 방지
+- `src/indexnow.py` — 배포 뒤 바뀐 URL 만 IndexNow 제출(1만 개씩). 빌드는 build/indexnow_urls.json 만 쓴다
+- 날짜는 `deadline.today_kst()` 만 쓴다. `date.today()` 금지(러너는 UTC)
 - `src/pages.py` — 애드센스 필수 고정 페이지 (about/privacy/terms/contact)
 - `src/guides.py` — `/guide/` 상시 콘텐츠(신청자격/바우처차이/서류/
   사업계획서/지원금vs융자/시작가이드). 공고와 달리 매일 안 바뀌는

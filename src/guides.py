@@ -997,7 +997,7 @@ URL로 만들기에 붙여넣습니다.</li>
 예: <a href="/region/seoul/">서울</a>,
 <a href="/region/gyeonggi/">경기</a>,
 <a href="/region/busan/">부산</a>,
-<a href="/region/seoul/startup/">서울 창업</a>.</p>
+<a href="/region/seoul/?field=%EC%B0%BD%EC%97%85">서울 창업</a>.</p>
 
 <h2>3단계 — 구·시·군은 해시태그가 같은 공고만</h2>
 <p>시군구 페이지는 그 시·도 공고와 전국 공고 가운데 해시태그가
