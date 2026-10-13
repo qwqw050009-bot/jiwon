@@ -679,7 +679,10 @@ a.more{text-align:center}
 .ad,.ad-slot{
   margin:20px 0;min-height:0;display:block;background:transparent;border:0;
 }
-.ad-slot ins.adsbygoogle{display:block;width:100%;min-height:0}
+/* CLS 방지: 광고가 들어올 자리를 미리 잡는다(인라인 핵심 CSS 와 같은 값). 채워지지 않으면 접는다. */
+.ad-slot ins.adsbygoogle{display:block;width:100%;min-height:200px}
+@media(max-width:560px){.ad-slot ins.adsbygoogle{min-height:250px}}
+.ad-slot:has(ins.adsbygoogle[data-ad-status="unfilled"]){display:none}
 .ad-slot ins.adsbygoogle[data-ad-status="unfilled"]{
   display:none!important;height:0!important;min-height:0!important;
 }

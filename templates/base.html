@@ -69,12 +69,18 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
   .find{top:var(--top-h,56px);min-height:6.25rem}
   .top{position:sticky;top:0;z-index:55}
 }
+/* 광고 자리 예약(CLS). style.css 는 비동기라 여기 둔다. 채워지지 않은 단위는 style.css 가 접는다. */
+.ad-slot{display:block;margin:20px 0}
+.ad-slot ins.adsbygoogle{display:block;width:100%;min-height:200px}
+@media(max-width:560px){.ad-slot ins.adsbygoogle{min-height:250px}}
 </style>
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="/static/style.css?v={{ asset_v }}"></noscript>
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="/rss.xml">
-{% if site.adsense_client %}
+{% if site.adsense_client and not no_ads %}
+<link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
 <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
+<link rel="dns-prefetch" href="https://googleads.g.doubleclick.net">
 {% endif %}
 {% if crumb_jsonld %}<script type="application/ld+json">{{ crumb_jsonld|safe }}</script>{% endif %}
 {% block jsonld %}{% endblock %}
