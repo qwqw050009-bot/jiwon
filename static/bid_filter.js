@@ -10,7 +10,8 @@
   var shown = PAGE;
   var hub = location.pathname === '/bid/' || location.pathname === '/bid';
   var PRESET_KEY = 'magampan.bid.presets.v1';
-  var EMAIL = (find && find.dataset.email) || 'qwqw050009@gmail.com';
+  // 개인 메일 주소를 스크립트에 두지 않는다. alert.js 가 없으면 문의 페이지로 보낸다.
+  var CONTACT = '/contact/';
   var KIND = { '물품': 'goods', '용역': 'service', '공사': 'construction', '외자': 'foreign' };
   var KIND_NAME = { goods: '물품', service: '용역', construction: '공사', foreign: '외자' };
   var AMT_NAMES = {};
@@ -250,7 +251,7 @@
   }
 
   function announce(n, week) {
-    var text = n + '건' + (week ? ' · 이번 주 마감 ' + week + '건' : '');
+    var text = '표시 ' + n + '건' + (week ? ' · 이번 주 마감 ' + week + '건' : '');
     var countEl = document.getElementById('bid-count');
     if (countEl) countEl.textContent = text;
     var live = document.getElementById('bid-live');
@@ -519,8 +520,7 @@
         })
         : Promise.resolve({ ok: true, via: 'mailto' });
       if (!(window.MagampanAlerts && MagampanAlerts.send)) {
-        location.href = 'mailto:' + EMAIL + '?subject=' +
-          encodeURIComponent('[마감판] 입찰 조건 알림') + '&body=' + encodeURIComponent(body);
+        location.href = CONTACT;
       }
       mailer.then(function (res) {
         if (window.MagampanAlerts && MagampanAlerts.sayToast) MagampanAlerts.sayToast(res);

@@ -169,7 +169,7 @@ def test_scrap_toast_and_formspree_helpers():
     assert "data-formspree" in form
     assert 'action="/api/alerts/subscribe"' in form
     assert "alert-done" in form
-    assert "mailto:" in form
+    assert "mailto:" not in form
     assert "확인 메일" in form
 
 

@@ -69,10 +69,12 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
   .find{top:var(--top-h,56px);min-height:6.25rem}
   .top{position:sticky;top:0;z-index:55}
 }
-/* 광고 자리 예약(CLS). style.css 는 비동기라 여기 둔다. 채워지지 않은 단위는 style.css 가 접는다. */
-.ad-slot{display:block;margin:20px 0}
-.ad-slot ins.adsbygoogle{display:block;width:100%;min-height:200px}
-@media(max-width:560px){.ad-slot ins.adsbygoogle{min-height:250px}}
+/* 광고 자리는 미리 잡지 않는다. 미승인·미로드·빈 광고일 때 빈 박스가 보이지 않게,
+   애드센스가 채운 단위(data-ad-status="filled")에만 여백·테두리를 준다. style.css 는 비동기라 여기 둔다. */
+.ad-slot{display:block;margin:0}
+.ad-slot ins.adsbygoogle{display:block;width:100%;min-height:0}
+.ad-slot:has(ins.adsbygoogle[data-ad-status="unfilled"]){display:none}
+.ad-slot:has(ins.adsbygoogle[data-ad-status="filled"]){margin:20px 0}
 </style>
 <link rel="stylesheet" href="/static/style.css?v={{ asset_v }}" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="/static/style.css?v={{ asset_v }}"></noscript>
@@ -95,14 +97,13 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
 </head>
 <body data-page="{{ page|default('') }}" data-section="{{ section|default('support') }}"
       data-formspree="{{ formspree_url|default('') }}"
-      data-alert-endpoint="/api/alerts/subscribe"
-      data-alert-email="{{ site.email or '' }}">
+      data-alert-endpoint="/api/alerts/subscribe">
 <a class="skip" href="#main">본문으로 건너뛰기</a>
 <header class="top">
   <div class="wrap top-row">
     <div class="brand-cluster">
       {% if (section|default('support')) == 'bid' %}
-      <a class="brand" href="/bid/"><span class="brand-mark" aria-hidden="true"></span>지원·입찰<b>마감판</b></a>
+      <a class="brand" href="/bid/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
       {% else %}
       <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>지원사업<b>마감판</b></a>
       {% endif %}
@@ -142,8 +143,10 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     </form>
     {% endif %}
     <div class="hcta">
-      <a class="halert" href="{% if path == '/' %}#alert{% else %}/#alert{% endif %}">알림 등록</a>
-      <a class="hstart{{ ' active' if path.startswith('/pricing/') }}" href="/pricing/">구독하기</a>
+      {# 입찰 페이지에는 '지원금' 어휘를 쓰지 않는다(CLAUDE.md 9). 계산기 링크는 지원 쪽에만. #}
+      {% if (section|default('support')) != 'bid' %}<a class="halert" href="https://tool.magampan.com/">지원금 계산기</a>{% endif %}
+      {% set alert_href = '#alert' if path in ('/', '/bid/') else ('/bid/#alert' if (section|default('support')) == 'bid' else '/#alert') %}
+      <a class="hstart" href="{{ alert_href }}">무료 알림 받기</a>
     </div>
   </div>
 </header>
@@ -170,7 +173,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
   <nav>
     <a href="/">지원사업</a>
     <a href="/bid/">입찰공고</a>
-    <a href="/pricing/">요금제</a>
+    {% if (section|default('support')) != 'bid' %}<a href="https://tool.magampan.com/">지원금 계산기</a>{% endif %}
     <a href="/browse/">전체 공고 목록</a>
     <a href="/about/">사이트 소개</a>
     <a href="/about/#operator">운영 주체</a>
@@ -179,7 +182,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,-a
     <a href="/contact/">문의</a>
   </nav>
   <p class="src-legend">데이터 출처: 기업마당(지원사업) · K-Startup(키가 있을 때만) · 나라장터(입찰, /bid/). 없는 숫자·사업자등록번호는 만들지 않습니다.</p>
-  <p class="op-note">개인이 운영하는 지원사업·입찰 마감 안내 사이트입니다.{% if site.email %} 문의 <a href="mailto:{{ site.email }}">{{ site.email }}</a>.{% endif %}</p>
+  <p class="op-note">개인이 운영하는 지원사업·입찰 마감 안내 사이트입니다. 문의는 <a href="/contact/">문의 페이지</a>에서 받습니다.</p>
   <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.{% if collected_at %} 이 빌드 수집 {{ collected_at }} (KST).{% endif %}</p>
   <p>© {{ site.name }}. All rights reserved.</p>
 </div></footer>

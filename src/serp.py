@@ -126,9 +126,6 @@ _STATIC_DESC = {
         "지원사업 마감판 문의처입니다. "
         "정보 오류 신고는 받고, 개별 공고의 자격·심사는 소관기관 원문에 직접 문의해야 합니다."
     ),
-    "pricing": (
-        "지원사업 마감판 요금제입니다. 지금은 무료 이메일 알림만 받으며, 베이직·프로는 사업자 등록 후 오픈 예정입니다."
-    ),
 }
 
 _TODAY_DEADLINE_RE = re.compile(r"오늘\s*마감")
@@ -242,14 +239,20 @@ def counts_of(items):
 
 def _nbit(n):
     n = int(n or 0)
-    return f"{n}건" if n > 0 else ""
+    return f"{n:,}건" if n > 0 else ""
 
 
-def _named(label, n):
-    """'지원사업 · 5건'이 아니라 '지원사업 5건'으로 붙인다."""
+def _named(label, n, more=False):
+    """'지원사업 · 5건'이 아니라 '지원사업 5건'으로 붙인다. more 면 '5건 이상'."""
     nbit = _nbit(n)
+    if nbit and more:
+        nbit += " 이상"
     label = (label or "").strip()
     return f"{label} {nbit}".strip() if nbit else label
+
+
+def _more(more):
+    return " 이상" if more else ""
 
 
 def _join(*parts):
@@ -1096,17 +1099,6 @@ def static_desc(slug, h1=""):
     )
 
 
-def pricing_title():
-    return with_brand("요금제 · 지금은 무료 이메일 알림")
-
-
-def pricing_desc():
-    return clip_desc(
-        "목록 열람과 이메일 마감 알림은 무료입니다. "
-        "베이직·프로는 사업자 등록 후 오픈 / 준비 중이며, 카드결제·토스·PG는 없습니다."
-    )
-
-
 def scrap_title():
     return with_brand("스크랩한 공고")
 
@@ -1137,21 +1129,22 @@ def bid_hub_title(tally=None, today=None):
     n_today = int(t.get("today") or 0)
     urgent = int(t.get("urgent") or 0)
     open_n = int(t.get("open") or 0)
+    more = bool(t.get("more"))
     y = year(today)
     if n_today and open_n:
         return with_brand(_join(
-            _named("오늘마감", n_today),
-            _named("나라장터 입찰공고", open_n),
+            _named("오늘마감", n_today, more),
+            _named("나라장터 입찰공고", open_n, more),
             f"마감일시 {y}",
         ))
     if urgent and open_n:
         return with_brand(_join(
-            _named("마감임박", urgent),
-            _named("나라장터 입찰공고", open_n),
+            _named("마감임박", urgent, more),
+            _named("나라장터 입찰공고", open_n, more),
             f"마감일시 {y}",
         ))
     if open_n:
-        return with_brand(_join(_named("나라장터 입찰공고", open_n), f"마감일시 {y}"))
+        return with_brand(_join(_named("나라장터 입찰공고", open_n, more), f"마감일시 {y}"))
     return with_brand(f"나라장터 입찰공고 마감일시 · {y}")
 
 
@@ -1164,14 +1157,15 @@ def bid_hub_desc(tally=None, today=None):
     n_today = int(t.get("today") or 0)
     urgent = int(t.get("urgent") or 0)
     open_n = int(t.get("open") or 0)
+    m = _more(t.get("more"))
     y = year(today)
     if open_n:
-        bits = [f"나라장터 {y} 입찰 {open_n}건을 마감일시 순으로 봅니다."]
+        bits = [f"나라장터 {y} 입찰 {open_n:,}건{m}을 마감일시 순으로 봅니다."]
         clock = []
         if n_today:
-            clock.append(f"오늘 마감 {n_today}건")
+            clock.append(f"오늘 마감 {n_today:,}건{m}")
         if urgent and urgent != n_today:
-            clock.append(f"이번 주 {urgent}건")
+            clock.append(f"이번 주 {urgent:,}건{m}")
         if clock:
             bits.append(", ".join(clock) + ".")
         bits.append("물품·용역·공사·외자, 수요기관·추정가격을 확인하세요.")
@@ -1182,9 +1176,9 @@ def bid_hub_desc(tally=None, today=None):
     )
 
 
-def bid_urgent_title(n=0, today=None):
+def bid_urgent_title(n=0, today=None, more=False):
     return with_brand(_join(
-        _named("나라장터 이번 주 마감 입찰", n),
+        _named("나라장터 이번 주 마감 입찰", n, more),
         f"마감일시 {year(today)}",
     ))
 
@@ -1193,10 +1187,10 @@ def bid_urgent_h1():
     return "나라장터 이번 주 마감 입찰"
 
 
-def bid_urgent_desc(n=0, today=None):
+def bid_urgent_desc(n=0, today=None, more=False):
     y = year(today)
     if n:
-        head = f"나라장터 {y}에서 7일 안에 마감일시가 있는 입찰 {n}건입니다."
+        head = f"나라장터 {y}에서 7일 안에 마감일시가 있는 입찰 {n:,}건{_more(more)}입니다."
     else:
         head = f"나라장터 {y}에서 7일 안에 마감일시가 있는 입찰만 모았습니다."
     return clip_desc(
@@ -1205,18 +1199,18 @@ def bid_urgent_desc(n=0, today=None):
     )
 
 
-def bid_kind_title(name, n=0, today=None):
+def bid_kind_title(name, n=0, today=None, more=False):
     return with_brand(_join(
-        _named(f"나라장터 {name} 입찰공고", n),
+        _named(f"나라장터 {name} 입찰공고", n, more),
         f"마감일시 {year(today)}",
     ))
 
 
-def bid_kind_desc(name, n=0, kind_desc="", today=None):
+def bid_kind_desc(name, n=0, kind_desc="", today=None, more=False):
     extra = (kind_desc or "").strip()
     y = year(today)
     if n:
-        head = f"나라장터 {y} {name} 입찰 진행 중 {n}건입니다."
+        head = f"나라장터 {y} {name} 입찰 진행 중 {n:,}건{_more(more)}입니다."
     else:
         head = f"나라장터 {y} {name} 입찰을 마감일시 순으로 둡니다."
     note = f" {extra}." if extra and extra not in head else ""
@@ -1236,13 +1230,13 @@ def bid_region_hub_desc():
     )
 
 
-def bid_region_title(region, n=0):
-    return with_brand(_join(_named(f"{region} 참가지역 입찰", n), "나라장터"))
+def bid_region_title(region, n=0, more=False):
+    return with_brand(_join(_named(f"{region} 참가지역 입찰", n, more), "나라장터"))
 
 
-def bid_region_desc(region, n=0):
+def bid_region_desc(region, n=0, more=False):
     if n:
-        head = f"참가지역 표기가 {region}{_josa(region, '과', '와')} 정확히 같은 입찰 {n}건입니다."
+        head = f"참가지역 표기가 {region}{_josa(region, '과', '와')} 정확히 같은 입찰 {n:,}건{_more(more)}입니다."
     else:
         head = f"참가지역 표기가 {region}{_josa(region, '과', '와')} 정확히 같은 입찰만 모았습니다."
     return clip_desc(

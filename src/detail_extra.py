@@ -4,7 +4,7 @@
 - desc_sections: 원문 본문(overview/points/method)을 대상·지원내용·서류·신청방법으로 나눠 정리
 - compare_rows: 비슷한 공고 3~5건 비교 (마감·금액)
 - agency_others: 같은 주관기관의 다른 접수 중 공고
-- is_thin: 본문·필드가 사실상 비어 있는 공고 (noindex·sitemap 제외 후보)
+- is_thin: 요약이 짧거나 금액·마감일 없이 빈약한 공고 (noindex,follow·sitemap 제외)
 
 없는 값은 만들지 않는다. 값이 없으면 그 줄을 빼고, 다른 공고와 같은 문구를
 채워 넣지 않는다.
@@ -203,17 +203,38 @@ def agency_total(a, pool):
     return sum(1 for x in _open(a, pool) if x.get("org") == org)
 
 
-def is_thin(a):
-    """본문·주요 필드가 모두 비었으면 True. 이런 페이지만 noindex 후보."""
+# 얇은 상세페이지 기준 (noindex, follow + sitemap 제외). 2026-10 실데이터 1,341건 기준
+# 약 19%가 걸린다. 기준을 바꾸면 build 로그 "얇은 상세페이지 noindex N건" 을 같이 확인할 것.
+THIN_BODY_MIN = 150          # 요약(개요+요점) 글자 수가 이보다 짧으면 얇다
+THIN_BODY_NO_FACTS = 250     # 금액도 마감일도 없으면 이 길이 미만일 때 얇다
+
+
+def body_len(a):
+    """상세 본문으로 보이는 요약(개요 + 요점) 글자 수."""
     a = a or {}
     body = "".join(clean_text(a.get("overview"))) + "".join(
         "".join(clean_text(p)) for p in a.get("points") or [])
-    if len(body) >= 40:
-        return False
-    filled = sum(1 for k in ("target", "method", "contact") if _has(a.get(k)))
-    if _has(a.get("amount")):
-        filled += 1
-    return filled <= 1
+    return len(body)
+
+
+def is_thin(a):
+    """
+    얇은 상세페이지면 True. 아래 중 하나면 얇다.
+      1) 요약이 THIN_BODY_MIN(150)자 미만
+      2) 본문 금액 표기가 없고, 마감일이 없는 상시 공고이며, 요약이 THIN_BODY_NO_FACTS(250)자 미만
+      3) (기존) 요약 40자 미만이면서 대상·방법·문의·금액 중 1개 이하만 있음 — 1)에 포함됨
+    금액 판단은 enrich.amount_card 와 같다(숫자 없는 ', 원' 은 없는 것으로 본다).
+    """
+    a = a or {}
+    n = body_len(a)
+    if n < THIN_BODY_MIN:
+        return True
+    from enrich import amount_card
+    has_amount = bool(amount_card(a))
+    has_deadline = a.get("period_type") != "always" and bool(a.get("apply_end"))
+    if not has_amount and not has_deadline and n < THIN_BODY_NO_FACTS:
+        return True
+    return False
 
 
 def notice_stats_line(a, pool):

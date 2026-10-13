@@ -1409,8 +1409,7 @@ def home_faqs(today_n, week_n, open_n):
               f"이번 주 마감은 {int(week_n)}건, 접수 중은 {int(open_n)}건입니다."},
         {"q": "회원가입이 필요한가요?",
          "a": "아닙니다. 목록·필터·스크랩은 로그인 없이 씁니다. 스크랩은 이 브라우저에만 남습니다. "
-              "마감 알림은 무료 이메일 신청으로 받습니다. 확인 메일의 링크를 눌러야 시작되고, "
-              "유료 구독·카카오톡은 사업자 등록 후 오픈 예정입니다."},
+              "마감 알림은 무료 이메일 신청으로 받습니다. 확인 메일의 링크를 눌러야 시작됩니다."},
         {"q": "지역은 거주지 기준인가요?",
          "a": "사업장 소재지 기준입니다. 거주지가 아니라 사업자등록증의 소재지로 고르세요."},
     ]
@@ -2004,21 +2003,28 @@ def blurb_of(row):
     return _compose_blurb(row)
 
 
-def ad_plan(n, *, has_sections=False):
+# 목록 인피드 광고: 카드 INFEED_EVERY 개마다 1개, 한 화면에 INFEED_MAX 개까지.
+INFEED_EVERY = 6
+INFEED_MAX = 3
+
+
+def ad_plan(n, *, has_sections=False, hub=False):
     """
     광고 밀도. H1 옆에는 두지 않고, 얇은 페이지에는 슬롯을 줄인다.
     슬롯 ID가 비어 있으면 템플릿이 유닛을 그리지 않는다.
+    mid_after 는 "이 개수마다" 인피드 1개(INFEED_EVERY). 0 이면 인피드 없음.
+    hub=True(지역·분야 허브)는 공고 수와 상관없이 상단 1개.
     반환: (top: bool, mid_after: int, bottom: bool)
     """
     if has_sections:
-        return True, 0, True
+        return True, INFEED_EVERY, True
     if n < 4:
-        return False, 0, False
-    if n < 8:
+        return hub, 0, False
+    if n <= INFEED_EVERY:
         return True, 0, False
     if n < 14:
-        return True, 0, True
-    return True, 8, True
+        return True, INFEED_EVERY, True
+    return True, INFEED_EVERY, True
 
 
 def resolve_ads(plan, site):

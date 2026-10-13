@@ -59,6 +59,10 @@ def build(env, site, dist, urls, meta):
     return written + 1
 
 
+# 이 모듈이 쓴 HTML(dist 기준 상대 경로). build.stray_html_files() 가드가 함께 본다.
+WRITTEN = set()
+
+
 def _write(env, site, dist, path, h1, content):
     html = env.get_template("page.html").render(
         site=site, path=path, section="support", page="browse",
@@ -68,3 +72,4 @@ def _write(env, site, dist, path, h1, content):
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
+    WRITTEN.add(os.path.relpath(out, dist).replace(os.sep, "/"))

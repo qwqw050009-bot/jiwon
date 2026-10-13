@@ -218,9 +218,11 @@ def test_nav_split_templates():
         site=site, path="/bid/", title="t", desc="d", section="bid")
     assert 'class="is-on"' in support
     assert 'href="/bid/"' in support and 'href="/"' in support
-    assert "구독하기" in support
-    assert 'href="/pricing/"' in support
-    assert "알림 등록" in support
+    assert "구독하기" not in support
+    assert "/pricing/" not in support
+    assert "무료 알림 받기" in support and 'href="#alert"' in support
+    assert 'href="https://tool.magampan.com/"' in support
+    assert "@gmail.com" not in support
     assert "로그인" not in support
     assert "지원사업 보기" not in support
     assert 'action="/all/"' in support
@@ -229,8 +231,10 @@ def test_nav_split_templates():
     # 입찰 헤더
     assert "입찰" in bid
     assert 'action="/bid/"' in bid
-    assert "구독하기" in bid
-    assert "알림 등록" in bid
+    assert "구독하기" not in bid
+    assert "무료 알림 받기" in bid
+    assert "지원사업<b>마감판</b>" in bid and "지원·입찰" not in bid
+    assert "tool.magampan.com" not in bid      # 입찰 쪽엔 '지원금' 어휘 없음
     assert "로그인" not in bid
     assert "지원사업 처음이세요?" not in bid
     assert "지원사업 보기" not in bid
@@ -245,10 +249,10 @@ def test_nav_split_templates():
     assert 'class="is-on"' in support_sw
     assert 'href="/bid/"' in bid
     assert 'class="is-on"' in bid_sw
+    # 브랜드는 모든 페이지에서 "지원사업 마감판"
     assert "지원사업<b>마감판</b>" in support
-    assert "지원·입찰<b>마감판</b>" in bid
-    assert "지원·입찰<b>마감판</b>" not in support
-    assert "지원사업<b>마감판</b>" not in bid
+    assert "지원사업<b>마감판</b>" in bid
+    assert "지원·입찰" not in support and "지원·입찰" not in bid
     assert 'class="brand-cluster"' in support and 'class="brand-cluster"' in bid
     assert 'href="/bid/"' in bid.split('class="brand"', 1)[1][:80]
 
@@ -328,14 +332,14 @@ def test_list_and_detail_wework_chrome():
     assert "가입 없이 오늘마감부터" in home
     assert "무료 알림 등록" in home
     assert "이 조건 저장하고 알림받기" in home
-    assert "조명·전기공사" in home
-    assert "요금제 안내" in home
+    assert "조명·전기공사" not in home      # 업종 칩은 입찰 쪽에만
+    assert "요금제" not in home
     assert "무료 알림 등록" in home
     assert "후기" not in home
     assert "낙찰까지 받았습니다" not in home
     assert "path-card" in home
     assert "오늘 마감" in home
-    assert "내 지역부터 보기" in home
+    assert "개 시·도에서 고르기" in home
     assert "처음이세요?" in home
     assert 'href="/guide/start/"' in home
     assert "지원사업, 처음이신가요?" in home
@@ -549,9 +553,11 @@ def test_timeout_first_kind_still_fetches_others_and_writes_cache():
     td = tempfile.mkdtemp()
     cache = os.path.join(td, "bid_cache.json")
     orig_cache, orig_fetch = bidinfo.CACHE, bidinfo._fetch_kind
+    orig_meta = bidinfo.META_PATH
+    bidinfo.META_PATH = os.path.join(td, "bid_meta.json")
     seen = []
 
-    def fake_kind(key, kind, bgn, end, pages):
+    def fake_kind(key, kind, bgn, end, pages, status=None):
         seen.append(kind["name"])
         if kind["name"] == "물품":
             raise urllib.error.URLError(TimeoutError("timed out"))
@@ -573,9 +579,12 @@ def test_timeout_first_kind_still_fetches_others_and_writes_cache():
         assert os.path.exists(cache)
         saved = json.load(open(cache, encoding="utf-8"))
         assert {r["kind"] for r in saved} == {"용역", "외자"}
+        # 일부 종류 실패 → 건수는 하한값
+        assert json.load(open(bidinfo.META_PATH, encoding="utf-8"))["complete"] is False
     finally:
         bidinfo.CACHE = orig_cache
         bidinfo._fetch_kind = orig_fetch
+        bidinfo.META_PATH = orig_meta
 
 
 def test_auth_failure_skips_remaining_kinds_timeout_does_not():
@@ -588,7 +597,7 @@ def test_auth_failure_skips_remaining_kinds_timeout_does_not():
     orig = bidinfo._fetch_kind
     seen = []
 
-    def fake_kind(key, kind, bgn, end, pages):
+    def fake_kind(key, kind, bgn, end, pages, status=None):
         seen.append(kind["name"])
         raise urllib.error.HTTPError(
             "https://apis.data.go.kr/x", 401, "Unauthorized", None, io.BytesIO(b""))
@@ -611,7 +620,7 @@ def test_partial_fetch_writes_cache_not_empty_on_total_fail():
     cache = os.path.join(td, "bid_cache.json")
     orig_cache, orig_fetch = bidinfo.CACHE, bidinfo._fetch_kind
 
-    def fake_kind(key, kind, bgn, end, pages):
+    def fake_kind(key, kind, bgn, end, pages, status=None):
         if kind["name"] == "물품":
             return [_item()]
         raise urllib.error.URLError(TimeoutError("timed out"))
@@ -813,7 +822,7 @@ def test_empty_hub_looks_intentional():
     assert "진행중" not in html
     assert "0</b>" not in html
     assert "bid_filter.js" not in html
-    assert "지원·입찰<b>마감판</b>" in html
+    assert "지원사업<b>마감판</b>" in html
 
 
 def test_no_catchall_redirects_in_build():
@@ -825,6 +834,49 @@ def test_no_catchall_redirects_in_build():
     assert "/* /index.html" not in redir
     assert "/ads.txt /ads.txt 200" in redir
     assert "/app-ads.txt /app-ads.txt 200" in redir
+
+
+def test_revision_merge_keeps_latest_only():
+    """정정공고: 같은 공고번호의 -000 과 -001 중 -001 만 목록에 남는다."""
+    a0 = bidinfo.normalize(_item(bidNtceNo="R26BK01755554", bidNtceOrd="000", bidNtceNm="원공고"), "용역", now=NOW)
+    a1 = bidinfo.normalize(_item(bidNtceNo="R26BK01755554", bidNtceOrd="001", bidNtceNm="정정공고"), "용역", now=NOW)
+    other = bidinfo.normalize(_item(bidNtceNo="R26BK09999999", bidNtceNm="다른 공고"), "용역", now=NOW)
+    rows = bidinfo.process([a0, a1, other], now=NOW)
+    ids = [r["id"] for r in rows]
+    assert "R26BK01755554-001" in ids and "R26BK01755554-000" not in ids
+    assert len(ids) == 2
+    assert bidinfo.superseded_ids([a0, a1, other]) == {"R26BK01755554-000"}
+
+
+def test_full_list_kept_before_cap():
+    """상한 전 전체 건수는 FULL 에 남는다 (500건 상한과 화면 건수 분리)."""
+    rows = [bidinfo.normalize(_item(bidNtceNo=f"2026091{i:04d}", bidNtceNm=f"공고 {i}"), "용역", now=NOW)
+            for i in range(30)]
+    out = bidinfo.process(rows, now=NOW, cap=10)
+    assert len(out) == 10 and len(bidinfo.FULL) == 30
+
+
+def test_pagination_runs_to_total():
+    """totalCount 까지 끝까지 받고, 끝나면 complete 를 건드리지 않는다."""
+    calls = []
+    orig = bidinfo._get
+
+    def fake_get(key, op, page, bgn, end):
+        calls.append(page)
+        n = 100 if page < 7 else 37
+        return [_item(bidNtceNo=f"P{page:02d}{i:03d}") for i in range(n)], 637
+
+    bidinfo._get = fake_get
+    try:
+        status = {"complete": True}
+        out = bidinfo._fetch_kind("k", {"op": "x", "name": "용역"}, "a", "b", 50, status)
+        assert calls == [1, 2, 3, 4, 5, 6, 7] and len(out) == 637 and status["complete"]
+        calls.clear()
+        status = {"complete": True}
+        bidinfo._fetch_kind("k", {"op": "x", "name": "용역"}, "a", "b", 3, status)
+        assert calls == [1, 2, 3] and status["complete"] is False
+    finally:
+        bidinfo._get = orig
 
 
 if __name__ == "__main__":
@@ -856,3 +908,6 @@ if __name__ == "__main__":
     test_empty_hub_looks_intentional()
     test_no_catchall_redirects_in_build()
     print("bid tests ok")
+    test_revision_merge_keeps_latest_only()
+    test_full_list_kept_before_cap()
+    test_pagination_runs_to_total()

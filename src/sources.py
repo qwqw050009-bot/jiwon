@@ -17,6 +17,22 @@ from deadline import today_kst
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
+# 지원사업이 아닌 공고(포상·표창 후보 모집 등)를 목록에서 뺀다. 제목 기준.
+# '유공'은 단독으로 넣지 않는다 — "공유공장"(공·유공·장) 같은 정상 공고가 걸린다.
+# 띄어 쓴 " 유공 "과 "유공자"만 잡는다. 새 키워드는 여기에만 추가한다.
+EXCLUDE_TITLE_KEYWORDS = (
+    "포상",
+    "표창",
+    "유공자",
+    " 유공 ",
+)
+
+
+def is_excluded_title(title):
+    """지원사업이 아닌 공고면 True. 제목 앞뒤에 공백을 붙여 ' 유공 ' 이 제목 끝에서도 걸리게 한다."""
+    t = " " + " ".join(str(title or "").split()) + " "
+    return any(k in t for k in EXCLUDE_TITLE_KEYWORDS)
+
 
 def _mk_id(title, org):
     return hashlib.md5(f"{title}{org}".encode()).hexdigest()[:10]
@@ -81,6 +97,8 @@ def _process(rows):
     today = today_kst()
     out = []
     for r in rows:
+        if is_excluded_title(r.get("title")):
+            continue
         if r.get("period_type") == "always":
             r["dday"], r["is_open"] = 9999, True
             out.append(r)

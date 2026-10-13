@@ -9,7 +9,8 @@
   var MORE = board.dataset.more || '';
   var PRESET_KEY = 'magampan.presets.v1';
   var ON_KEY = 'magampan.onboard.v1';
-  var EMAIL = root.dataset.email || 'qwqw050009@gmail.com';
+  // 개인 메일 주소를 스크립트에 두지 않는다. alert.js 가 없으면 문의 페이지로 보낸다.
+  var CONTACT = '/contact/';
   var PERIODS = [
     { id: 'today', name: '오늘 마감', desc: '오늘 날짜형 마감' },
     { id: 'week', name: '이번 주', desc: 'D-0부터 D-7' },
@@ -429,9 +430,14 @@
         var slice = view.slice(0, shown);
         var html = '';
         var card = window.MagampanCard;
+        // 카드 mid 개마다 인피드 1개, 최대 3개 (서버 렌더 list.html 과 같은 규칙)
+        var ads = 0;
         for (var i = 0; i < slice.length; i++) {
           html += card ? card.html(slice[i]) : '';
-          if (ad && (i + 1) === mid && (i + 1) < view.length) html += ad;
+          if (ad && mid && (i + 1) % mid === 0 && ads < 3 && (i + 1) < slice.length) {
+            html += ad;
+            ads++;
+          }
         }
         if (view.length > shown) {
           html += '<button type="button" class="more" id="f-more">' +
@@ -442,8 +448,10 @@
           html += '<a class="more" href="' + MORE + '">전체 공고 보기</a>';
         }
         board.innerHTML = html;
-        if (ad && board.querySelector('.ad-slot--mid ins.adsbygoogle')) {
-          try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (err) {}
+        if (ad) {
+          board.querySelectorAll('.ad-slot--mid ins.adsbygoogle').forEach(function () {
+            try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (err) {}
+          });
         }
       }
       board.classList.remove('is-busy');
@@ -730,8 +738,7 @@
         })
         : Promise.resolve({ ok: true, via: 'mailto' });
       if (!(window.MagampanAlerts && MagampanAlerts.send)) {
-        location.href = 'mailto:' + EMAIL + '?subject=' +
-          encodeURIComponent('[마감판] 조건 알림') + '&body=' + encodeURIComponent(body);
+        location.href = CONTACT;
       }
       mailer.then(function (res) {
         if (window.MagampanAlerts && MagampanAlerts.sayToast) MagampanAlerts.sayToast(res);
