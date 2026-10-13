@@ -63,9 +63,21 @@ def test_stray_html_guard():
     assert stray == ["bid.html"]
 
 
+def test_bid_tally_week_differs_from_open():
+    """이번 주 마감과 진행중은 같은 목록으로 세지 않는다 (예전엔 둘 다 week 로 세서 늘 같았다)."""
+    import bid_build
+    rows = [{"is_open": True, "dday": d} for d in (0, 3, 7, 9, 20)]
+    week = [a for a in rows if 0 <= a["dday"] <= 7]
+    t = bid_build.tally(week, rows, more=False)
+    assert t["urgent"] == 3 and t["open"] == 5 and t["today"] == 1
+    assert bid_build.n_label({"open": 4284, "more": False}, "open") == "4,284건"
+    assert bid_build.n_label({"open": 500, "more": True}, "open") == "500건 이상"
+
+
 if __name__ == "__main__":
     test_excluded_titles()
     test_amount_without_digits_is_dropped()
     test_pricing_redirects_home()
     test_stray_html_guard()
+    test_bid_tally_week_differs_from_open()
     print("round1 ok")
