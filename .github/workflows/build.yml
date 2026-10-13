@@ -14,15 +14,24 @@ on:
 permissions:
   contents: write
 
+# D-day·sitemap lastmod 은 KST 기준. 러너 기본 UTC(06:00 KST 빌드 = 전날 21시 UTC)면 하루 밀린다.
+env:
+  TZ: Asia/Seoul
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
       - run: pip install -r requirements.txt
@@ -39,14 +48,15 @@ jobs:
           if failed:
               sys.exit(failed)
           PY
-          node --test lib/alert_signup.test.mjs
+          node --test lib/*.test.mjs
   build:
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
@@ -86,9 +96,9 @@ jobs:
             exit 1
           fi
           echo "Pages 프로젝트 jiwon 에 RESEND_API_KEY 를 넣습니다."
-          printf '%s' "$RESEND_API_KEY" | npx --yes wrangler@3 pages secret put RESEND_API_KEY --project-name=jiwon
+          printf '%s' "$RESEND_API_KEY" | npx --yes wrangler@4 pages secret put RESEND_API_KEY --project-name=jiwon
           if [ -n "${RESEND_FROM}" ]; then
-            printf '%s' "$RESEND_FROM" | npx --yes wrangler@3 pages secret put RESEND_FROM --project-name=jiwon \
+            printf '%s' "$RESEND_FROM" | npx --yes wrangler@4 pages secret put RESEND_FROM --project-name=jiwon \
               || echo "RESEND_FROM 동기화에 실패했습니다. 함수는 기본 발신자를 씁니다."
           fi
       - name: deploy
@@ -96,7 +106,13 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=jiwon --branch=main
+          wranglerVersion: "4"
+          command: pages deploy dist --project-name=jiwon --branch=main --commit-dirty=true
+      # 배포 뒤 IndexNow (키 파일이 라이브여야 200). 바뀐 URL 만, 1만 개씩. 실패해도 계속.
+      - name: indexnow
+        continue-on-error: true
+        timeout-minutes: 3
+        run: python src/indexnow.py
       # 키워드 알림. 배포 뒤에 돌려 링크가 살아 있게 한다.
       # 구독자 이메일은 저장소에 넣지 않는다.
       #   RESEND_API_KEY   — Resend API 키. 없으면 건너뛰고 exit 0.
