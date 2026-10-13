@@ -94,6 +94,25 @@
 
   {{ ad_slot('detail_mid') }}
 
+  {% if compare %}
+  <section class="sec compare" id="compare">
+    <h2>비슷한 입찰 비교</h2>
+    <div class="tbl-wrap"><table class="cmp">
+      <thead><tr><th>입찰</th><th>마감</th><th>추정가격</th><th>공통점</th></tr></thead>
+      <tbody>
+        <tr class="cmp-self"><td>{{ a.title }} (이 입찰)</td><td>{{ a.dlabel }}{% if a.close_dt %} · {{ a.close_dt[:16] }}{% endif %}</td><td>{{ a.budget_card or '원문 확인' }}</td><td>—</td></tr>
+        {% for c in compare %}<tr><td><a href="/bid/notice/{{ c.id }}/">{{ c.title }}</a><small>{{ c.org }}</small></td><td>{{ c.dlabel }}{% if c.deadline %} · {{ c.deadline }}{% endif %}</td><td>{{ c.amount or '원문 확인' }}</td><td>{{ c.why }}</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  {% endif %}
+  {% if agency %}
+  <section class="sec agency" id="agency">
+    <h2>{{ a.org }}의 다른 진행 중 입찰</h2>
+    <ul>{% for c in agency %}<li><a href="/bid/notice/{{ c.id }}/">{{ c.title }}</a> — {{ c.dlabel }}{% if c.deadline %} ({{ c.deadline }}){% endif %}{% if c.amount %} · {{ c.amount }}{% endif %}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
   {% if faqs %}
   <section class="faq" id="faq">
     <h2>자주 묻는 질문</h2>

@@ -52,6 +52,16 @@
     </aside>
   </header>
 
+  {% if summary %}
+  <section class="sum-box" id="summary" aria-label="한눈에 보기">
+    <h2>한눈에 보기</h2>
+    <dl class="sum-grid">
+      {% for r in summary %}<div><dt>{{ r.k }}</dt><dd>{{ r.v }}<small class="amt-note">{{ r.src }}</small></dd></div>{% endfor %}
+    </dl>
+    {% if stats_line %}<p class="sum-stat">{{ stats_line }}</p>{% endif %}
+  </section>
+  {% endif %}
+
   <dl class="facts">
     <div><dt>소관기관</dt><dd>{{ a.org }}</dd></div>
     <div><dt>지원분야</dt><dd>{{ a.category }}</dd></div>
@@ -80,7 +90,17 @@
   </section>
   {% endif %}
 
-  {% if a.points %}
+  {% if overview_paras or sections %}
+  <section class="sec src-body" id="source">
+    <h2>원문 공고 내용</h2>
+    {% for p in overview_paras %}<p>{{ p }}</p>{% endfor %}
+    {% for sec in sections %}
+    <h3 id="src-{{ sec.key }}">{{ sec.title }}</h3>
+    <ul>{% for l in sec.lines %}<li>{{ l }}</li>{% endfor %}</ul>
+    {% endfor %}
+    <p class="note">{{ a.source_label or '기업마당' }} 공고 본문을 줄 단위로 옮겨 항목별로 나눴습니다.</p>
+  </section>
+  {% elif a.points %}
   <div class="sec">
     <h2>공고 주요 내용</h2>
     <ul>{% for p in a.points %}<li>{{ p }}</li>{% endfor %}</ul>
@@ -109,6 +129,28 @@
     <ul>{% for x in a.ai.checklist %}<li>{{ x }}</li>{% endfor %}</ul>
     <p class="note">위에 적힌 줄만 본문에서 읽었습니다. 최종 목록은 원문입니다.</p>
   </div>
+  {% endif %}
+
+  {% if compare %}
+  <section class="sec compare" id="compare">
+    <h2>비슷한 공고 비교</h2>
+    <div class="tbl-wrap"><table class="cmp">
+      <thead><tr><th>공고</th><th>마감</th><th>지원 규모</th><th>공통점</th></tr></thead>
+      <tbody>
+        <tr class="cmp-self"><td>{{ a.title }} (이 공고)</td><td>{{ a.dlabel }}{% if a.apply_end and a.period_type != 'always' %} · {{ a.apply_end }}{% endif %}</td><td>{{ a.amount_card or '본문 표기 없음' }}</td><td>—</td></tr>
+        {% for c in compare %}
+        <tr><td><a href="/notice/{{ c.id }}/">{{ c.title }}</a><small>{{ c.org }}</small></td><td>{{ c.dlabel }}{% if c.deadline %} · {{ c.deadline }}{% endif %}</td><td>{{ c.amount or '본문 표기 없음' }}</td><td>{{ c.why }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  {% endif %}
+
+  {% if agency %}
+  <section class="sec agency" id="agency">
+    <h2>{{ a.org }}의 다른 접수 중 공고{% if agency_total %} ({{ agency_total }}건 중 {{ agency|length }}건){% endif %}</h2>
+    <ul>{% for c in agency %}<li><a href="/notice/{{ c.id }}/">{{ c.title }}</a> — {{ c.dlabel }}{% if c.deadline %} ({{ c.deadline }}){% endif %}{% if c.amount %} · {{ c.amount }}{% endif %}</li>{% endfor %}</ul>
+  </section>
   {% endif %}
 
   {% if faqs %}
