@@ -68,6 +68,20 @@ READ_TIMEOUT = 60
 HTTP_ATTEMPTS = 5          # 재시도 4회 (3–5 범위)
 HTTP_BACKOFF = 5          # 라운드 사이 대기 = HTTP_BACKOFF * attempt 초
 RETRY_HTTP = {408, 429, 500, 502, 503, 504}
+# 입찰 수집 전체 시간 예산(초). API가 느린 날 재시도가 쌓여 배포 잡(120분)이 통째로
+# 타임아웃되지 않게, 넘으면 받은 만큼만 쓰거나 캐시로 넘어간다.
+FETCH_BUDGET_S = int(os.environ.get("NARA_FETCH_BUDGET_S") or 1800)
+_DEADLINE = [None]
+
+
+class BudgetExceeded(RuntimeError):
+    """입찰 수집 시간 예산 초과."""
+
+
+def _check_budget(need=0):
+    d = _DEADLINE[0]
+    if d is not None and time.monotonic() + need > d:
+        raise BudgetExceeded(f"입찰 수집 시간 예산 {FETCH_BUDGET_S}s 초과")
 
 # 수집 메타. complete=False 면 일부 페이지·종류를 못 받아 건수가 하한값이다.
 # 기본은 CACHE 와 같은 폴더의 bid_meta.json (테스트가 CACHE 를 바꾸면 같이 따라간다).
@@ -595,6 +609,7 @@ def _get(key, op, page, bgn, end):
             origin = _origin(base)
             if origin in timed_out_origins:
                 continue
+            _check_budget()
             try:
                 req = urllib.request.Request(
                     f"{base}/{op}?{q}",
@@ -625,6 +640,7 @@ def _get(key, op, page, bgn, end):
                     timed_out_origins.add(origin)
         if attempt < HTTP_ATTEMPTS and (last is None or _retryable(last)):
             delay = HTTP_BACKOFF * attempt
+            _check_budget(delay)
             print(f"  [입찰 HTTP] {op} {delay}s 후 재시도 ({attempt}/{HTTP_ATTEMPTS})")
             time.sleep(delay)
     raise last
@@ -639,6 +655,8 @@ def _fetch_kind(key, kind, bgn, end, pages, status=None):
         try:
             items, total = _get(key, op, page, bgn, end)
         except Exception as e:
+            if status is not None and isinstance(e, BudgetExceeded):
+                status["budget"] = True
             if out:
                 print(f"  [입찰 {kind['name']}] {page}페이지 실패"
                       f"({_err_reason(e)}), 이미 받은 {len(out)}건 유지")
@@ -666,10 +684,22 @@ def fetch_live(key=None, pages=None, now=None):
     bgn = (now - timedelta(days=INQRY_DAYS)).strftime("%Y%m%d%H%M")
     pages = pages or MAX_PAGES_PER_KIND
     print(f"  [입찰] HTTP timeout connect={CONNECT_TIMEOUT}s read={READ_TIMEOUT}s "
-          f"attempts={HTTP_ATTEMPTS}")
-    rows, errors = [], []
+          f"attempts={HTTP_ATTEMPTS} budget={FETCH_BUDGET_S}s")
     status = {"complete": True}
     auth_dead = False
+    _DEADLINE[0] = time.monotonic() + FETCH_BUDGET_S
+    try:
+        return _fetch_all(key, bgn, end, pages, now, status, auth_dead)
+    finally:
+        _DEADLINE[0] = None
+
+
+def _open_count(rows, now):
+    return sum(1 for r in rows if isinstance(r, dict) and is_open(parse_dt(r.get("close_dt")), now))
+
+
+def _fetch_all(key, bgn, end, pages, now, status, auth_dead):
+    rows, errors = [], []
     for kind in config.BID_KINDS:
         if auth_dead:
             errors.append(f"{kind['name']}: skipped (auth)")
@@ -677,6 +707,8 @@ def fetch_live(key=None, pages=None, now=None):
         try:
             raw = _fetch_kind(key, kind, bgn, end, pages, status)
         except Exception as e:
+            if isinstance(e, BudgetExceeded):
+                status["budget"] = True
             reason = _err_reason(e)
             errors.append(f"{kind['name']}: {reason}")
             print(f"  [입찰 {kind['name']}] 호출 실패({reason})")
@@ -689,6 +721,12 @@ def fetch_live(key=None, pages=None, now=None):
             if row:
                 rows.append(row)
     processed = process(rows, now=now)
+    if processed and status.get("budget"):
+        # 시간 예산으로 잘린 수집이 기존 캐시보다 접수중 건이 적으면 캐시가 낫다.
+        old_open = _open_count(_load_list(CACHE), now)
+        new_open = _open_count(FULL, now)
+        if new_open < old_open:
+            raise RuntimeError(f"시간 예산 초과로 일부만 수집({new_open} < 캐시 {old_open})")
     if processed:
         # 캐시에는 상한 전 전체(FULL)를 둔다. 캐시로 빌드해도 건수가 맞게.
         _save_cache(list(FULL))

@@ -657,6 +657,54 @@ def test_partial_fetch_writes_cache_not_empty_on_total_fail():
         bidinfo._fetch_kind = orig_fetch
 
 
+def test_fetch_budget_stops_retries_and_prefers_bigger_cache():
+    """API가 느린 날 재시도가 쌓여 배포 잡이 통째로 죽지 않게 시간 예산에서 멈춘다."""
+    # 1) _get: 예산이 지나 있으면 요청 없이 바로 BudgetExceeded
+    orig_open = bidinfo._urlopen
+    calls = []
+    bidinfo._urlopen = lambda *a, **k: calls.append(1) or (_ for _ in ()).throw(AssertionError)
+    bidinfo._DEADLINE[0] = bidinfo.time.monotonic() - 1
+    try:
+        raised = False
+        try:
+            bidinfo._get("k", "op", 1, "a", "b")
+        except bidinfo.BudgetExceeded:
+            raised = True
+        assert raised and not calls
+    finally:
+        bidinfo._DEADLINE[0] = None
+        bidinfo._urlopen = orig_open
+
+    # 2) 예산 초과로 잘린 수집이 기존 캐시보다 접수중이 적으면 캐시를 덮지 않고 실패 → load()가 캐시 사용
+    td = tempfile.mkdtemp()
+    cache = os.path.join(td, "bid_cache.json")
+    orig_cache, orig_fetch, orig_meta = bidinfo.CACHE, bidinfo._fetch_kind, bidinfo.META_PATH
+    bidinfo.META_PATH = os.path.join(td, "bid_meta.json")
+    bidinfo.CACHE = cache
+    bidinfo._fetch_kind = lambda key, kind, bgn, end, pages, status=None: [
+        _item(bidNtceNo=f"2026091{kind['slug'][:1]}{i:03d}", bidNtceNm=f"{kind['name']} {i}") for i in range(3)]
+    try:
+        full = bidinfo.fetch_live(key="test-key", pages=1, now=NOW)
+        before = json.load(open(cache, encoding="utf-8"))
+        assert len(full) >= 3
+
+        def slow_kind(key, kind, bgn, end, pages, status=None):
+            if kind["name"] == "물품":
+                return [_item(bidNtceNo="20260919999", bidNtceNm="물품 하나")]
+            raise bidinfo.BudgetExceeded("budget")
+        bidinfo._fetch_kind = slow_kind
+        raised = False
+        try:
+            bidinfo.fetch_live(key="test-key", pages=1, now=NOW)
+        except RuntimeError:
+            raised = True
+        assert raised
+        assert json.load(open(cache, encoding="utf-8")) == before
+        assert bidinfo._DEADLINE[0] is None
+    finally:
+        bidinfo.CACHE, bidinfo._fetch_kind, bidinfo.META_PATH = orig_cache, orig_fetch, orig_meta
+
+
 def test_bid_list_wework_chips_and_detail_cta():
     from jinja2 import Environment, FileSystemLoader, select_autoescape
     root = os.path.join(os.path.dirname(__file__), "..")
@@ -897,6 +945,7 @@ if __name__ == "__main__":
     test_timeout_first_kind_still_fetches_others_and_writes_cache()
     test_auth_failure_skips_remaining_kinds_timeout_does_not()
     test_partial_fetch_writes_cache_not_empty_on_total_fail()
+    test_fetch_budget_stops_retries_and_prefers_bigger_cache()
     test_no_cross_contamination()
     test_hub_copy_has_no_grant_vocab()
     test_nav_split_templates()
