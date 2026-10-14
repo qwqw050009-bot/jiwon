@@ -1277,7 +1277,7 @@ def main():
             "hire-grant",
         ) else None
         # 서류 가이드에는 서류 제출 흐름의 다음 단계(HWP 공고문 열기·제출용 PDF)를 붙인다.
-        if guides.tag_of(slug)[0] == "서류":
+        if guides.tag_of(slug)[0] == "서류" and "support-docs-pdf" not in content:
             content += (
                 '<p class="note">공고문·신청서가 HWP 파일이라 열리지 않거나, 여러 서류를 PDF 하나로 묶어 '
                 '용량 제한에 맞춰야 한다면 <a href="https://schemaextract.shop/support-docs-pdf">HWP도우미의 제출 서류 PDF 만들기</a>'
