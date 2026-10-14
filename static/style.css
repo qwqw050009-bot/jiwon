@@ -1170,3 +1170,4 @@ body.f-lock{overflow:hidden}
 .tbl-wrap{overflow-x:auto}.cmp{width:100%;border-collapse:collapse;font-size:.9rem}
 .cmp th,.cmp td{border-bottom:1px solid var(--line,#eee);padding:6px;text-align:left;vertical-align:top}
 .cmp td small{display:block;opacity:.7}.cmp-self{background:rgba(0,0,0,.03)}
+.guide-dl dt{font-weight:700;margin:16px 0 4px}.guide-dl dd{margin:0 0 4px}

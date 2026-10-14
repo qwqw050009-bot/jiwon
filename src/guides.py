@@ -41,11 +41,20 @@ TAGS = {
 }
 
 
+from guides2 import TAGS2, build as _build2
+
+TAGS.update(TAGS2)
+
+
 def tag_of(slug):
     return TAGS.get(slug, ("가이드", "tag-basic"))
 
 
 def build():
+    return _build1() + _build2()
+
+
+def _build1():
     return [
         (
             "start",
