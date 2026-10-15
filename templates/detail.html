@@ -58,7 +58,7 @@
   <section class="sum-box" id="summary" aria-label="한눈에 보기">
     <h2>한눈에 보기</h2>
     <dl class="sum-grid">
-      {% for r in summary %}<div><dt>{{ r.k }}</dt><dd>{{ r.v }}<small class="amt-note">{{ r.src }}</small></dd></div>{% endfor %}
+      {% for r in summary %}<div><dt>{{ r.k }}</dt><dd>{{ r.v }}</dd></div>{% endfor %}
     </dl>
     {% if stats_line %}<p class="sum-stat">{{ stats_line }}</p>{% endif %}
   </section>

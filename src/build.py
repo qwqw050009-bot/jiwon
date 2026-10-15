@@ -544,6 +544,7 @@ def tally(items):
 # "마감됨 + 유사 공고 추천"으로 상세페이지를 계속 살려둔다.
 ARCHIVE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "archive.json")
 ARCHIVE_DAYS = 180
+CLOSED_NOINDEX_DAYS = 14   # 마감 후 이 일수가 지나면 상세 noindex
 # 소스 전환(mock↔실데이터)이나 ID 생성 로직 변경 등으로 오늘 목록과 아카이브가
 # 통째로 안 겹치는 사고가 나면 상세페이지가 수백~수천 개로 폭증할 수 있다.
 # 그런 경우를 대비한 경고선. 180일 보관 정책상 2,000건대는 정상이므로
@@ -1262,7 +1263,12 @@ def main():
             a, pool, limit=5, exclude=rel_ids + [c["id"] for c in compare])
         same_rc = detail_extra.same_region_category(
             a, pool, limit=5, exclude=[c["id"] for c in compare] + [c["id"] for c in agency])
-        thin = detail_extra.is_thin(a) and npath not in KEEP_INDEXED
+        # 마감 후 CLOSED_NOINDEX_DAYS일 지난 공고는 noindex·sitemap 제외.
+        # 페이지는 남겨 링크·북마크는 살리고, 구글 크롤링을 접수 중 공고에 모은다.
+        # 서치콘솔에서 노출·클릭이 있던 URL(KEEP_INDEXED)은 그대로 둔다.
+        stale = (bool(a.get("is_closed")) and isinstance(a.get("dday"), int)
+                 and a["dday"] <= -CLOSED_NOINDEX_DAYS)
+        thin = (detail_extra.is_thin(a) or stale) and npath not in KEEP_INDEXED
         html = env.get_template("detail.html").render(
             summary=detail_extra.summary_box(a),
             sections=detail_extra.desc_sections(a),
