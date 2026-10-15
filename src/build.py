@@ -1348,7 +1348,8 @@ def main():
 
     # 입찰 트리. 지원 목록·지역·분야 페이지와 데이터·URL을 섞지 않는다.
     support_n = len(URLS)
-    bid_build.build(env, write, SITE, URLS, DIST, noindex_sink=NOINDEX_DETAIL)
+    bid_build.build(env, write, SITE, URLS, DIST, noindex_sink=NOINDEX_DETAIL,
+                    keep_indexed=KEEP_INDEXED)
     bid_n = len(URLS) - support_n
 
     # 404 페이지. Cloudflare Pages는 dist/404.html이 있으면 존재하지 않는

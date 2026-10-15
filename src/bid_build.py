@@ -167,7 +167,7 @@ def latest_revisions(rows):
 LATEST = {}
 
 
-def build(env, write, site, urls, dist, noindex_sink=None):
+def build(env, write, site, urls, dist, noindex_sink=None, keep_indexed=None):
     """입찰 트리를 dist/ 에 추가하고, 생성한 경로 수를 반환한다."""
     before = len(urls)
     rows = bidinfo.load()
@@ -371,6 +371,11 @@ def build(env, write, site, urls, dist, noindex_sink=None):
         # 이전 차수는 최신 차수로 canonical 하고 sitemap 에서 뺀다 (중복 제목 방지).
         latest = LATEST.get(str(a.get("id") or ""), a.get("id"))
         canonical_path = f"/bid/notice/{latest}/" if latest != a.get("id") else None
+        # 마감·취소된 입찰은 다시 투찰할 수 없어 검색 유입 가치가 낮다. HTML 은
+        # 남기고(링크·북마크 보존) noindex,follow + sitemap 제외. 서치콘솔에서
+        # 노출·클릭이 있던 URL(keep_indexed)은 그대로 색인한다.
+        closed_thin = (not canonical_path and not a.get("is_open")
+                       and npath not in (keep_indexed or ()))
         kslug = a.get("kind_slug") or slug_of(a.get("kind"))
         crumbs = [{"name": "홈", "url": "/"},
                   {"name": "입찰", "url": "/bid/"}]
@@ -405,6 +410,7 @@ def build(env, write, site, urls, dist, noindex_sink=None):
             compare=compare, agency=agency,
             site=site, path=npath, section="bid", page="bid-detail",
             canonical_path=canonical_path,
+            noindex=closed_thin,
             title=serp.bid_notice_title(a),
             desc=serp.bid_notice_desc(a),
             a=a, related=rel,
@@ -425,7 +431,7 @@ def build(env, write, site, urls, dist, noindex_sink=None):
             if len(lm) == 10 and lm[4] == "-" and lm[7] == "-":
                 break
             lm = ""
-        if canonical_path:
+        if canonical_path or closed_thin:
             write(npath, html, index=False)
             if noindex_sink is not None:
                 noindex_sink.append(npath)
