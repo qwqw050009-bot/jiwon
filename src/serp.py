@@ -1267,4 +1267,15 @@ def bid_notice_desc(row):
         prefix = "오늘 마감. "
     elif isinstance(row.get("dday"), int) and 0 < row["dday"] <= 7:
         prefix = f"D-{row['dday']} 마감. "
-    return clip_desc(prefix + blurb, lo=40, hi=150)
+    text = prefix + blurb
+    if len(text) < 40:
+        # 짧은 공고는 화면에 보이는 사실(마감일시·입찰방식·계약방법)을 덧붙인다.
+        extra = []
+        if row.get("close_dt"):
+            extra.append(f"마감일시 {row['close_dt']}")
+        how = "·".join(x for x in (row.get("method"), row.get("contract")) if x)
+        if how:
+            extra.append(how)
+        if extra:
+            text = text.rstrip(" .") + ". " + ", ".join(extra) + "."
+    return clip_desc(text, lo=40, hi=150)

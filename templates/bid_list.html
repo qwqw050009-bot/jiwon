@@ -144,7 +144,7 @@
 </section>
 
 {% if items or sections %}
-<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>은 마감일시 기준입니다. 시각이 없으면 <b>시간 미상</b>입니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다. 출처는 나라장터.{% if collected_at %} 마지막 수집 {{ collected_at }} (KST).{% endif %}</p>
+<p class="dlegend">카드의 <b>오늘</b>·<b>D-n</b>은 마감일시 기준입니다. 시각이 없으면 <b>시간 미상</b>입니다. 추정가격은 나라장터에 값이 있을 때만 붙습니다. 출처는 나라장터.{% if collected_at %} 마지막 수집 <time{% if collected_iso %} datetime="{{ collected_iso }}"{% endif %}>{{ collected_at }}</time> (KST).{% endif %}</p>
 {% endif %}
 
 {% if ad_top %}{{ ad_slot('list_top') }}{% endif %}

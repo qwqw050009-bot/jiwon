@@ -15,6 +15,7 @@ import intros
 import serp
 import deadline as dl
 import detail_faq
+from isodate import iso_date
 import detail_extra
 
 BID_KINDS = config.BID_KINDS
@@ -444,6 +445,7 @@ def build(env, write, site, urls, dist, noindex_sink=None, keep_indexed=None):
     collected_at = env.globals.get("collected_at") or dl.collected_stamp()
     for a in rows:
         a["collected_at"] = collected_at
+        a["posted_iso"] = iso_date(a.get("posted_at") or a.get("open_dt"))
         a["source"] = "g2b"
         a["source_label"] = a.get("source_label") or "나라장터"
         a["notice_no"] = a.get("notice_no") or a.get("bid_no") or a.get("id") or ""
@@ -458,6 +460,7 @@ def build(env, write, site, urls, dist, noindex_sink=None, keep_indexed=None):
 
     for a in archived:
         a["collected_at"] = collected_at
+        a["posted_iso"] = iso_date(a.get("posted_at") or a.get("open_dt"))
         a["notice_no"] = a.get("notice_no") or a.get("bid_no") or a.get("id") or ""
         a["amount_band"] = filt.bid_amount_band_id(a)
         render_notice(a)

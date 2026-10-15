@@ -31,6 +31,8 @@ import sys
 from datetime import date, datetime, timedelta, timezone
 from email.utils import format_datetime
 
+from markupsafe import Markup
+
 import deadline as dl
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -326,6 +328,35 @@ env = Environment(
     loader=FileSystemLoader(os.path.join(ROOT, "templates")),
     autoescape=select_autoescape(["html"]),
 )
+
+
+from isodate import iso_date, iso_datetime
+
+def _ld(obj):
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+
+def webpage_ld(a, title, desc, path, collected_at, posted):
+    """상세 페이지 WebPage 구조화 데이터. 게시일·수집일은 화면에 보이는 값만 쓴다."""
+    obj = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": title or "",
+        "description": desc or "",
+        "url": SITE["domain"] + (path or "/"),
+        "inLanguage": "ko-KR",
+        "isPartOf": {"@type": "WebSite", "name": SITE["name"], "url": SITE["domain"] + "/"},
+    }
+    pd = iso_date(posted)
+    cd = iso_datetime((a or {}).get("collected_at") or collected_at)
+    if pd:
+        obj["datePublished"] = pd
+    if cd:
+        obj["dateModified"] = cd
+    return Markup('<script type="application/ld+json">%s</script>' % _ld(obj))
+
+
+env.globals["webpage_ld"] = webpage_ld
 
 
 def _static_version():
@@ -774,6 +805,47 @@ def write_rss_feeds(rows, by_reg, by_cat, regs, cats):
     return n
 
 
+def write_llms_txt(rows, guide_list):
+    """AI 검색(ChatGPT·Claude·Perplexity 등)이 사이트 구조와 출처를 바로 읽도록 하는 요약.
+    숫자는 이번 빌드의 실제 집계만 쓴다."""
+    d = SITE["domain"]
+    open_n = sum(1 for a in rows if a.get("is_open"))
+    always_n = sum(1 for a in rows if a.get("is_open") and a.get("period_type") == "always")
+    lines = [
+        f"# {SITE['name']}",
+        "",
+        "> 정부·지자체 지원사업 공고를 마감일 순으로 모아 보여주는 사이트입니다. "
+        "데이터는 기업마당(중소벤처기업부) 오픈API에서 매일 오전 6시께 수집하고, "
+        "창업 분야는 K-Startup(창업진흥원) 공고로 보강합니다. 신청은 대행하지 않으며, "
+        "자격·금액은 각 소관기관 원문 공고가 기준입니다.",
+        "",
+        f"- 마지막 수집: {env.globals.get('collected_at') or ''} (KST)",
+        f"- 접수 중 지원사업 공고: {open_n}건 (그중 상시·예산 소진 시까지 {always_n}건)",
+        "- 지역은 사업장 소재지 기준이며, 전남광주는 통합 단위 하나로 봅니다.",
+        "- 지원금액은 API에 없는 값이라 공고 본문 표기를 그대로 옮기고, 없으면 표기하지 않습니다.",
+        "- 나라장터 입찰공고는 /bid/ 아래에 따로 있으며 지원사업 목록과 섞지 않습니다.",
+        "",
+        "## 주요 목록",
+        f"- [이번 주 마감]({d}/urgent/): 마감이 가까운 지원사업",
+        f"- [지역별]({d}/region/): 시·도별 접수 중 공고",
+        f"- [분야별]({d}/category/): 금융·기술·인력·수출·내수·창업·경영·기타",
+        f"- [마감일 캘린더]({d}/calendar/): 지역·분야별 캘린더 구독",
+        f"- [나라장터 입찰]({d}/bid/): 입찰공고 마감일시",
+        f"- [전체 상세 목록]({d}/browse/)",
+        "",
+        "## 지역",
+    ]
+    lines += [f"- [{r['name']}]({d}/region/{r['slug']}/)" for r in config.REGIONS]
+    lines += ["", "## 분야"]
+    lines += [f"- [{c['name']}]({d}/category/{c['slug']}/): {c.get('desc', '')}" for c in config.CATEGORIES]
+    lines += ["", "## 가이드"]
+    lines += [f"- [{h1}]({d}/guide/{slug}/): {desc}" for slug, h1, desc, _ in guide_list]
+    lines += ["", "## 운영", f"- [사이트 소개]({d}/about/)", f"- [문의]({d}/contact/)",
+              f"- [개인정보처리방침]({d}/privacy/)", ""]
+    with open(os.path.join(DIST, "llms.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 def main():
     # 빌드 전에 출력 폴더를 통째로 비운다(이전 빌드의 잔재 HTML 이 배포되지 않게).
     if os.path.exists(DIST):
@@ -793,6 +865,7 @@ def main():
 
     collected_at = dl.collected_stamp()
     env.globals["collected_at"] = collected_at
+    env.globals["collected_iso"] = iso_datetime(collected_at)
     env.globals["alert_email"] = SITE.get("email") or ""
     env.globals["formspree_url"] = config.formspree_url()
 
@@ -830,6 +903,8 @@ def main():
     use_llm = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     rows = enrich.enrich_all(rows, use_llm=use_llm)
     rows = [decorate(fill_defaults(a), collected_at=collected_at) for a in rows]
+    for a in rows:
+        a["posted_iso"] = iso_date(a.get("posted_at") or a.get("created"))
 
     # 어제 대비 신규 공고 감지 (data/seen.json 과 비교)
     seen_path = os.path.join(ROOT, "data", "seen.json")
@@ -1282,10 +1357,22 @@ def main():
                 '<p class="note">공고문·신청서가 HWP 파일이라 열리지 않거나, 여러 서류를 PDF 하나로 묶어 '
                 '용량 제한에 맞춰야 한다면 <a href="https://schemaextract.shop/support-docs-pdf">HWP도우미의 제출 서류 PDF 만들기</a>'
                 '를 쓰세요. 파일은 업로드되지 않고 내 브라우저 안에서만 처리됩니다.</p>')
+        upd = guides.updated_of(slug)
+        article = {
+            "@context": "https://schema.org", "@type": "Article",
+            "headline": h1, "description": desc, "inLanguage": "ko-KR",
+            "url": f"{SITE['domain']}/guide/{slug}/",
+            "mainEntityOfPage": f"{SITE['domain']}/guide/{slug}/",
+            "author": {"@type": "Organization", "name": SITE["name"], "url": SITE["domain"] + "/"},
+            "publisher": {"@type": "Organization", "name": SITE["name"], "url": SITE["domain"] + "/"},
+        }
+        if upd:
+            article["dateModified"] = upd
         write(f"/guide/{slug}/", env.get_template("page.html").render(
             site=SITE, path=f"/guide/{slug}/", section="support",
             title=serp.guide_title(h1),
-            desc=desc, h1=h1, content=content, jsonld=jsonld,
+            desc=desc, h1=h1, content=content, jsonld=jsonld, updated=upd,
+            article_jsonld=_ld(article),
             **_crumbs_kw([{"name": "홈", "url": "/"}, {"name": "가이드", "url": "/guide/"},
                           {"name": h1, "url": f"/guide/{slug}/"}])),
             changefreq="weekly")
@@ -1417,6 +1504,8 @@ def main():
             "Disallow: /\n"
         )
     open(os.path.join(DIST, "robots.txt"), "w", encoding="utf-8").write(robots)
+    if SITE.get("allow_index"):
+        write_llms_txt(rows, guide_list)
 
     # ads.txt 는 빌드 초반에도 쓰지만, 마지막에 한 번 더 써서 중간 단계가
     # dist 를 비우거나 덮어써도 크롤러가 HTML 홈을 받지 않게 한다.
