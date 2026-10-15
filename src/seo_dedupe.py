@@ -46,7 +46,11 @@ def _with_tag(title, tag, brand):
     core = title[:-len(suffix)] if title.endswith(suffix) else title
     if tag in core:
         return title
-    return f"{core} · {tag}{suffix}" if title.endswith(suffix) else f"{core} · {tag}"
+    if title.endswith(suffix):
+        full = f"{core} · {tag}{suffix}"
+        # 검색 결과에서 잘리지 않게 60자를 넘으면 브랜드 꼬리를 뺀다(구분 태그가 우선).
+        return full if len(full) <= 60 else f"{core} · {tag}"
+    return f"{core} · {tag}"
 
 
 def disambiguate(pages, brand):

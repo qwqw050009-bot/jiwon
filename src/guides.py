@@ -50,6 +50,14 @@ def tag_of(slug):
     return TAGS.get(slug, ("가이드", "tag-basic"))
 
 
+# 가이드 본문을 마지막으로 고친 날(git 기록 기준). 본문을 고치면 함께 바꾼다.
+GUIDES_UPDATED = "2026-10-14"
+
+
+def updated_of(slug):
+    return GUIDES_UPDATED
+
+
 def build():
     return _build1() + _build2()
 

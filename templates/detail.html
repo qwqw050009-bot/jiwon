@@ -2,6 +2,7 @@
 {% from "_row.html" import row %}
 {% from "_ad.html" import ad_slot with context %}
 {% block jsonld %}
+{% if webpage_ld is defined %}{{ webpage_ld(a, title, desc, path, collected_at, a.posted_at or a.created) }}{% endif %}
 <script type="application/ld+json">{{ jsonld|safe }}</script>
 {% if faq_jsonld %}<script type="application/ld+json">{{ faq_jsonld|safe }}</script>{% endif %}
 {% if howto_jsonld %}<script type="application/ld+json">{{ howto_jsonld|safe }}</script>{% endif %}
@@ -41,8 +42,8 @@
       </div>
       <dl class="trust-facts">
         <div><dt>공고번호</dt><dd>{{ a.notice_no or a.id or '원문 확인' }}</dd></div>
-        <div><dt>게시일</dt><dd>{{ a.posted_at or a.created or '원문 확인' }}</dd></div>
-        <div><dt>마지막 수집</dt><dd>{% if a.collected_at or collected_at %}{{ a.collected_at or collected_at }} (KST){% else %}이 페이지를 만들 때{% endif %}</dd></div>
+        <div><dt>게시일</dt><dd>{% if a.posted_iso %}<time datetime="{{ a.posted_iso }}">{{ a.posted_at or a.created }}</time>{% else %}{{ a.posted_at or a.created or '원문 확인' }}{% endif %}</dd></div>
+        <div><dt>마지막 수집</dt><dd>{% if a.collected_at or collected_at %}{% set _ci = a.collected_iso or collected_iso %}<time{% if _ci %} datetime="{{ _ci }}"{% endif %}>{{ a.collected_at or collected_at }}</time> (KST){% else %}이 페이지를 만들 때{% endif %}</dd></div>
         <div><dt>출처</dt><dd>{{ a.source_label or '기업마당' }}</dd></div>
         <div><dt>기관</dt><dd>{{ a.org or '원문 확인' }}</dd></div>
       </dl>
