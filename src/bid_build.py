@@ -220,7 +220,7 @@ def build(env, write, site, urls, dist, noindex_sink=None):
             ad_mid_after=None if bid_empty else ad_mid_after,
             ad_bottom=None if bid_empty else ad_bottom,
             bid_kinds=BID_KINDS, today=0 if bid_empty else (
-                sum(1 for a in items if a.get("is_open") and a.get("dday") == 0)
+                tally(items, full).get("today", 0)
                 if not sections else t_all.get("today", 0)),
             sel_kind=sel_kind, sel_due=sel_due, sel_region=sel_region,
             limit=0 if bid_empty else limit,

@@ -17,6 +17,7 @@ STATUS_LABEL = {
     "upcoming": "예정",
     "open": "진행",
     "closed": "마감",
+    "canceled": "취소",
 }
 
 _TIME = re.compile(r"\d{1,2}:\d{2}")

@@ -286,6 +286,19 @@ def is_open(close_dt, now=None):
     return c >= now
 
 
+def _eun(word):
+    """받침 있으면 '은', 없으면 '는'. 한글이 아니면 '은'."""
+    w = (word or "").strip()
+    code = ord(w[-1]) - 0xAC00 if w else -1
+    return "는" if 0 <= code <= 11171 and code % 28 == 0 else "은"
+
+
+def is_canceled(row):
+    """나라장터 제목 앞의 "(취소)" 표기. 정정공고 안의 다른 위치 '취소'는 보지 않는다."""
+    t = (row.get("title") or "").lstrip()
+    return t.startswith("(취소)") or t.startswith("[취소]")
+
+
 def decorate(row, now=None):
     """D-day 배지·카드 한 줄. 마감일시가 있는 행만 들어온다."""
     close = parse_dt(row.get("close_dt"))
@@ -293,11 +306,16 @@ def decorate(row, now=None):
     if not close:
         return None
     d = dday_of(close, now)
-    open_ = is_open(close, now)
+    # 발주기관이 취소한 공고(제목이 "(취소)"로 시작)는 진행 중 목록에서 뺀다.
+    canceled = is_canceled(row)
+    open_ = is_open(close, now) and not canceled
     row["dday"] = d
     row["is_open"] = open_
+    row["canceled"] = canceled
     open_dt = parse_dt(row.get("open_dt"))
-    if not open_:
+    if canceled:
+        row["status"] = "canceled"
+    elif not open_:
         row["status"] = "closed"
     elif open_dt and open_dt > now:
         row["status"] = "upcoming"
@@ -306,11 +324,15 @@ def decorate(row, now=None):
     row["status_label"] = dl.status_label(row["status"])
     row["time_known"] = dl.time_known(row.get("close_dt") or "")
     row["deadline_line"] = dl.deadline_line(row)
+    row["org_eun"] = _eun(row.get("org") or "같은 수요기관")
     row["source"] = "g2b"
     row["source_label"] = "나라장터"
     row["notice_no"] = row.get("bid_no") or row.get("id") or ""
     row["posted_at"] = (row.get("open_dt") or "")[:16]
-    if not open_:
+    if canceled:
+        row["cls"], row["dlabel"] = "d-c", "취소"
+        row["dsub"] = row["deadline_line"]
+    elif not open_:
         row["cls"], row["dlabel"] = "d-c", "마감"
         row["dsub"] = row["deadline_line"]
     elif d == 0:

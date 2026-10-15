@@ -705,6 +705,15 @@ def test_fetch_budget_stops_retries_and_prefers_bigger_cache():
         bidinfo.CACHE, bidinfo._fetch_kind, bidinfo.META_PATH = orig_cache, orig_fetch, orig_meta
 
 
+def test_canceled_bid_not_open_and_josa():
+    """제목이 (취소)로 시작하면 진행 중이 아니다. 기관명 조사는 받침으로 고른다."""
+    row = bidinfo.normalize(_item(bidNtceNm="(취소) 하수도 설계용역", bidClseDt="2026-09-30 18:00:00"), "용역", now=NOW)
+    assert row["canceled"] and not row["is_open"] and row["dlabel"] == "취소" and row["status_label"] == "취소"
+    ok = bidinfo.normalize(_item(bidNtceNm="하수도 설계용역 취소분 재공고", bidClseDt="2026-09-30 18:00:00"), "용역", now=NOW)
+    assert not ok["canceled"] and ok["is_open"]
+    assert bidinfo._eun("서울특별시") == "는" and bidinfo._eun("맑은물관리사업소") == "는" and bidinfo._eun("연천군") == "은"
+
+
 def test_bid_list_wework_chips_and_detail_cta():
     from jinja2 import Environment, FileSystemLoader, select_autoescape
     root = os.path.join(os.path.dirname(__file__), "..")
@@ -946,6 +955,7 @@ if __name__ == "__main__":
     test_auth_failure_skips_remaining_kinds_timeout_does_not()
     test_partial_fetch_writes_cache_not_empty_on_total_fail()
     test_fetch_budget_stops_retries_and_prefers_bigger_cache()
+    test_canceled_bid_not_open_and_josa()
     test_no_cross_contamination()
     test_hub_copy_has_no_grant_vocab()
     test_nav_split_templates()
