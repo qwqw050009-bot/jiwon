@@ -197,6 +197,25 @@ h1,h2{text-wrap:balance}
     <a href="/terms/">이용약관</a>
     <a href="/contact/">문의</a>
   </nav>
+  {% if (section|default('support')) != 'bid' %}
+  <nav class="calc-links" aria-label="지원금 계산기 바로가기">
+    <strong>내가 받을 지원금 계산하기</strong>
+    <a href="https://tool.magampan.com/programs/youth-rent">청년 월세 지원 계산기</a>
+    <a href="https://tool.magampan.com/programs/eitc-work-credit">근로장려금 계산기</a>
+    <a href="https://tool.magampan.com/programs/child-tax-credit">자녀장려금 계산기</a>
+    <a href="https://tool.magampan.com/programs/youth-leap-account">청년도약계좌 계산기</a>
+    <a href="https://tool.magampan.com/programs/youth-tomorrow-savings">청년내일저축계좌 계산기</a>
+    <a href="https://tool.magampan.com/programs/unemployment-benefit">실업급여 계산기</a>
+    <a href="https://tool.magampan.com/programs/housing-benefit">주거급여 계산기</a>
+    <a href="https://tool.magampan.com/programs/basic-livelihood">생계급여 계산기</a>
+    <a href="https://tool.magampan.com/programs/national-scholarship">국가장학금 계산기</a>
+    <a href="https://tool.magampan.com/programs/childbirth-grant">출산지원금 계산기</a>
+    <a href="https://tool.magampan.com/programs/seoul-youth-allowance">서울 청년수당 계산기</a>
+    <a href="https://tool.magampan.com/programs/energy-voucher">에너지바우처 계산기</a>
+    <a href="https://tool.magampan.com/programs/pre-startup-package">예비창업패키지 안내</a>
+    <a href="https://tool.magampan.com/programs/sme-policy-finance">소상공인 정책자금 안내</a>
+  </nav>
+  {% endif %}
   <p class="src-legend">데이터 출처: 기업마당(지원사업) · K-Startup(키가 있을 때만) · 나라장터(입찰, /bid/). 없는 숫자·사업자등록번호는 만들지 않습니다.</p>
   <p class="op-note">개인이 운영하는 지원사업·입찰 마감 안내 사이트입니다. 문의는 <a href="/contact/">문의 페이지</a>에서 받습니다.</p>
   <p>「{{ site.name }}」은 정부지원사업과 나라장터 입찰을 마감일(시) 순으로 정리합니다. 순위를 매기거나 선정을 보장하지 않습니다. 신청·투찰 전 원문 공고를 확인하세요.{% if collected_at %} 이 빌드 수집 {{ collected_at }} (KST).{% endif %}</p>

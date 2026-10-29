@@ -937,6 +937,7 @@ footer{
   font-size:13px;color:var(--muted);background:var(--sheet);
 }
 footer nav{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+footer nav.calc-links{gap:8px 14px;font-size:.92em;border-top:1px solid #e5e5e5;padding-top:10px}footer nav.calc-links strong{flex-basis:100%;font-size:.95em}
 footer a{text-decoration:none;min-height:40px;display:inline-flex;align-items:center}
 footer a:hover{text-decoration:underline}
 footer a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
