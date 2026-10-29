@@ -168,6 +168,26 @@ def latest_revisions(rows):
 LATEST = {}
 
 
+# Cloudflare Pages 는 배포당 파일 2만 개까지다. 마감 입찰은 하루 약 1천 건씩 쌓여
+# 180일을 다 살리면 한도를 넘어 배포가 통째로 실패한다(2026-10-29, 아카이브 25,324건).
+# 아카이브 상세는 이 개수까지만 만든다. 나머지 지원·입찰 페이지 약 4천 개와 합쳐도 여유가 남는다.
+ARCHIVE_PAGE_MAX = 12000
+
+
+def cap_archived(archived, keep_indexed=None, limit=ARCHIVE_PAGE_MAX):
+    """아카이브 상세를 limit 개로 줄인다. 검색 유입이 있던 URL(keep_indexed)을 먼저,
+    나머지는 최근 마감 순(archived_bids 정렬 그대로). 빠진 상세는 404.html 로 진짜 404 다
+    (어차피 noindex 였던 마감 입찰)."""
+    if len(archived) <= limit:
+        return archived
+    keep = set(keep_indexed or ())
+    first = [a for a in archived if f"/bid/notice/{a.get('id')}/" in keep]
+    rest = [a for a in archived if f"/bid/notice/{a.get('id')}/" not in keep]
+    out = (first + rest)[:limit]
+    print(f"입찰 아카이브 상세 {len(archived)}건 중 {len(out)}건만 생성 (배포 파일 수 한도)")
+    return out
+
+
 def build(env, write, site, urls, dist, noindex_sink=None, keep_indexed=None):
     """입찰 트리를 dist/ 에 추가하고, 생성한 경로 수를 반환한다."""
     before = len(urls)
@@ -452,7 +472,7 @@ def build(env, write, site, urls, dist, noindex_sink=None, keep_indexed=None):
         a["amount_band"] = filt.bid_amount_band_id(a)
 
     # 목록에서 빠진 마감 입찰도 180일간 상세를 살린다 (색인·백링크 유지).
-    archived = bidinfo.archived_bids(rows)
+    archived = cap_archived(bidinfo.archived_bids(rows), keep_indexed)
     LATEST.update(latest_revisions(list(rows) + list(archived)))
 
     for a in rows:
