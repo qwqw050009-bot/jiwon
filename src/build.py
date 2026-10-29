@@ -153,6 +153,7 @@ def append_list_redirects(dist, pairs):
         f.writelines(lines)
 
 
+PAGES_FILE_LIMIT = 19500   # Cloudflare Pages 2만 파일 한도에서 여유분
 KEEP_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "keep_indexed.json")
 
 
@@ -1587,6 +1588,13 @@ def main():
         raise SystemExit("이번 빌드가 만들지 않은 HTML 이 dist 에 있습니다(잔재 파일): "
                          + ", ".join(stray[:20]))
     print("잔재 HTML 점검: 이번 빌드가 만든 파일만 있음")
+
+    # Cloudflare Pages 는 배포당 2만 파일까지. 넘으면 wrangler 가 배포를 통째로 거절한다.
+    n_files = sum(len(fs) for _, _, fs in os.walk(DIST))
+    if n_files > PAGES_FILE_LIMIT:
+        raise SystemExit(f"dist 파일 {n_files}개 — Cloudflare Pages 한도({PAGES_FILE_LIMIT})를 넘습니다. "
+                         "bid_build.ARCHIVE_PAGE_MAX 등 생성 개수를 줄이세요.")
+    print(f"배포 파일 {n_files}개 (한도 {PAGES_FILE_LIMIT})")
 
     print(f"지원 {len(rows)}건(신규 {new_cnt}건) → {support_n}페이지, "
           f"입찰 +{bid_n}페이지, 합계 {len(URLS)}페이지, "
