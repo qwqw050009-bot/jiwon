@@ -25,8 +25,8 @@
              placeholder="알림 받을 이메일" autocomplete="email">
     </div>
     <p class="alert-hint" id="alert-hint">{{ landing.hero_hint }}</p>
-    {# 홈에는 고른 조건이 없어서 '조건 저장' 버튼이 '무료 알림 등록'과 겹친다. 목록 페이지에만 둔다. #}
-    {% if path != '/' %}
+    {# 홈·입찰 홈에는 고른 조건이 없어서 '조건 저장' 버튼이 '무료 알림 등록'과 겹친다. 목록 페이지에만 둔다. #}
+    {% if path != '/' and path != '/bid/' %}
     <div class="alert-actions">
       <button type="button" class="alert-save" id="alert-save">이 조건 저장하고 알림받기 🔔</button>
     </div>
