@@ -329,9 +329,9 @@ def test_list_and_detail_wework_chrome():
     assert landing.HERO_H1 in home
     assert "오늘마감" in home
     assert "소상공인" in home
-    assert "가입 없이 오늘마감부터" in home
+    assert "가입 없이 바로" in home
     assert "무료 알림 등록" in home
-    assert "이 조건 저장하고 알림받기" in home
+    assert "이 조건 저장하고 알림받기" not in home  # 홈엔 고른 조건이 없어 버튼 하나만
     assert "조명·전기공사" not in home      # 업종 칩은 입찰 쪽에만
     assert "요금제" not in home
     assert "무료 알림 등록" in home

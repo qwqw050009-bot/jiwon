@@ -66,8 +66,8 @@ def test_home_hero_and_footer():
     assert landing.HERO_H1 in home
     assert landing.HERO_LEDE in home
     assert "무료 알림 등록" in home
-    assert "가입 없이 이메일로 무료 마감 알림" in home
-    assert "이 조건 저장하고 알림받기" in home
+    assert "무료로 마감 알림" in home
+    assert "이 조건 저장하고 알림받기" not in home  # 홈엔 버튼 하나만
     assert "프로 전용" not in home
     # 업종 칩(입찰용 분류)은 지원 홈에 두지 않는다
     assert "인테리어·마감공사" not in home
