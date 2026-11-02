@@ -59,6 +59,7 @@ import detail_extra
 import seo_dedupe
 import browse
 import notice_dedupe
+import index_policy
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 DIST = os.path.join(ROOT, "dist")
@@ -201,6 +202,46 @@ def append_gone_redirects(dist, pairs):
             f.write(f"{src} {dest} 301\n")
 
 
+def _bid_kinds_by_id():
+    try:
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "data", "bid_cache.json"),
+                              encoding="utf-8"))
+    except Exception:
+        return {}
+    return {str(r.get("id")): r.get("kind_slug") for r in rows
+            if isinstance(r, dict) and r.get("id") and r.get("kind_slug")}
+
+
+def gone_json(written, archive, bid_kinds, cats):
+    """functions 미들웨어(lib/gone_redirect.mjs)가 404 일 때 읽는 301 대상표.
+
+    hubs: 이번 빌드의 목록 허브(상세 제외). n/b: 지금 HTML 이 없는 공고·입찰 id → 허브.
+    이번 빌드에 HTML 이 있는 id 는 넣지 않는다(404 가 날 일이 없다).
+    """
+    paths = set()
+    for rel in written:
+        if rel.endswith("index.html"):
+            paths.add("/" + rel[:-len("index.html")])
+    hubs = sorted(p for p in paths if not is_detail(p) and p != "/")
+    hubset = set(hubs)
+    cslug = {n: (c or {}).get("slug") for n, c in (cats or {}).items()}
+    n = {}
+    for aid, a in (archive or {}).items():
+        if f"/notice/{aid}/" in paths:
+            continue
+        h = f"/category/{cslug.get((a or {}).get('category'))}/"
+        if h in hubset:
+            n[str(aid)] = h
+    b = {}
+    for bid, k in (bid_kinds or {}).items():
+        if f"/bid/notice/{bid}/" in paths:
+            continue
+        h = f"/bid/kind/{k}/"
+        if h in hubset:
+            b[bid] = h
+    return {"hubs": hubs, "n": n, "b": b}
+
+
 def count_redirect_rules(dist):
     try:
         lines = open(os.path.join(dist, "_redirects"), encoding="utf-8").read().splitlines()
@@ -237,7 +278,7 @@ def detail_guard(now_count, baselines, limit=DETAIL_DROP_LIMIT):
 # 여기 있는 파일은 별칭 호스트에서도 200 으로 나가지만 HTML 이 아니라 중복 색인 대상이 아니다.
 ROUTES_EXCLUDE = (
     "/static/*", "/calendar/*", "/notices.json", "/bids.json",
-    "/ads.txt", "/app-ads.txt", "/promo.txt",
+    "/ads.txt", "/app-ads.txt", "/promo.txt", "/gone.json",
     "/naver0defc699223f8ffa807d6d0bc99bb36c.html",
 )
 
@@ -710,6 +751,8 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
     else:
         today_items, week_rail = [], []
     today_n = today or sum(1 for a in pool if a.get("dday") == 0)
+    # 얇은 시군구·지역×분야 조합은 noindex,follow (index_policy)
+    listed = index_policy.list_indexable(path, pool, KEEP_INDEXED)
     related = intros.related_hubs(
         path=path, region=sel_region, category=sel_category, district=sel_district,
     )
@@ -739,8 +782,9 @@ def render_list(path, h1, lede, items, title=None, desc=None, blocks=None,
         region_n=region_n,
         # 빈 목록에는 자동 광고도 싣지 않는다 (애드센스: 콘텐츠 없는 화면 광고 금지).
         no_ads=not items and not sections,
+        noindex=not listed,
     )
-    write(path, html)
+    write(path, html, index=listed)
 
 
 RSS_MAX = 50
@@ -1269,7 +1313,9 @@ def main():
         # 서치콘솔에서 노출·클릭이 있던 URL(KEEP_INDEXED)은 그대로 둔다.
         stale = (bool(a.get("is_closed")) and isinstance(a.get("dday"), int)
                  and a["dday"] <= -CLOSED_NOINDEX_DAYS)
-        thin = (detail_extra.is_thin(a) or stale) and npath not in KEEP_INDEXED
+        thin = not index_policy.notice_indexable(
+            a, npath, KEEP_INDEXED, thin=detail_extra.is_thin(a) or stale,
+            body_len=detail_extra.body_len(a))
         html = env.get_template("detail.html").render(
             summary=detail_extra.summary_box(a),
             sections=detail_extra.desc_sections(a),
@@ -1547,6 +1593,10 @@ def main():
     gone = gone_redirects(known, detail_live + dup_src, budget)
     append_gone_redirects(DIST, gone)
     print(f"사라진 상세 URL 301 {len(gone)}건 (정적 규칙 여유 {budget})")
+    gj = gone_json(WRITTEN | browse.WRITTEN, _load_archive(), _bid_kinds_by_id(), cats)
+    with open(os.path.join(DIST, "gone.json"), "w", encoding="utf-8") as f:
+        json.dump(gj, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"gone.json: 허브 {len(gj['hubs'])}, 지원 {len(gj['n'])}, 입찰 {len(gj['b'])} (미들웨어 404→301)")
 
     # 빌드 가드: 라이브 sitemap(없으면 시드 기록) 대비 20% 넘게 줄면 실패
     live_n = len(live) if live is not None else None
