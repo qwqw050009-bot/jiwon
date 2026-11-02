@@ -36,6 +36,8 @@
 - `_routes.json`(build.py `ROUTES_EXCLUDE`) — /static/* 등 정적 파일은 Functions 를 거치지 않는다. HTML·/api/* 는 계속 미들웨어를 거친다
 - 광고 자리 높이(min-height)는 base.html 인라인 CSS 에 있다(style.css 는 비동기)
 - `src/browse.py` — `/browse/` 전체 상세 링크 목록(noindex,follow, 광고 없음). 고아 상세 방지
+- `src/index_policy.py` — 색인 축소 정책(2026-11). 색인·sitemap 은 홈·허브·가이드·고정 페이지 + 접수 중이고 요약 300자 이상인 지원 공고 + keep_indexed 만. 마감 공고·얇은 공고·입찰 상세·접수 중 8건 미만 시군구/지역×분야 목록은 HTML 200 유지 + noindex,follow + sitemap 제외. 상세 HTML 수는 그대로라 20% 가드는 바꾸지 않았다(가드는 HTML 수를 센다)
+- `lib/gone_redirect.mjs` + `dist/gone.json` — 정적 파일이 404 일 때만 미들웨어가 사라진 공고→분야 허브(모르면 /), 입찰→종류 허브(모르면 /bid/), 허브 하위 경로→가장 가까운 상위 허브로 301. 정적 _redirects 2천 개 한도를 넘는 옛 URL 용
 - `src/indexnow.py` — 배포 뒤 바뀐 URL 만 IndexNow 제출(1만 개씩). 빌드는 build/indexnow_urls.json 만 쓴다
 - 날짜는 `deadline.today_kst()` 만 쓴다. `date.today()` 금지(러너는 UTC)
 - `src/pages.py` — 애드센스 필수 고정 페이지 (about/privacy/terms/contact)

@@ -5,6 +5,7 @@
 지원사업 목록·지역·분야 페이지와 URL·데이터·카피를 분리한다.
 build.py 의 write()/URLS 를 받아 입찰 페이지만 추가한다.
 """
+import index_policy
 import json
 import os
 
@@ -395,8 +396,10 @@ def build(env, write, site, urls, dist, noindex_sink=None, keep_indexed=None):
         # 마감·취소된 입찰은 다시 투찰할 수 없어 검색 유입 가치가 낮다. HTML 은
         # 남기고(링크·북마크 보존) noindex,follow + sitemap 제외. 서치콘솔에서
         # 노출·클릭이 있던 URL(keep_indexed)은 그대로 색인한다.
-        closed_thin = (not canonical_path and not a.get("is_open")
-                       and npath not in (keep_indexed or ()))
+        # 2026-11: 접수 중 입찰도 서로 거의 같은 정형 페이지라 색인 대상에서 뺀다
+        # (index_policy). keep_indexed 만 색인.
+        closed_thin = not canonical_path and not index_policy.bid_indexable(
+            npath, keep_indexed or (), canonical_path)
         kslug = a.get("kind_slug") or slug_of(a.get("kind"))
         crumbs = [{"name": "홈", "url": "/"},
                   {"name": "입찰", "url": "/bid/"}]
