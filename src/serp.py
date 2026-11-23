@@ -966,21 +966,23 @@ def _notice_lead(row):
 
 def notice_title(row):
     """
-    앞머리에 오늘마감/이번주마감/혜택, 이어서 짧은 원제와 연도.
-    원제 전체를 그대로 넣지 않는다. 닫힌 공고에 '마감된 공고'를 붙이지 않는다.
+    사업 이름(검색어)을 맨 앞에, 그 뒤에 연도와 마감일(또는 상시접수).
+    2026-11: 앞머리 '오늘마감·이번주마감·모집' 은 매일 바뀌어 제목이 흔들리고 검색어가 뒤로 밀려 뺐다.
+    닫힌 공고에 '마감된 공고'를 붙이지 않는다.
     """
     row = row or {}
     title = (row.get("title") or "지원사업 공고").strip()
-    lead = _notice_lead(row)
     core = short_notice_core(title)
-    if lead.split()[-1] in core:
-        pass
-    elif any(w in core for w in ("지원금", "보조금", "모집", "신청")):
-        pass
-    elif lead not in ("신청", "모집", "지원금", "보조금"):
-        if _benefit_word(row) not in core and _benefit_word(row) not in lead:
-            core = f"{core} {_benefit_word(row)}".strip()
-    return with_brand(_join(lead, _with_year(core)))
+    if not any(w in core for w in ("지원", "모집", "신청", "보증", "자금", "공모", "교육", "사업")):
+        core = f"{core} {_benefit_word(row)}".strip()
+    tail = ""
+    if row.get("period_type") == "always":
+        tail = "상시접수"
+    else:
+        m = re.match(r"(\d{4})-(\d{2})-(\d{2})", (row.get("apply_end") or "").strip())
+        if m:
+            tail = f"{int(m.group(2))}월 {int(m.group(3))}일 마감"
+    return with_brand(_join(_with_year(core), tail))
 
 
 def _deadline_lead(row, closed, d):

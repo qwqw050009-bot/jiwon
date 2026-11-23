@@ -198,13 +198,13 @@ def test_notice_urgency_prefix_only_within_week():
     closed = _item(dday=-3, is_closed=True, is_open=False, title="소상공인 특례보증",
                    apply_end="2026-09-13")
     tt = _branded(serp.notice_title(today))
-    assert tt.startswith("오늘마감")
+    assert tt.startswith("소상공인 특례보증")
     assert len(serp.first_clause(tt)) <= serp.FIRST_CLAUSE_MAX
-    assert "소상공인 특례보증" in tt
     assert "2026" in tt
+    assert "오늘마감" not in tt
     wt = _branded(serp.notice_title(week))
-    assert wt.startswith("이번주마감 D-3")
-    assert "이번 주 마감" not in wt
+    assert wt.startswith("소상공인 특례보증")
+    assert "이번주마감" not in wt
     assert "이번주마감" not in serp.notice_title(later)
     assert "오늘마감" not in serp.notice_title(later)
     assert "오늘 마감" not in serp.notice_title(later)
@@ -212,8 +212,7 @@ def test_notice_urgency_prefix_only_within_week():
     assert "마감된 공고" not in serp.notice_title(closed)
     assert "소상공인 특례보증" in serp.notice_title(closed)
     lt = serp.notice_title(later)
-    assert "소상공인 특례보증" in lt
-    assert lt.startswith("신청")
+    assert lt.startswith("소상공인 특례보증")
     nd = serp.notice_desc(today)
     assert nd.startswith("대상 소상공인")
     assert "오늘마감" in nd
@@ -356,7 +355,8 @@ def test_gsc_notice_longtail_keeps_keywords():
         dday=16, apply_end="2026-10-02",
     )
     t = _branded(serp.notice_title(ax))
-    assert t.startswith("모집")
+    assert t.startswith("AX 전환")
+    assert "10월 2일 마감" in t
     assert "AX" in t and "전환" in t
     assert "시범사업" in t
     assert "외부 지원 프로그램 참여기업 모집 공고" not in t
@@ -391,8 +391,8 @@ def test_gsc_notice_longtail_keeps_keywords():
         dday=5, apply_end="2026-09-21",
     )
     lt = _branded(serp.notice_title(lotte))
-    assert lt.startswith("이번주마감 D-5")
     assert "롯데백화점" in lt
+    assert "9월 21일 마감" in lt
     assert len(serp.first_clause(lt)) <= serp.FIRST_CLAUSE_MAX
     ld = serp.notice_desc(lotte)
     assert "대상 중소기업" in ld
@@ -547,10 +547,7 @@ def test_notice_first_clause_and_length_bounds():
         t = _branded(serp.notice_title(row))
         clause = serp.first_clause(t)
         assert len(clause) <= serp.FIRST_CLAUSE_MAX, (clause, t)
-        head = t[:32]
-        assert any(k in head for k in (
-            "오늘마감", "이번주마감", "상시접수", "지원금", "모집", "신청", "D-",
-        )), t
+        assert "2026" in t, t
         assert len(serp.core_of(t)) <= 48, (len(serp.core_of(t)), t)
         d = serp.notice_desc(row)
         assert 40 <= len(d) <= 150, (len(d), d)

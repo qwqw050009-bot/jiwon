@@ -151,7 +151,7 @@ def test_ledes_stay_unique_with_counts():
         assert "오늘 마감 2건" in lede
     combo = serp.combo_lede("서울", "창업", items)
     assert "서울" in combo and "창업" in combo
-    assert serp.notice_title({"title": "소상공인 특례보증", "dday": 0}).startswith("오늘마감")
+    assert serp.notice_title({"title": "소상공인 특례보증", "dday": 0}).startswith("소상공인 특례보증")
 
 
 def test_seq_correction_and_compact_bid_flags():
